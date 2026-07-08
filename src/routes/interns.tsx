@@ -31,6 +31,7 @@ function InternsPage() {
     goal: '',
     privatePractice: '',
     budget: '',
+    examPrep: '',
     notes: '',
     'bot-field': '',
   })
@@ -56,6 +57,11 @@ function InternsPage() {
         <p className="section-label">For Interns</p>
         <h1 className="section-title">You deserve a supervisor who fits — not just whoever's available.</h1>
         <p className="section-sub">Tell us about your goals and we'll match you with a qualified supervisor who's aligned with where you want to go.</p>
+      </div>
+
+      <div style={{ background: 'var(--sage, #6F907F)', color: '#F9F6F0', padding: '1rem 1.5rem', margin: '0 10% 2.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <p style={{ margin: 0, fontSize: '0.95rem' }}>If you're on the LMHC track, <strong>TherapyPrepped</strong> helps interns prepare specifically for the NCMHCE licensure exam.</p>
+        <a href="https://www.therapyprepped.com" target="_blank" rel="noopener noreferrer" style={{ background: '#F9F6F0', color: 'var(--walnut, #35261D)', padding: '0.5rem 1.25rem', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap', textDecoration: 'none' }}>Check it out ↗</a>
       </div>
 
       <section className="section">
@@ -95,6 +101,12 @@ function InternsPage() {
               <div className="form-success">
                 <h3>You're on the list! 🌱</h3>
                 <p>We'll review your profile and reach out with your match within 3–5 business days.</p>
+                {(fields.examPrep === 'Yes — actively studying' || fields.examPrep === 'Not yet, but I will be') && (
+                  <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                    <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Since you're on the LMHC track: get a head start on your NCMHCE prep with <strong>TherapyPrepped</strong> — use code <strong>MYSUPER10</strong> for 10% off.</p>
+                    <a href="https://www.therapyprepped.com" target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ display: 'inline-block' }}>Explore TherapyPrepped ↗</a>
+                  </div>
+                )}
               </div>
             ) : (
               <form className="form-wrap" onSubmit={handleSubmit}>
@@ -150,6 +162,15 @@ function InternsPage() {
                   <option>$350+/month</option>
                 </select>
 
+                <label htmlFor="intern-examprep">Are you on the LMHC track preparing for the NCMHCE?</label>
+                <select id="intern-examprep" name="examPrep" value={fields.examPrep} onChange={handleChange} required>
+                  <option value="">Select one</option>
+                  <option>Yes — actively studying</option>
+                  <option>Not yet, but I will be</option>
+                  <option>Already passed</option>
+                  <option>Not applicable — different licensure track</option>
+                </select>
+
                 <label htmlFor="intern-notes">Anything else we should know? (optional)</label>
                 <textarea id="intern-notes" name="notes" placeholder="Supervision style preferences, specialty interests, scheduling needs..." value={fields.notes} onChange={handleChange} />
 
@@ -167,6 +188,7 @@ function InternsPage() {
           <Link to="/">Home</Link>
           <Link to="/about">About</Link>
           <Link to="/supervisors">For Supervisors</Link>
+          <a href="https://www.therapyprepped.com" target="_blank" rel="noopener noreferrer">NCMHCE Prep ↗</a>
         </div>
       </footer>
     </>

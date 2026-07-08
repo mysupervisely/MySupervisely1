@@ -13,6 +13,7 @@ function SiteFooter() {
         <Link to="/about">About</Link>
         <Link to="/interns">For Interns</Link>
         <Link to="/supervisors">For Supervisors</Link>
+        <a href="https://www.therapyprepped.com" target="_blank" rel="noopener noreferrer">NCMHCE Prep ↗</a>
       </div>
     </footer>
   )

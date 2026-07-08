@@ -179,6 +179,7 @@ function SupervisorsPage() {
           <Link to="/">Home</Link>
           <Link to="/about">About</Link>
           <Link to="/interns">For Interns</Link>
+          <a href="https://www.therapyprepped.com" target="_blank" rel="noopener noreferrer">NCMHCE Prep ↗</a>
         </div>
       </footer>
     </>
