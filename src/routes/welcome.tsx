@@ -2,10 +2,10 @@ import { useEffect } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/welcome')({
-  component: WelcomePage,
+  component: WelcomeIntro,
 })
 
-function WelcomePage() {
+export function WelcomeIntro() {
   useEffect(() => {
     const scenes = document.querySelectorAll<HTMLElement>('.wv-scene')
     const dotsEl = document.getElementById('wv-dots-nav')
