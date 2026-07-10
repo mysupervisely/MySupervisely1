@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { WelcomeIntro } from './welcome'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -22,6 +23,8 @@ function SiteFooter() {
 function HomePage() {
   return (
     <>
+      <WelcomeIntro />
+
       {/* Hero */}
       <section className="hero">
         <svg className="path-graphic" width="320" height="420" viewBox="0 0 320 420" fill="none">
