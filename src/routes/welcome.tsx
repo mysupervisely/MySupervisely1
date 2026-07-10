@@ -87,11 +87,11 @@ function WelcomePage() {
       <style>{`
         .wv-stage { position: relative; width: 100%; min-height: calc(100vh - 64px); background: var(--cream); overflow: hidden; font-family: var(--ff-body); color: var(--bark); }
         .wv-panel-split { position: absolute; inset: 0; z-index: 0; background: linear-gradient(100deg, var(--cream) 0%, var(--cream) 58%, var(--linen) 62%, var(--linen) 100%); }
-        .wv-link-layer { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.9; z-index: 1; }
+        .wv-link-layer { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 1; z-index: 1; }
         .wv-lane { fill: none; stroke-width: 1.4; stroke-dasharray: 700; stroke-dashoffset: 700; transition: stroke-dashoffset 2.4s cubic-bezier(.65,0,.35,1); }
         .wv-lane.intern { stroke: var(--sage); }
         .wv-lane.supervisor { stroke: var(--walnut); }
-        .wv-dot { r: 4; transition: r .8s ease, opacity .8s ease; opacity: 0.4; }
+        .wv-dot { r: 4; transition: r .8s ease, opacity .8s ease; opacity: 0.75; }
         .wv-dot.intern { fill: var(--sage); }
         .wv-dot.supervisor { fill: var(--walnut); }
         .wv-dot.lit { r: 6; opacity: 1; }
