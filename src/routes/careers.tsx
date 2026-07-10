@@ -15,6 +15,7 @@ function InternCareerForm() {
   const [fields, setFields] = useState({
     name: '',
     email: '',
+    licenseType: '',
     licenseStatus: '',
     hoursRemaining: '',
     region: '',
@@ -61,6 +62,14 @@ function InternCareerForm() {
 
       <label htmlFor="ci-email">Email Address</label>
       <input id="ci-email" type="email" name="email" placeholder="your@email.com" value={fields.email} onChange={handleChange} required />
+
+      <label htmlFor="ci-license">License type</label>
+      <select id="ci-license" name="licenseType" value={fields.licenseType} onChange={handleChange} required>
+        <option value="">Select one</option>
+        <option>LMFT</option>
+        <option>LMHC</option>
+        <option>LCSW</option>
+      </select>
 
       <label htmlFor="ci-status">License status</label>
       <select id="ci-status" name="licenseStatus" value={fields.licenseStatus} onChange={handleChange} required>
