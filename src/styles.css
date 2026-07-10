@@ -393,6 +393,62 @@ footer p { font-size: 0.8rem; color: var(--sand); opacity: 0.7; }
   align-items: start;
 }
 
+/* ── Careers page ── */
+.audience-hero.careers { background: var(--sage); }
+.audience-hero.careers .section-label { color: var(--linen); }
+.audience-hero.careers .section-title { color: var(--white); }
+.audience-hero.careers .section-sub { color: var(--linen); }
+
+.match-callout {
+  background: var(--linen);
+  border: 1px solid var(--sand);
+  border-radius: 16px;
+  padding: 2.5rem;
+  margin-bottom: 3.5rem;
+}
+.match-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--sage);
+  color: var(--white);
+  padding: 0.4rem 0.9rem;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+.match-callout p { font-size: 0.95rem; color: var(--walnut); font-weight: 300; line-height: 1.7; max-width: 640px; }
+
+.connector-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--white);
+  border: 1.5px dashed var(--clay);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin: 0.5rem 0 1.5rem;
+}
+.connector-check input[type="checkbox"] {
+  margin-top: 0.2rem;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--sage);
+  flex-shrink: 0;
+}
+.connector-check label {
+  font-size: 0.8rem;
+  color: var(--walnut);
+  font-weight: 400;
+  line-height: 1.5;
+  margin-bottom: 0;
+  letter-spacing: normal;
+}
+.connector-check label b { color: var(--bark); font-weight: 600; }
+
 /* ── Mobile ── */
 @media (max-width: 700px) {
   .hero { padding: 4rem 6% 3rem; }
