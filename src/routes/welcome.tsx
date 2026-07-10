@@ -165,8 +165,7 @@ export function WelcomeIntro() {
             Getting licensed takes supervised hours. Getting there takes <em>the right supervisor.</em>
           </h1>
           <p className="wv-sub">
-            We connect interns working toward licensure with qualified supervisors across LMHC, LCSW, LMFT, and
-            Psychology — matched on goals, style, and career vision, not just zip code.
+            We connect interns working toward licensure with qualified supervisors across LMHC, LCSW, and LMFT — matched on goals, style, and career vision, not just zip code.
           </p>
         </div>
 
