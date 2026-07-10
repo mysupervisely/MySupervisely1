@@ -25,25 +25,6 @@ function HomePage() {
     <>
       <WelcomeIntro />
 
-      {/* Hero */}
-      <section className="hero">
-        <svg className="path-graphic" width="320" height="420" viewBox="0 0 320 420" fill="none">
-          <path d="M160 20 C60 80 260 140 160 200 C60 260 260 320 160 400" stroke="#6B5040" strokeWidth="2.5" strokeDasharray="6 10" fill="none"/>
-          <circle cx="160" cy="20" r="6" fill="#7A9B8A"/>
-          <circle cx="160" cy="200" r="6" fill="#B89B7E"/>
-          <circle cx="160" cy="400" r="6" fill="#6B5040"/>
-        </svg>
-        <div className="hero-content">
-          <p className="hero-eyebrow">Mental Health Supervision, Reimagined</p>
-          <h1>Find the supervisor who <em>fits your path.</em></h1>
-          <p className="hero-sub">MySupervisely connects mental health interns with qualified supervisors who match their goals, style, and career vision — not just their zip code.</p>
-          <div className="btn-group">
-            <Link to="/interns" className="btn-primary">I'm an Intern</Link>
-            <Link to="/supervisors" className="btn-secondary">I'm a Supervisor</Link>
-          </div>
-        </div>
-      </section>
-
       {/* Stats */}
       <div className="stats">
         <div className="stat">
