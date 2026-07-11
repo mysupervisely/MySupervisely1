@@ -107,6 +107,30 @@ function HomePage() {
         </div>
       </section>
 
+      {/* Job Placement / Careers */}
+      <section className="section">
+        <p className="section-label">Careers</p>
+        <h2 className="section-title">Job placement, not just supervision</h2>
+        <p className="section-sub">Once you're licensed — or even before — we help connect you to real openings at practices and organizations that are actually hiring, matched the same way we match supervision: by goals, not just geography.</p>
+        <div className="steps">
+          <div className="step">
+            <div className="step-num">01</div>
+            <h3>Open positions, curated</h3>
+            <p>We source and vet job openings from practices and organizations across LMHC, LCSW, and LMFT — not a generic job board.</p>
+          </div>
+          <div className="step">
+            <div className="step-num">02</div>
+            <h3>Matched to your fit</h3>
+            <p>Roles are matched to your specialty, setting preference, and career vision, the same way we match supervision.</p>
+          </div>
+          <div className="step">
+            <div className="step-num">03</div>
+            <h3>Support through the process</h3>
+            <p>From application to offer, we're a real point of contact — not a black-box portal you submit into and never hear back from.</p>
+          </div>
+        </div>
+      </section>
+
       {/* Testimonials */}
       <section className="section">
         <p className="section-label">Early Voices</p>
