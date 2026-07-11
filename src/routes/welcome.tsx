@@ -22,9 +22,9 @@ export function WelcomeIntro() {
     }
     const dots = document.querySelectorAll<HTMLElement>('.wv-navdot')
 
-    const dotSteps: string[][] = [[], ['wv-d-i1', 'wv-d-s1'], ['wv-d-i2', 'wv-d-s2', 'wv-d-i3', 'wv-d-s3'], []]
-    const laneSteps: string[][] = [[], ['wv-lane-intern', 'wv-lane-supervisor'], [], []]
-    const durations = [3200, 5200, 5200, 999999]
+    const dotSteps: string[][] = [[], ['wv-d-i1', 'wv-d-s1'], ['wv-d-i2', 'wv-d-s2', 'wv-d-i3', 'wv-d-s3'], [], []]
+    const laneSteps: string[][] = [[], ['wv-lane-intern', 'wv-lane-supervisor'], [], [], []]
+    const durations = [3200, 5200, 5200, 5200, 999999]
 
     let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -34,7 +34,7 @@ export function WelcomeIntro() {
         const el = document.getElementById(id)
         if (el) el.style.strokeDashoffset = '0'
       })
-      if (i === 3) {
+      if (i === 4) {
         document.getElementById('wv-match-node')?.classList.add('lit')
         document.getElementById('wv-match-ring')?.classList.add('lit')
       }
@@ -153,7 +153,7 @@ export function WelcomeIntro() {
         </button>
 
         <div className="wv-scene" data-i="0">
-          <div className="wv-mark">Mental health supervision, reimagined</div>
+          <div className="wv-mark">Mental health supervision & career matching, reimagined</div>
           <h1 className="wv-h1">
             Welcome to <em>MySupervisely</em>.
           </h1>
@@ -162,10 +162,10 @@ export function WelcomeIntro() {
         <div className="wv-scene" data-i="1">
           <div className="wv-mark">The gap</div>
           <h1 className="wv-h1">
-            Getting licensed takes supervised hours. Getting there takes <em>the right supervisor.</em>
+            Getting licensed takes supervised hours — and the right opportunities. Getting there takes <em>the right match.</em>
           </h1>
           <p className="wv-sub">
-            We connect interns working toward licensure with qualified supervisors across LMHC, LCSW, and LMFT — matched on goals, style, and career vision, not just zip code.
+            MySupervisely is a job placement and recruitment platform for mental health professionals. We connect interns working toward licensure with qualified supervisors and open positions across LMHC, LCSW, and LMFT — matched on goals, style, and career vision, not just zip code.
           </p>
         </div>
 
@@ -189,6 +189,26 @@ export function WelcomeIntro() {
         </div>
 
         <div className="wv-scene" data-i="3">
+          <div className="wv-mark">Careers</div>
+          <h1 className="wv-h1">
+            And when you're ready — <em>real openings</em> waiting.
+          </h1>
+          <div className="wv-match-card">
+            <div className="wv-match-tag">Open Position — LCSW</div>
+            <div className="wv-match-row">
+              <div>
+                <div className="wv-match-side">Setting</div>
+                <div className="wv-match-name">Group practice, hybrid</div>
+              </div>
+              <div>
+                <div className="wv-match-side">Status</div>
+                <div className="wv-match-name">Actively hiring</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="wv-scene" data-i="4">
           <div className="wv-mark">You're ready to begin</div>
           <h1 className="wv-h1">
             Find the supervisor who <em>fits your path.</em>
