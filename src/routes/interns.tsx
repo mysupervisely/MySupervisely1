@@ -57,6 +57,7 @@ function InternsPage() {
         <p className="section-label">For Interns</p>
         <h1 className="section-title">You deserve a supervisor who fits — not just whoever's available.</h1>
         <p className="section-sub">Tell us about your goals and we'll match you with a qualified supervisor who's aligned with where you want to go.</p>
+        <div className="match-badge" style={{ marginTop: '1rem', display: 'inline-flex' }}>$0 · Free for interns, always</div>
       </div>
 
       <div style={{ background: 'var(--sage, #6F907F)', color: '#F9F6F0', padding: '1rem 1.5rem', margin: '0 10% 2.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
