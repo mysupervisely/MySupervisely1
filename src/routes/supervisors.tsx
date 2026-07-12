@@ -58,6 +58,7 @@ function SupervisorsPage() {
         <p className="section-label">For Supervisors</p>
         <h1 className="section-title">Spend less time recruiting.<br />More time mentoring.</h1>
         <p className="section-sub">We send you motivated, pre-screened interns who match your specialty, schedule, and supervision style.</p>
+        <div className="match-badge" style={{ marginTop: '1rem', display: 'inline-flex' }}>$200 flat · Only when you accept a supervisee</div>
       </div>
 
       <section className="section">
@@ -68,7 +69,7 @@ function SupervisorsPage() {
             <div className="faq" style={{ marginTop: '2rem' }}>
               <div className="faq-item">
                 <p className="faq-q">What does it cost to join?</p>
-                <p className="faq-a">Joining our supervisor network is currently free during our launch phase. We'll always be transparent about any future pricing.</p>
+                <p className="faq-a">A flat $200 fee, charged once, only when you accept a supervisee — never a subscription just to join. Browsing and messaging candidates is always free.</p>
               </div>
               <div className="faq-item">
                 <p className="faq-q">What qualifications do I need?</p>
