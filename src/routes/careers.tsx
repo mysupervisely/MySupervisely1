@@ -202,6 +202,7 @@ function CareersPage() {
           Supervision gets you licensed. Careers is where you get hired. Post one profile — when a practice
           offers both supervision and employment, we flag it so you don't have to search twice.
         </p>
+        <div className="match-badge" style={{ marginTop: '1rem', display: 'inline-flex' }}>$900 flat · Only when you confirm a hire</div>
       </div>
 
       <section className="section">
