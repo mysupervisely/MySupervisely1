@@ -131,38 +131,6 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="section">
-        <p className="section-label">Early Voices</p>
-        <h2 className="section-title">What people are saying</h2>
-        <p className="section-sub">We're just getting started — but the need is real.</p>
-        <div className="testimonials">
-          <div className="testimonial">
-            <p className="testimonial-quote">"I spent three months searching for a supervisor who understood private practice. I wish something like this existed when I graduated."</p>
-            <p className="testimonial-author">Mental Health Intern</p>
-          </div>
-          <div className="testimonial">
-            <p className="testimonial-quote">"As a Qualified Supervisor, I want to work with interns who are motivated. I just never had a good way to find them."</p>
-            <p className="testimonial-author">Licensed Supervisor</p>
-          </div>
-          <div className="testimonial">
-            <p className="testimonial-quote">"The telehealth flexibility is everything. I needed a supervisor who could meet virtually and really understood that model."</p>
-            <p className="testimonial-author">Mental Health Intern</p>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Banner */}
-      <section style={{ background: 'var(--linen)', padding: '5rem 10%', textAlign: 'center' }}>
-        <p className="section-label" style={{ textAlign: 'center' }}>Ready?</p>
-        <h2 className="section-title" style={{ margin: '0 auto 1rem', textAlign: 'center' }}>Your path starts with the right supervisor.</h2>
-        <p style={{ fontSize: '1rem', color: 'var(--walnut)', fontWeight: 300, marginBottom: '2rem' }}>Join the waitlist today and be first to get matched when we launch.</p>
-        <div className="btn-group" style={{ justifyContent: 'center' }}>
-          <Link to="/interns" className="btn-primary">Get Matched as an Intern</Link>
-          <Link to="/supervisors" className="btn-secondary">Join as a Supervisor</Link>
-        </div>
-      </section>
-
       <SiteFooter />
     </>
   )
