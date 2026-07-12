@@ -51,7 +51,7 @@ function PricingPage() {
         .msp-pricing .grid { display: flex; gap: 24px; align-items: stretch; }
         .msp-pricing .card { flex: 1; background: #FFFFFF; border: 1px solid #E4DCC9; border-radius: 28px; padding: 38px 34px; display: flex; flex-direction: column; position: relative; }
         .msp-pricing .card.featured { border: 2px solid #5C7C6B; box-shadow: 0 20px 50px rgba(92,124,107,0.15); }
-        .msp-pricing .featured-tag { position: absolute; top: -14px; left: 34px; background: #5C7C6B; color: #F6F2EA; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 5px 14px; border-radius: 100px; text-transform: uppercase; }
+        .msp-pricing .featured-tag { display: inline-block; background: #5C7C6B; color: #F6F2EA; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 5px 14px; border-radius: 100px; text-transform: uppercase; margin-bottom: 16px; }
         .msp-pricing .plan-kicker { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #8A8367; font-weight: 600; margin-bottom: 10px; }
         .msp-pricing .plan-name { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 600; margin-bottom: 8px; }
         .msp-pricing .plan-desc { font-size: 15px; color: #5C6B5D; line-height: 1.5; margin-bottom: 24px; min-height: 44px; }
