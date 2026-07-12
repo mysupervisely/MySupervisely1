@@ -1,0 +1,7 @@
+node_modules
+dist
+.netlify
+src/routeTree.gen.ts
+.env
+.env.*
+!.env.example
