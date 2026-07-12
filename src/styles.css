@@ -17,6 +17,7 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+html, body { overflow-x: hidden; }
 body {
   font-family: var(--ff-body);
   background: var(--cream);
@@ -456,8 +457,10 @@ footer p { font-size: 0.8rem; color: var(--sand); opacity: 0.7; }
   .section { padding: 4rem 6%; }
   .split { grid-template-columns: 1fr; }
   .stats { padding: 2rem 6%; gap: 1.5rem; }
-  nav { padding: 0 6%; }
-  .nav-links { gap: 1rem; }
+  nav { padding: 12px 6%; height: auto; flex-wrap: wrap; row-gap: 8px; }
+  .nav-links { gap: 0.6rem; flex-wrap: wrap; justify-content: center; width: 100%; }
+  .nav-links a { font-size: 0.75rem; }
+  .nav-cta { padding: 0.4rem 1rem !important; font-size: 0.75rem !important; }
   .about-hero, .audience-hero { padding: 4rem 6% 3rem; }
   .about-body { padding: 3rem 6%; }
   footer { padding: 2.5rem 6%; flex-direction: column; align-items: flex-start; }
