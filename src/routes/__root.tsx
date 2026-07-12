@@ -53,6 +53,7 @@ function SiteNav() {
         <Link to="/interns">For Interns</Link>
         <Link to="/supervisors">For Supervisors</Link>
         <Link to="/careers">Careers</Link>
+        <Link to="/pricing">Pricing</Link>
         <Link to="/interns" className="nav-cta">Get Matched</Link>
       </div>
     </nav>
