@@ -21,3 +21,9 @@
   to = "/.netlify/functions/create-checkout-session"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/booking"
+  to = "/.netlify/functions/create-booking"
+  status = 200
+  force = true
