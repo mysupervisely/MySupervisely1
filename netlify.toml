@@ -33,3 +33,9 @@
   to = "/.netlify/functions/submit-survey"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/send-confirmation"
+  to = "/.netlify/functions/send-intake-confirmation"
+  status = 200
+  force = true
