@@ -14,6 +14,7 @@ async function createMeetingToken(roomName: string, userName: string, expUnix: n
         user_name: userName,
         is_owner: false,
         exp: expUnix,
+        enable_prejoin_ui: false,
       },
     }),
   })
@@ -80,6 +81,7 @@ export const handler: Handler = async (event) => {
         exp: expUnix,
         enable_chat: false,
         enable_screenshare: false,
+        enable_prejoin_ui: false,
       },
     }),
   })
