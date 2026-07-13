@@ -27,3 +27,9 @@
   to = "/.netlify/functions/create-booking"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/survey"
+  to = "/.netlify/functions/submit-survey"
+  status = 200
+  force = true
