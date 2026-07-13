@@ -49,6 +49,11 @@ function SupervisorsPage() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: encode({ 'form-name': 'supervisor-application', ...fields }),
     })
+    fetch('/api/send-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: fields.email, name: fields.name, kind: 'supervisor' }),
+    }).catch(() => {})
     setSubmitted(true)
   }
 
