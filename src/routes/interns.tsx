@@ -48,6 +48,11 @@ function InternsPage() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: encode({ 'form-name': 'intern-application', ...fields }),
     })
+    fetch('/api/send-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: fields.email, name: fields.name, kind: 'intern' }),
+    }).catch(() => {})
     setSubmitted(true)
   }
 
