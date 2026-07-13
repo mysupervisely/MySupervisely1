@@ -7,7 +7,7 @@ export const handler: Handler = async (event) => {
 
   let toEmail: string | undefined
   let name: string | undefined
-  let kind: string | undefined // 'intern' or 'practice'
+  let kind: string | undefined // 'intern' | 'practice' | 'supervisor'
 
   try {
     ;({ email: toEmail, name, kind } = JSON.parse(event.body || '{}'))
@@ -21,19 +21,28 @@ export const handler: Handler = async (event) => {
 
   const firstName = name?.trim().split(' ')[0] || 'there'
 
-  const subject =
-    kind === 'practice'
-      ? "We've got your opening — MySupervisely"
-      : "You're on the list — MySupervisely"
+  const copy: Record<string, { subject: string; html: string }> = {
+    practice: {
+      subject: "We've got your opening — MySupervisely",
+      html: `<p>Hi ${firstName},</p>
+             <p>Thanks for submitting your opening to MySupervisely. We'll review it and reach out within 2 business days to confirm the details and start matching you with candidates.</p>
+             <p>— The MySupervisely team</p>`,
+    },
+    supervisor: {
+      subject: 'Welcome to the network — MySupervisely',
+      html: `<p>Hi ${firstName},</p>
+             <p>Thanks for joining MySupervisely as a supervisor. We'll review your profile and be in touch within 2 business days to complete your onboarding.</p>
+             <p>— The MySupervisely team</p>`,
+    },
+    intern: {
+      subject: "You're on the list — MySupervisely",
+      html: `<p>Hi ${firstName},</p>
+             <p>Thanks for signing up with MySupervisely. We'll review your profile and reach out with your match within 3–5 business days.</p>
+             <p>— The MySupervisely team</p>`,
+    },
+  }
 
-  const body =
-    kind === 'practice'
-      ? `<p>Hi ${firstName},</p>
-         <p>Thanks for submitting your opening to MySupervisely. We'll review it and reach out within 2 business days to confirm the details and start matching you with candidates.</p>
-         <p>— The MySupervisely team</p>`
-      : `<p>Hi ${firstName},</p>
-         <p>Thanks for signing up with MySupervisely. We'll review your profile and reach out with your match within 3–5 business days.</p>
-         <p>— The MySupervisely team</p>`
+  const { subject, html: body } = copy[kind] || copy.intern
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
