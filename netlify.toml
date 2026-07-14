@@ -45,3 +45,9 @@
   to = "/.netlify/functions/reveal-contact"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/notify-admin"
+  to = "/.netlify/functions/notify-admin"
+  status = 200
+  force = true
