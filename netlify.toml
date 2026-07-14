@@ -39,3 +39,9 @@
   to = "/.netlify/functions/send-intake-confirmation"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/reveal-contact"
+  to = "/.netlify/functions/reveal-contact"
+  status = 200
+  force = true
