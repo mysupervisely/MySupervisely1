@@ -25,7 +25,7 @@ function LoginPage() {
       setError(signInError.message)
       return
     }
-    navigate({ to: '/' })
+    navigate({ to: '/dashboard' })
   }
 
   return (
