@@ -54,6 +54,7 @@ function SiteNav() {
         <Link to="/supervisors">For Supervisors</Link>
         <Link to="/careers">Careers</Link>
         <Link to="/pricing">Pricing</Link>
+        <Link to="/dashboard">Dashboard</Link>
         <Link to="/login">Log In</Link>
         <Link to="/signup" className="nav-cta">Sign Up</Link>
       </div>
