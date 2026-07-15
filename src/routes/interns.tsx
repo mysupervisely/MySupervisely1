@@ -53,6 +53,11 @@ function InternsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: fields.email, name: fields.name, kind: 'intern' }),
     }).catch(() => {})
+    fetch('/api/notify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'intern', ...fields }),
+    }).catch(() => {})
     setSubmitted(true)
   }
 
