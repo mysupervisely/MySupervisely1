@@ -21,6 +21,15 @@ export const handler: Handler = async (event) => {
 
   const firstName = name?.trim().split(' ')[0] || 'there'
 
+  const sampleMatchCard = `
+    <p style="margin-top:24px; margin-bottom:8px; font-size:13px; color:#8A8367; text-transform:uppercase; letter-spacing:0.05em;">Here's what a match looks like</p>
+    <div style="border:1px solid #E5DFD0; border-radius:12px; padding:16px 20px; max-width:360px; font-family: sans-serif;">
+      <div style="font-weight:600; font-size:15px;">Dr. Alex M. · LMFT</div>
+      <div style="font-size:13px; color:#8A8367; margin-top:4px;">Telehealth · Trauma-focused · Accepting 1–2 supervisees</div>
+    </div>
+    <p style="font-size:12px; color:#8A8367; margin-top:8px;">Example only — your real match will be based on your specific goals and licensure needs.</p>
+  `
+
   const copy: Record<string, { subject: string; html: string }> = {
     practice: {
       subject: "We've got your opening — MySupervisely",
@@ -38,6 +47,7 @@ export const handler: Handler = async (event) => {
       subject: "You're on the list — MySupervisely",
       html: `<p>Hi ${firstName},</p>
              <p>Thanks for signing up with MySupervisely. We'll review your profile and reach out with your match within 3–5 business days.</p>
+             ${sampleMatchCard}
              <p>— The MySupervisely team</p>`,
     },
   }
