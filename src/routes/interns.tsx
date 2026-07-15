@@ -31,6 +31,7 @@ function InternsPage() {
     goal: '',
     privatePractice: '',
     budget: '',
+    sessionFrequency: '',
     examPrep: '',
     notes: '',
     'bot-field': '',
@@ -164,13 +165,23 @@ function InternsPage() {
                   <option>Not at this time</option>
                 </select>
 
-                <label htmlFor="intern-budget">Monthly supervision budget</label>
+                <label htmlFor="intern-budget">Per-session supervision budget</label>
                 <select id="intern-budget" name="budget" value={fields.budget} onChange={handleChange} required>
                   <option value="">Select a range</option>
-                  <option>Under $100/month</option>
-                  <option>$100–$200/month</option>
-                  <option>$200–$350/month</option>
-                  <option>$350+/month</option>
+                  <option>Under $50/session</option>
+                  <option>$50–$100/session</option>
+                  <option>$100–$150/session</option>
+                  <option>$150+/session</option>
+                  <option>Not sure yet</option>
+                </select>
+
+                <label htmlFor="intern-frequency">How often do you expect to meet with your supervisor?</label>
+                <select id="intern-frequency" name="sessionFrequency" value={fields.sessionFrequency} onChange={handleChange} required>
+                  <option value="">Select one</option>
+                  <option>Weekly</option>
+                  <option>Biweekly (every 2 weeks)</option>
+                  <option>Monthly</option>
+                  <option>Not sure — depends on my state's requirements</option>
                 </select>
 
                 <label htmlFor="intern-examprep">Are you on the LMHC track preparing for the NCMHCE?</label>
