@@ -35,19 +35,6 @@ function PricingPage() {
         .msp-pricing .fee-amount { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 600; white-space: nowrap; text-align: right; }
         .msp-pricing .fee-amount span { font-size: 13px; font-weight: 500; color: #8A8367; display: block; text-align: right; }
         .msp-pricing .bundle-strip { background: #F3E9D3; border: 1px solid #E0CB98; border-radius: 18px; padding: 16px 26px; display: flex; align-items: center; justify-content: space-between; font-size: 14.5px; color: #5A4A22; margin-bottom: 28px; }
-        .msp-pricing .jp-compare { margin: 0 0 40px; background: #FFFFFF; border: 1px solid #E4DCC9; border-radius: 22px; padding: 30px 32px; }
-        .msp-pricing .jp-compare-title { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600; margin-bottom: 4px; }
-        .msp-pricing .jp-compare-sub { font-size: 13.5px; color: #5C6B5D; margin-bottom: 20px; }
-        .msp-pricing .jp-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #EEE7D9; }
-        .msp-pricing .jp-row:last-child { border-bottom: none; }
-        .msp-pricing .jp-row.us { background: #F1F5F1; margin: 0 -14px; padding: 12px 14px; border-radius: 14px; border-bottom: none; }
-        .msp-pricing .jp-label { font-size: 14.5px; color: #3C4A3E; }
-        .msp-pricing .jp-row.us .jp-label { font-weight: 700; color: #20291F; }
-        .msp-pricing .jp-bar-wrap { flex: 1; margin: 0 20px; height: 10px; background: #F0EBE0; border-radius: 100px; overflow: hidden; max-width: 280px; }
-        .msp-pricing .jp-bar { height: 100%; border-radius: 100px; background: #C9C1A6; }
-        .msp-pricing .jp-row.us .jp-bar { background: #5C7C6B; }
-        .msp-pricing .jp-amount { font-size: 14.5px; font-weight: 700; white-space: nowrap; min-width: 90px; text-align: right; }
-        .msp-pricing .jp-row.us .jp-amount { color: #5C7C6B; }
         .msp-pricing .grid { display: flex; gap: 24px; align-items: stretch; }
         .msp-pricing .card { flex: 1; background: #FFFFFF; border: 1px solid #E4DCC9; border-radius: 28px; padding: 38px 34px; display: flex; flex-direction: column; position: relative; }
         .msp-pricing .card.featured { border: 2px solid #5C7C6B; box-shadow: 0 20px 50px rgba(92,124,107,0.15); }
@@ -147,26 +134,6 @@ function PricingPage() {
 
         <div className="bundle-strip">
           <span><b>Full Match bundle:</b> supervising and hiring the same candidate? Pay <b>$750 total</b> instead of $1,100 separately.</span>
-        </div>
-
-        <div className="jp-compare">
-          <div className="jp-compare-title">Job placement: how the cost stacks up</div>
-          <div className="jp-compare-sub">Based on a typical $58,000 therapist salary and publicly available placement pricing.</div>
-          <div className="jp-row">
-            <div className="jp-label">Traditional staffing agency (18–25% of salary)</div>
-            <div className="jp-bar-wrap"><div className="jp-bar" style={{ width: '100%' }}></div></div>
-            <div className="jp-amount">~$11,600</div>
-          </div>
-          <div className="jp-row">
-            <div className="jp-label">Flat-fee job board package (30-day posting)</div>
-            <div className="jp-bar-wrap"><div className="jp-bar" style={{ width: '22%' }}></div></div>
-            <div className="jp-amount">$2,599</div>
-          </div>
-          <div className="jp-row us">
-            <div className="jp-label">MySupervisely — flat fee, paid only on a confirmed hire</div>
-            <div className="jp-bar-wrap"><div className="jp-bar" style={{ width: '8%' }}></div></div>
-            <div className="jp-amount">$900</div>
-          </div>
         </div>
 
         <div className="section-label">Or Go Unlimited</div>
