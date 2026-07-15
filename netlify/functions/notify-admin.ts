@@ -2,6 +2,32 @@ import type { Handler } from '@netlify/functions'
 
 const ADMIN_EMAIL = 'mysupervisely@gmail.com'
 
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Name',
+  email: 'Email',
+  region: 'Region',
+  format: 'Format',
+  goal: 'Goal',
+  privatePractice: 'Private Practice',
+  budget: 'Budget',
+  notes: 'Notes',
+  licenseType: 'License Type',
+  licenseStatus: 'License Status',
+  hoursRemaining: 'Hours Remaining',
+  employmentType: 'Employment Type',
+  specialties: 'Specialties',
+  alsoSeekingSupervision: 'Also Seeking Supervision',
+  practiceName: 'Practice Name',
+  location: 'Location',
+  roleType: 'Role Type',
+  compensation: 'Compensation',
+  alsoOfferingSupervision: 'Also Offering Supervision',
+  state: 'State',
+  qualifiedSupervisor: 'Qualified Supervisor',
+  fee: 'Fee',
+  availability: 'Availability',
+}
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' }
@@ -30,7 +56,7 @@ export const handler: Handler = async (event) => {
 
   const rows = Object.entries(fields)
     .filter(([key]) => key !== 'bot-field')
-    .map(([key, val]) => `<tr><td style="padding:4px 12px 4px 0; color:#8A8367; font-size:13px; vertical-align:top;">${key}</td><td style="padding:4px 0; font-size:14px;">${val || '—'}</td></tr>`)
+    .map(([key, val]) => `<tr><td style="padding:4px 12px 4px 0; color:#8A8367; font-size:13px; vertical-align:top;">${FIELD_LABELS[key] || key}</td><td style="padding:4px 0; font-size:14px;">${val || '—'}</td></tr>`)
     .join('')
 
   const html = `
