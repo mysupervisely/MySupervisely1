@@ -22,11 +22,50 @@ const US_STATES = [
   'Wisconsin', 'Wyoming',
 ]
 
+// States where we've directly verified that fully-remote (telehealth-only)
+// clinical supervision is permitted by the licensing board.
+// Source: ASWB "Clinical social work supervision: Comparison of requirements"
+// (March 2024), cross-checked against Florida Admin Code 64B4-2.002 directly.
+// NOTE: ASWB data is LCSW/social-work-board specific. LMFT/LMHC
+// rules in the same state are usually governed by the same or a similar board,
+// but have not been individually re-verified for those license types yet —
+// confirm before expanding this list further.
+// Any state NOT in this set defaults to requiring some in-person component,
+// which is the safe assumption until verified otherwise.
+const TELEHEALTH_PERMISSIVE_STATES = new Set([
+  'California',
+  'Virginia',
+  'Washington',
+  'Illinois',
+  'Michigan',
+  'Missouri',
+  'Colorado',
+  'Maryland',
+  'Minnesota',
+  'Massachusetts',
+])
+
+function getFormatOptions(state: string) {
+  if (!state) {
+    return { options: [] as string[], note: '' }
+  }
+  const permissive = TELEHEALTH_PERMISSIVE_STATES.has(state)
+  const options = permissive
+    ? ['Telehealth / Virtual only', 'In-person only', 'Both']
+    : ['In-person only', 'Both']
+  const note = permissive
+    ? `${state} allows fully remote supervision.`
+    : `${state} requires an in-person component for supervision — we don't offer telehealth-only matches there yet.`
+  return { options, note }
+}
+
 function SupervisorsPage() {
   const [fields, setFields] = useState({
     name: '',
     email: '',
     state: '',
+    city: '',
+    zip: '',
     licenseType: '',
     qualifiedSupervisor: '',
     format: '',
@@ -40,7 +79,22 @@ function SupervisorsPage() {
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => setFields({ ...fields, [e.target.name]: e.target.value })
+  ) => {
+    const { name, value } = e.target
+    setFields((prev) => {
+      const next = { ...prev, [name]: value }
+      // If the state changes and the previously selected format is no
+      // longer valid for the new state (e.g. was telehealth-only, new
+      // state requires in-person), clear it so an invalid pair can't submit.
+      if (name === 'state') {
+        const { options } = getFormatOptions(value)
+        if (!options.includes(prev.format)) {
+          next.format = ''
+        }
+      }
+      return next
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,6 +115,8 @@ function SupervisorsPage() {
     }).catch(() => {})
     setSubmitted(true)
   }
+
+  const { options: formatOptions, note: formatNote } = getFormatOptions(fields.state)
 
   return (
     <>
@@ -87,7 +143,7 @@ function SupervisorsPage() {
               </div>
               <div className="faq-item">
                 <p className="faq-q">Can I offer virtual supervision?</p>
-                <p className="faq-a">Yes — in fact, most of our interns are specifically looking for telehealth-compatible supervisors.</p>
+                <p className="faq-a">Depends on your state's supervision rules — some states allow fully remote supervision, others require an in-person component. We'll only offer telehealth-only matching where it's actually permitted.</p>
               </div>
               <div className="faq-item">
                 <p className="faq-q">How many interns will I be matched with?</p>
@@ -128,13 +184,18 @@ function SupervisorsPage() {
                   ))}
                 </select>
 
+                <label htmlFor="sup-city">City</label>
+                <input id="sup-city" type="text" name="city" placeholder="e.g. Tampa" value={fields.city} onChange={handleChange} required />
+
+                <label htmlFor="sup-zip">ZIP code</label>
+                <input id="sup-zip" type="text" name="zip" placeholder="e.g. 33602" pattern="^\d{5}$" maxLength={5} inputMode="numeric" value={fields.zip} onChange={handleChange} required />
+
                 <label htmlFor="sup-license">License Type</label>
                 <select id="sup-license" name="licenseType" value={fields.licenseType} onChange={handleChange} required>
                   <option value="">Select one</option>
                   <option>LMHC</option>
                   <option>LCSW</option>
                   <option>LMFT</option>
-                  <option>Psychologist</option>
                   <option>Other</option>
                 </select>
 
@@ -147,12 +208,15 @@ function SupervisorsPage() {
                 </select>
 
                 <label htmlFor="sup-format">Supervision format offered</label>
-                <select id="sup-format" name="format" value={fields.format} onChange={handleChange} required>
-                  <option value="">Select one</option>
-                  <option>Telehealth / Virtual only</option>
-                  <option>In-person only</option>
-                  <option>Both</option>
+                <select id="sup-format" name="format" value={fields.format} onChange={handleChange} required disabled={!fields.state}>
+                  <option value="">{fields.state ? 'Select one' : 'Select your state first'}</option>
+                  {formatOptions.map((opt) => (
+                    <option key={opt}>{opt}</option>
+                  ))}
                 </select>
+                {formatNote && (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--walnut)', marginTop: '-0.5rem', marginBottom: '1rem' }}>{formatNote}</p>
+                )}
 
                 <label htmlFor="sup-specialties">Specialty areas (e.g. trauma, anxiety, private practice)</label>
                 <input id="sup-specialties" type="text" name="specialties" placeholder="List your areas of focus" value={fields.specialties} onChange={handleChange} required />

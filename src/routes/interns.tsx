@@ -16,6 +16,42 @@ const US_STATES = [
   'Wisconsin', 'Wyoming',
 ]
 
+// Same verified list as supervisors.tsx — kept duplicated here rather than
+// shared, matching this codebase's existing convention of duplicating
+// US_STATES across both route files. If you add a shared utils file later,
+// move this there instead.
+// Source: ASWB supervision comparison (March 2024) + direct FL Admin Code
+// verification. LMFT/LMHC/Psychologist-specific confirmation still pending
+// for most of these states — see supervisors.tsx comment for detail.
+const TELEHEALTH_PERMISSIVE_STATES = new Set([
+  'California',
+  'Virginia',
+  'Washington',
+  'Illinois',
+  'Michigan',
+  'Missouri',
+  'Colorado',
+  'Maryland',
+  'Minnesota',
+  'Massachusetts',
+])
+
+function getFormatOptions(region: string) {
+  if (!region) {
+    return { options: [] as string[], note: '' }
+  }
+  const permissive = TELEHEALTH_PERMISSIVE_STATES.has(region)
+  const options = permissive
+    ? ['Telehealth / Virtual only', 'In-person only', 'Either works']
+    : ['In-person only', 'Either works']
+  const note = permissive
+    ? `${region} allows fully remote supervision.`
+    : region === 'Other / Telehealth nationwide'
+      ? `We haven't confirmed telehealth-only supervision is available in your specific state yet — select your actual state above if you know it, so we can match you accurately.`
+      : `${region} requires an in-person component for supervision — we don't offer telehealth-only matches there yet.`
+  return { options, note }
+}
+
 function encode(data: Record<string, string>) {
   return Object.entries(data)
     .map(([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(val)}`)
@@ -26,7 +62,10 @@ function InternsPage() {
   const [fields, setFields] = useState({
     name: '',
     email: '',
+    licenseType: '',
     region: '',
+    city: '',
+    zip: '',
     format: '',
     goal: '',
     privatePractice: '',
@@ -40,7 +79,19 @@ function InternsPage() {
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => setFields({ ...fields, [e.target.name]: e.target.value })
+  ) => {
+    const { name, value } = e.target
+    setFields((prev) => {
+      const next = { ...prev, [name]: value }
+      if (name === 'region') {
+        const { options } = getFormatOptions(value)
+        if (!options.includes(prev.format)) {
+          next.format = ''
+        }
+      }
+      return next
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,6 +112,8 @@ function InternsPage() {
     }).catch(() => {})
     setSubmitted(true)
   }
+
+  const { options: formatOptions, note: formatNote } = getFormatOptions(fields.region)
 
   return (
     <>
@@ -92,7 +145,7 @@ function InternsPage() {
               </div>
               <div className="faq-item">
                 <p className="faq-q">Can I find a telehealth supervisor?</p>
-                <p className="faq-a">Absolutely. Many of our supervisors offer fully virtual supervision, which is perfect if you're building a telehealth practice.</p>
+                <p className="faq-a">Depends on your state — some states allow fully remote supervision, others require an in-person component by law. We'll show you the right options once you select your state.</p>
               </div>
               <div className="faq-item">
                 <p className="faq-q">How long does matching take?</p>
@@ -131,6 +184,15 @@ function InternsPage() {
                 <label htmlFor="intern-email">Email Address</label>
                 <input id="intern-email" type="email" name="email" placeholder="your@email.com" value={fields.email} onChange={handleChange} required />
 
+                <label htmlFor="intern-license">What license are you working toward?</label>
+                <select id="intern-license" name="licenseType" value={fields.licenseType} onChange={handleChange} required>
+                  <option value="">Select one</option>
+                  <option>LMHC</option>
+                  <option>LCSW</option>
+                  <option>LMFT</option>
+                  <option>Not sure yet</option>
+                </select>
+
                 <label htmlFor="intern-region">What state are you licensed/located in?</label>
                 <select id="intern-region" name="region" value={fields.region} onChange={handleChange} required>
                   <option value="">Select a state</option>
@@ -140,13 +202,22 @@ function InternsPage() {
                   <option>Other / Telehealth nationwide</option>
                 </select>
 
+                <label htmlFor="intern-city">City</label>
+                <input id="intern-city" type="text" name="city" placeholder="e.g. Tampa" value={fields.city} onChange={handleChange} required />
+
+                <label htmlFor="intern-zip">ZIP code</label>
+                <input id="intern-zip" type="text" name="zip" placeholder="e.g. 33602" pattern="^\d{5}$" maxLength={5} inputMode="numeric" value={fields.zip} onChange={handleChange} required />
+
                 <label htmlFor="intern-format">Supervision format preference</label>
-                <select id="intern-format" name="format" value={fields.format} onChange={handleChange} required>
-                  <option value="">Select one</option>
-                  <option>Telehealth / Virtual only</option>
-                  <option>In-person only</option>
-                  <option>Either works</option>
+                <select id="intern-format" name="format" value={fields.format} onChange={handleChange} required disabled={!fields.region}>
+                  <option value="">{fields.region ? 'Select one' : 'Select your state first'}</option>
+                  {formatOptions.map((opt) => (
+                    <option key={opt}>{opt}</option>
+                  ))}
                 </select>
+                {formatNote && (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--walnut)', marginTop: '-0.5rem', marginBottom: '1rem' }}>{formatNote}</p>
+                )}
 
                 <label htmlFor="intern-goal">Career goal</label>
                 <select id="intern-goal" name="goal" value={fields.goal} onChange={handleChange} required>

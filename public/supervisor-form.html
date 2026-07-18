@@ -1,18 +1,29 @@
+<!--
+  STATIC SKELETON — public/supervisor-form.html
+  This file is never seen by users. Its only job is letting Netlify's build
+  bot detect the form schema (field names) since the real interactive form
+  is rendered client-side by React in src/routes/supervisors.tsx.
+  Field names here MUST match the field "name" attributes used in the .tsx
+  fetch/submit payload exactly, or Netlify won't record submissions correctly.
+-->
 <!DOCTYPE html>
 <html>
-  <body>
-    <!-- Static form for Netlify to detect at build time. Never shown to users. -->
-    <form name="supervisor-application" netlify netlify-honeypot="bot-field" hidden>
-      <input type="text" name="name" />
-      <input type="email" name="email" />
-      <input type="text" name="licenseType" />
-      <input type="text" name="qualifiedSupervisor" />
-      <input type="text" name="format" />
-      <input type="text" name="specialties" />
-      <input type="text" name="privatePractice" />
-      <input type="text" name="fee" />
-      <input type="text" name="availability" />
-      <input type="text" name="bot-field" />
-    </form>
-  </body>
+<body>
+  <form name="supervisor-application" data-netlify="true" netlify-honeypot="bot-field" hidden>
+    <input type="text" name="name" />
+    <input type="email" name="email" />
+    <input type="text" name="licenseType" />
+    <input type="text" name="licenseTypeOther" />
+    <input type="text" name="qualifiedSupervisor" />
+    <input type="text" name="state" />
+    <input type="text" name="city" />
+    <input type="text" name="zip" />
+    <input type="text" name="format" />
+    <textarea name="specialties"></textarea>
+    <input type="text" name="privatePractice" />
+    <input type="text" name="fee" />
+    <input type="text" name="availability" />
+    <input type="text" name="bot-field" />
+  </form>
+</body>
 </html>
