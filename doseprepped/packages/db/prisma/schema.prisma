@@ -1,0 +1,53 @@
+// DosePrepped database schema — M0 scope only.
+//
+// This intentionally covers just enough to establish the DB framework and
+// the patient/pharmacist/admin role structure: accounts and a patient's
+// manually-entered medications. Clinical entities (questions, AI messages,
+// pharmacist requests, secure messages, escalation rules) are designed in
+// docs/doseprepped/ARCHITECTURE.md and will be added starting in M1+ once
+// that functionality is actually implemented — they are deliberately not
+// modeled here yet.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  PATIENT
+  PHARMACIST
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(uuid())
+  role      Role
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  medications PatientMedication[]
+
+  @@map("users")
+}
+
+/// Manually-entered medication on a patient's profile. This is patient-
+/// reported data, not authoritative medication reference data — see the
+/// Medication Data Abstraction Layer note in docs/doseprepped/ARCHITECTURE.md.
+model PatientMedication {
+  id         String   @id @default(uuid())
+  patient    User     @relation(fields: [patientId], references: [id])
+  patientId  String
+  name       String
+  strength   String
+  dosageForm String
+  directions String
+  createdAt  DateTime @default(now())
+
+  @@map("patient_medications")
+}

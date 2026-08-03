@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/*
+ * DosePrepped design tokens.
+ * Healthcare-oriented but deliberately warm and non-clinical: a calm teal
+ * primary, soft warm-neutral surfaces instead of stark white/gray, and
+ * generous spacing/typography for a mobile-first, low-anxiety reading
+ * experience.
+ */
+:root {
+  --dp-bg: #faf9f6;
+  --dp-surface: #ffffff;
+  --dp-ink: #16262a;
+  --dp-ink-muted: #5c6b6e;
+  --dp-border: #e3e8e6;
+
+  --dp-primary: #14666d;
+  --dp-primary-dark: #0e4d52;
+  --dp-primary-light: #e3f0ef;
+
+  --dp-accent: #5fa8a3;
+  --dp-accent-light: #eef6f5;
+
+  --dp-success: #2e7d5b;
+  --dp-warning: #b7791f;
+  --dp-danger: #b3261e;
+  --dp-danger-light: #fdecea;
+
+  --dp-radius-sm: 0.5rem;
+  --dp-radius-md: 0.875rem;
+  --dp-radius-lg: 1.25rem;
+
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-jakarta);
+}
+
+@theme inline {
+  --color-background: var(--dp-bg);
+  --color-surface: var(--dp-surface);
+  --color-ink: var(--dp-ink);
+  --color-ink-muted: var(--dp-ink-muted);
+  --color-border: var(--dp-border);
+
+  --color-primary: var(--dp-primary);
+  --color-primary-dark: var(--dp-primary-dark);
+  --color-primary-light: var(--dp-primary-light);
+
+  --color-accent: var(--dp-accent);
+  --color-accent-light: var(--dp-accent-light);
+
+  --color-success: var(--dp-success);
+  --color-warning: var(--dp-warning);
+  --color-danger: var(--dp-danger);
+  --color-danger-light: var(--dp-danger-light);
+
+  --radius-sm: var(--dp-radius-sm);
+  --radius-md: var(--dp-radius-md);
+  --radius-lg: var(--dp-radius-lg);
+
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+}
+
+body {
+  background: var(--dp-bg);
+  color: var(--dp-ink);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}

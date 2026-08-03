@@ -1,0 +1,20 @@
+{
+  "name": "doseprepped",
+  "private": true,
+  "version": "0.0.0",
+  "description": "DosePrepped monorepo — patient app, backend API, and shared packages.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @doseprepped/patient dev",
+    "dev:api": "pnpm --filter @doseprepped/api dev",
+    "build": "pnpm -r --workspace-concurrency=1 run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "db:generate": "pnpm --filter @doseprepped/db run generate",
+    "db:migrate": "pnpm --filter @doseprepped/db run migrate",
+    "db:seed": "pnpm --filter @doseprepped/db run seed"
+  }
+}
