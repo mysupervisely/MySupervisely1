@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/client.ts"
+    ".": "./src/client.ts",
+    "./medication-reference": "./src/medication-reference.ts"
   },
   "scripts": {
     "generate": "prisma generate",

@@ -15,5 +15,12 @@ export default defineConfig({
       APP_ORIGINS: "http://localhost:3000",
     },
     testTimeout: 15000,
+    // These are integration tests against one shared Postgres database
+    // (each test file builds its own Fastify app + shares the singleton
+    // Prisma connection pool from @doseprepped/db). Running test files in
+    // parallel workers was causing intermittent cross-file contention;
+    // sequential execution trades a bit of speed for determinism, which
+    // matters more for a real-database integration suite.
+    fileParallelism: false,
   },
 });

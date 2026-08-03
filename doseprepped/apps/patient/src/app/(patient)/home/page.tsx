@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PlaceholderNotice } from "@/components/ui/PlaceholderNotice";
+import { MedicationCard } from "@/components/medications/MedicationCard";
 import { requireRole } from "@/lib/require-role";
+import { getMedications } from "@/lib/medications";
 
 export const metadata: Metadata = {
   title: "Home — DosePrepped",
 };
 
-// Synthetic/demo data only — see docs/doseprepped/ARCHITECTURE.md §"Prototype
-// Data". Real medication data will come from packages/db in a later
-// milestone once accounts exist.
-const demoMedications = [
-  { name: "Lisinopril", strength: "10 mg" },
-  { name: "Metformin", strength: "500 mg" },
-];
+const HOME_MEDICATION_PREVIEW_COUNT = 3;
 
+// Synthetic/demo data only — see docs/doseprepped/ARCHITECTURE.md
+// §"Prototype Data". Real pharmacist conversations arrive in a later
+// milestone (Ask a Question / Ask a Pharmacist are still placeholders).
 const demoQuestions = [
   {
     text: "Can I take Tylenol with my medication?",
@@ -26,6 +26,9 @@ const demoQuestions = [
 
 export default async function PatientHomePage() {
   const user = await requireRole("PATIENT");
+  const medications = await getMedications();
+  const active = medications.filter((m) => m.status === "ACTIVE");
+  const preview = active.slice(0, HOME_MEDICATION_PREVIEW_COUNT);
 
   return (
     <>
@@ -48,16 +51,28 @@ export default async function PatientHomePage() {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-ink">My Medications</h2>
-          <Badge tone="neutral">Synthetic data</Badge>
+          <Button href="/medications/new" variant="ghost" size="md">
+            + Add Medication
+          </Button>
         </div>
-        <Card className="flex flex-col divide-y divide-border p-0">
-          {demoMedications.map((med) => (
-            <div key={med.name} className="flex items-center justify-between px-5 py-3">
-              <span className="font-medium text-ink">{med.name}</span>
-              <span className="text-sm text-ink-muted">{med.strength}</span>
-            </div>
-          ))}
-        </Card>
+
+        {preview.length === 0 ? (
+          <Card className="text-sm text-ink-muted">
+            You haven&apos;t added any medications yet.
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {preview.map((medication) => (
+              <MedicationCard key={medication.id} medication={medication} />
+            ))}
+          </div>
+        )}
+
+        {active.length > HOME_MEDICATION_PREVIEW_COUNT && (
+          <Link href="/medications" className="text-sm font-medium text-primary hover:underline">
+            View all medications
+          </Link>
+        )}
       </section>
 
       <section className="flex flex-col gap-3">
@@ -75,9 +90,8 @@ export default async function PatientHomePage() {
       </section>
 
       <PlaceholderNotice>
-        This home screen shows synthetic demo data. Accounts, real
-        medications, and conversation history will be wired up starting in
-        M1.
+        Recent Questions above is synthetic demo data — Ask a Question and
+        Ask a Pharmacist are not implemented yet.
       </PlaceholderNotice>
     </>
   );

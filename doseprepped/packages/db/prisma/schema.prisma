@@ -1,11 +1,11 @@
-// DosePrepped database schema — M0/M1 scope only.
+// DosePrepped database schema — M0/M1/M2 scope only.
 //
 // This intentionally covers just enough to establish the DB framework, the
 // patient/pharmacist/admin role structure, authentication (User + Session),
-// and a patient's manually-entered medications. Clinical entities
+// and a patient's manually-entered medication list. Clinical entities
 // (questions, AI messages, pharmacist requests, secure messages, escalation
 // rules) are designed in docs/doseprepped/ARCHITECTURE.md and will be added
-// starting in M2+ once that functionality is actually implemented — they
+// starting in M3+ once that functionality is actually implemented — they
 // are deliberately not modeled here yet.
 
 generator client {
@@ -56,18 +56,60 @@ model Session {
   @@map("sessions")
 }
 
+enum MedicationStatus {
+  ACTIVE
+  INACTIVE
+}
+
 /// Manually-entered medication on a patient's profile. This is patient-
-/// reported data, not authoritative medication reference data — see the
-/// Medication Data Abstraction Layer note in docs/doseprepped/ARCHITECTURE.md.
+/// reported data, not authoritative medication reference data — see
+/// MedicationReference below and the Medication Data Abstraction Layer note
+/// in docs/doseprepped/ARCHITECTURE.md.
+///
+/// Records are never hard-deleted by the patient — "removing" a medication
+/// sets status to INACTIVE and stamps archivedAt, preserving history for
+/// future audit/adherence/history features. Rows are cascade-deleted only
+/// if the owning account itself is deleted (see User), which is a separate,
+/// not-yet-implemented concern from a patient archiving one medication.
 model PatientMedication {
-  id         String   @id @default(uuid())
-  patient    User     @relation(fields: [patientId], references: [id])
+  id         String            @id @default(uuid())
+  patient    User              @relation(fields: [patientId], references: [id], onDelete: Cascade)
   patientId  String
   name       String
   strength   String
   dosageForm String
   directions String
-  createdAt  DateTime @default(now())
+  frequency  String
+  route      String
+  startDate  DateTime
+  endDate    DateTime?
+  notes      String?
+  status     MedicationStatus  @default(ACTIVE)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  archivedAt DateTime?
 
+  @@index([patientId])
   @@map("patient_medications")
+}
+
+/// Synthetic/demo medication reference data used only to power a basic
+/// name autocomplete on the "Add Medication" form. This is NOT an
+/// authoritative medication database and must never be presented as one —
+/// see isSynthetic/source below and docs/doseprepped/ARCHITECTURE.md
+/// "Medication Data Abstraction Layer". A future provider backed by
+/// RxNorm/DailyMed/FDA sources would populate this same shape (or replace
+/// the lookup entirely) behind packages/db/src/medication-reference.ts's
+/// MedicationDataProvider interface, without any caller needing to change.
+model MedicationReference {
+  id          String   @id @default(uuid())
+  name        String
+  strength    String?
+  dosageForm  String?
+  isSynthetic Boolean  @default(true)
+  source      String   @default("synthetic_demo")
+  createdAt   DateTime @default(now())
+
+  @@index([name])
+  @@map("medication_reference")
 }

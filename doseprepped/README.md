@@ -1,47 +1,54 @@
-# DosePrepped — M0 + M1 (Project Foundation + Authentication)
+# DosePrepped — M0 + M1 + M2 (Foundation + Auth + Medication Profiles)
 
 DosePrepped helps patients understand their medications and connect with
 licensed pharmacists when they have medication-related questions.
 
-> **Status: through M1 (Authentication & User Roles).** Real accounts,
-> login/logout, password hashing, sessions, and server-enforced
-> role-based access control (patient / pharmacist / admin) are implemented.
-> There is still no AI, no medication database, no OCR, no pharmacist
-> messaging, no payments, and no clinical functionality of any kind. See
+> **Status: through M2 (Medication Profiles).** Real accounts, login/logout,
+> password hashing, sessions, server-enforced role-based access control
+> (patient / pharmacist / admin), and a full patient medication list
+> (add/view/edit/mark inactive) are implemented. There is still no AI, no
+> authoritative medication database, no OCR, no pharmacist messaging, no
+> payments, and no clinical decision support of any kind. See
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
 > for the full product spec and milestone plan. Every screen beyond
-> authentication is still explicitly labeled as a placeholder.
+> authentication and medication management is still an explicit placeholder.
 
-## What's in M0 + M1
+## What's in M0 + M1 + M2
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
-  Landing, Login, Sign up, Patient Home, Medications, Ask a Question, Ask a
-  Pharmacist, Profile, plus a Pharmacist home and an Admin home.
+  Landing, Login, Sign up, Patient Home, Medications (list/add/detail/edit),
+  Ask a Question, Ask a Pharmacist, Profile, plus a Pharmacist home and an
+  Admin home.
 - Real authentication: sign up, log in, log out, bcrypt password hashing,
   password strength validation, and DB-backed sessions via a signed httpOnly
   cookie.
 - Server-enforced role-based access control (RBAC) for three roles —
   patient, pharmacist, admin — checked on the API for every protected
-  request, not just hidden in the frontend. The frontend independently
-  redirects unauthenticated/wrong-role visitors for UX, but that's a
-  convenience layer on top of the API's own enforcement, not a substitute
-  for it.
+  request, not just hidden in the frontend.
+- A patient medication list: add, view, edit, and archive ("mark inactive")
+  medications, each strictly scoped to the authenticated patient who owns
+  it — enforced server-side, never by the frontend alone. Records are never
+  hard-deleted (see "Medication data model" below).
+- A basic, clearly-labeled synthetic medication name autocomplete on the Add
+  Medication form, behind a small Medication Data Abstraction Layer
+  (`packages/db/src/medication-reference.ts`) designed so a real
+  RxNorm/DailyMed-backed provider can be swapped in later without touching
+  any caller.
 - A minimal Fastify backend API: `/health` (DB connectivity), `/auth/*`
-  (signup/login/logout/me), and one role-gated placeholder ping route per
-  role (`/patient/ping`, `/pharmacist/ping`, `/admin/ping`) that proves RBAC
-  works without implementing any real functionality behind it.
-- A PostgreSQL database via Prisma: `User` (with `firstName`, `lastName`,
-  `email`, `passwordHash`, `role`, `createdAt`, `updatedAt`), `Session`, and
-  `PatientMedication`, seeded with **synthetic demo data only**.
+  (signup/login/logout/me), `/medications*` (CRUD + archive + reference
+  search), and one role-gated placeholder ping route per role
+  (`/patient/ping`, `/pharmacist/ping`, `/admin/ping`).
+- A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
+  and `MedicationReference`, seeded with **synthetic demo data only**.
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 13 auth/RBAC integration tests against a real (disposable) test
-  database.
+  including 27 auth/RBAC/medication integration tests against a real
+  (disposable) test database.
 
 Not in scope yet (see the architecture doc for when these land): AI,
-medication reference database, OCR/medication scanning, pharmacist
-messaging/dashboard content, payments, account deletion, consent tracking,
-and any clinical decision support.
+an authoritative medication reference database, OCR/medication scanning,
+pharmacist messaging/dashboard content, payments, account deletion, consent
+tracking, drug interaction checking, and any clinical decision support.
 
 ## Project structure
 
@@ -229,6 +236,33 @@ environment, and `.env*` files are git-ignored.
 - The three roles today: `PATIENT` (self-service sign-up), `PHARMACIST` and
   `ADMIN` (seeded/DB-created only — no public self-registration path
   exists for these roles).
+- **Resource ownership** (new in M2) is a separate check from role: every
+  medication route scopes its database query to `{ id, patientId:
+  request.user.id }` together, never `id` alone (`apps/api/src/routes/
+  medications.ts`). A medication that exists but belongs to another patient
+  returns the same `404` as one that doesn't exist at all, so the API never
+  confirms or denies another patient's records exist.
+
+## Medication data model
+
+- `PatientMedication` belongs to exactly one `User` (`patientId`) and holds:
+  name, strength, dosage form, directions, frequency, route, start date, an
+  optional end date, optional notes, a `status` (`ACTIVE` | `INACTIVE`),
+  and `createdAt` / `updatedAt` / `archivedAt` timestamps.
+- **Archive, don't delete**: there is no delete endpoint. "Removing" a
+  medication (`POST /medications/:id/archive`) sets `status = INACTIVE` and
+  stamps `archivedAt` — the record and its history stay intact for future
+  audit/adherence/history features described in the architecture doc. The
+  one exception is that a patient's medications are cascade-deleted if
+  their *account* itself is ever deleted (not implemented yet) — a
+  different, account-level concern from a patient archiving one medication.
+- **Not an authoritative medication database**: `MedicationReference` is a
+  small, explicitly synthetic (`isSynthetic: true`, `source:
+  "synthetic_demo"`) table that only powers the Add Medication name
+  autocomplete. `GET /medications/reference?q=` and every API response
+  using it flags `isSynthetic: true` so the frontend never presents it as
+  clinical fact. All medication *record* fields remain free-text patient
+  entry — picking a suggestion just pre-fills the form.
 
 ## Security notes for this milestone
 
@@ -241,6 +275,9 @@ environment, and `.env*` files are git-ignored.
 - Login failures return the same generic "Invalid email or password" for
   both "no such user" and "wrong password", to avoid leaking which emails
   have accounts.
+- Medication IDs in URLs are opaque UUIDs (never medication names/content);
+  Fastify's request logging records method/URL/status only, never request
+  bodies, so medication details are never written to logs.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

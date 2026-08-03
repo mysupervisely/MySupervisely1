@@ -3,6 +3,7 @@ import { registerSecurityPlugins } from "./plugins/security.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { protectedRoutes } from "./routes/protected.js";
+import { medicationRoutes } from "./routes/medications.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -16,6 +17,7 @@ export function buildApp() {
   app.register(healthRoutes);
   app.register(authRoutes);
   app.register(protectedRoutes);
+  app.register(medicationRoutes);
 
   return app;
 }

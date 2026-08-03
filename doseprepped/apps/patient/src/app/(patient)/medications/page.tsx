@@ -1,58 +1,52 @@
 import type { Metadata } from "next";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { PlaceholderNotice } from "@/components/ui/PlaceholderNotice";
+import { MedicationCard } from "@/components/medications/MedicationCard";
+import { getMedications } from "@/lib/medications";
 
 export const metadata: Metadata = {
   title: "Medications — DosePrepped",
 };
 
-const demoMedications = [
-  {
-    name: "Lisinopril",
-    strength: "10 mg",
-    form: "Tablet",
-    directions: "Take one tablet by mouth once daily.",
-  },
-  {
-    name: "Metformin",
-    strength: "500 mg",
-    form: "Tablet",
-    directions: "Take one tablet by mouth twice daily with food.",
-  },
-];
+export default async function MedicationsPage() {
+  const medications = await getMedications();
+  const active = medications.filter((m) => m.status === "ACTIVE");
+  const inactive = medications.filter((m) => m.status === "INACTIVE");
 
-export default function MedicationsPage() {
   return (
     <>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-ink">My Medications</h1>
-        <Badge tone="neutral">Synthetic data</Badge>
+        <Button href="/medications/new" variant="primary" size="md">
+          + Add Medication
+        </Button>
       </div>
 
-      <Button variant="primary" size="md" disabled>
-        Add medication
-      </Button>
+      {medications.length === 0 ? (
+        <Card className="text-sm text-ink-muted">
+          You haven&apos;t added any medications yet. Add one to keep track
+          of what you&apos;re taking.
+        </Card>
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            {active.map((medication) => (
+              <MedicationCard key={medication.id} medication={medication} />
+            ))}
+          </div>
 
-      <div className="flex flex-col gap-3">
-        {demoMedications.map((med) => (
-          <Card key={med.name} className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-semibold text-ink">{med.name}</h2>
-              <span className="text-sm text-ink-muted">{med.strength}</span>
+          {inactive.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h2 className="text-sm font-semibold text-ink-muted">Inactive</h2>
+              <div className="flex flex-col gap-3">
+                {inactive.map((medication) => (
+                  <MedicationCard key={medication.id} medication={medication} />
+                ))}
+              </div>
             </div>
-            <p className="text-sm text-ink-muted">{med.form}</p>
-            <p className="text-sm text-ink">{med.directions}</p>
-          </Card>
-        ))}
-      </div>
-
-      <PlaceholderNotice>
-        Adding, editing, and photo-based medication entry are not
-        implemented yet. This screen displays synthetic demo medications
-        only.
-      </PlaceholderNotice>
+          )}
+        </>
+      )}
     </>
   );
 }

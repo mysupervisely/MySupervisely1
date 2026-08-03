@@ -1,38 +1,13 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { randomUUID } from "node:crypto";
-import type { LightMyRequestResponse } from "fastify";
 import { buildApp } from "../src/app.js";
 import { prisma, Role } from "@doseprepped/db";
-import { hashPassword } from "@doseprepped/auth";
-
-const TEST_EMAIL_DOMAIN = "test.doseprepped.local";
-const VALID_PASSWORD = "Sup3rSecret!Pass";
-
-function uniqueEmail(label: string): string {
-  return `${label}-${randomUUID()}@${TEST_EMAIL_DOMAIN}`;
-}
-
-function cookieHeader(response: LightMyRequestResponse): string {
-  return response.cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-}
-
-async function createUserDirectly(role: Role, emailLabel: string) {
-  const email = uniqueEmail(emailLabel);
-  const passwordHash = await hashPassword(VALID_PASSWORD);
-  const user = await prisma.user.create({
-    data: { email, firstName: "Test", lastName: role, passwordHash, role },
-  });
-  return { user, email };
-}
-
-async function loginAndGetCookie(app: ReturnType<typeof buildApp>, email: string, password = VALID_PASSWORD) {
-  const response = await app.inject({
-    method: "POST",
-    url: "/auth/login",
-    payload: { email, password },
-  });
-  return cookieHeader(response);
-}
+import {
+  TEST_EMAIL_DOMAIN,
+  VALID_PASSWORD,
+  createUserDirectly,
+  loginAndGetCookie,
+  uniqueEmail,
+} from "./helpers.js";
 
 // All accounts created by this file live under TEST_EMAIL_DOMAIN so they can
 // be cleaned up here without touching seed or manually-created data.
