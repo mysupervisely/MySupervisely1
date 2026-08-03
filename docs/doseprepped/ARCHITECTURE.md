@@ -556,9 +556,597 @@ explicitly requested.
 
 ---
 
+## M3 — The Digital Medication-Support Layer (Architecture Update)
+
+**Status: planning only. Nothing in this section has been implemented.**
+M0 (foundation), M1 (auth/RBAC), and M2 (patient medication profiles) are
+built, tested, and merged. This section is the architecture update
+requested before M3 implementation begins, produced without touching the
+codebase.
+
+### Product direction update
+
+DosePrepped is repositioning from "AI triage box that leads to a pharmacist
+chat" to a **digital medication-support layer** that accompanies a
+patient's medication over time:
+
+```
+Medication added
+  → Medication education
+  → Medication schedule/adherence
+  → Patient check-ins
+  → Medication questions
+  → AI-assisted question organization / general education
+  → Pharmacist support when appropriate
+  → Escalation to the patient's healthcare provider when appropriate
+```
+
+Two things do **not** change: DosePrepped still does not replace the
+dispensing pharmacy's own dispensing/counseling duties, and it still does
+not replace a physician or prescriber. What changes is the framing — the
+medication list built in M2 is not just a record, it's the anchor that
+education, adherence, check-ins, and questions all attach to over the
+medication's lifetime. M3 (and the milestones after it) build the pieces of
+that support layer one at a time; this document only covers the pieces
+needed for the *medication question* pathway, since that's what's
+architecturally load-bearing for everything else (schedule/adherence and
+check-ins are explicitly **not** designed in detail here and remain future
+work — see "Required changes to M0–M2" for how the data model leaves room
+for them without redesign).
+
+**Standing design constraint — not a chatbot.** The workflow is a bounded,
+structured intake, not an open-ended conversation:
+
+```
+PATIENT
+  → SELECT MEDICATION
+  → DESCRIBE QUESTION/CONCERN
+  → DOSEPREPPED STRUCTURES THE INFORMATION
+  → GENERAL MEDICATION EDUCATION WHERE APPROPRIATE
+  → PHARMACIST REVIEW WHEN APPROPRIATE
+  → PROVIDER ESCALATION WHEN APPROPRIATE
+```
+
+Concretely: a question always starts from a specific medication (never a
+blank chat box), category selection is a first-class structuring step (not
+an AI afterthought), and AI is allowed **at most one** clarifying question
+before it must produce an education response or defer to a pharmacist —
+there is no multi-turn free chat loop anywhere in this design. Every AI
+touchpoint below is a discrete, typed operation with a defined input and
+output, not a conversational agent.
+
+### 1. Patient medication journey model
+
+The medication itself (`PatientMedication`, built in M2) is the aggregate
+root of the journey; everything else is a timeline of interactions that
+reference it:
+
+```
+PatientMedication (M2 — exists today)
+  ├─ MedicationQuestion[]        (M3 — this document)
+  ├─ MedicationEducationView[]   (future — "viewed education" events)
+  ├─ AdherenceCheckIn[]          (future — schedule/adherence milestone)
+  └─ ScheduleReminder[]          (future — reminders milestone)
+```
+
+M3 does not introduce a single unifying "event" table (e.g. an
+event-sourced `MedicationTimelineEvent`). That's deliberately deferred:
+with only one interaction type (questions) in scope, a dedicated timeline
+table is premature abstraction. A medication's timeline view (needed for
+the medication detail screen — see "UI changes") can be assembled today by
+querying `MedicationQuestion` filtered by `medicationId`, ordered by
+`createdAt`. Revisit a unified timeline table only once a second and third
+interaction type (education views, check-ins) actually exist and a
+combined feed is genuinely needed — not preemptively.
+
+### 2. Medication question data model
+
+A new `MedicationQuestion` entity anchors the whole feature. Key design
+decision: it stores a **point-in-time snapshot** of the medication's
+relevant fields (name, strength, directions, frequency, route) at the
+moment the question was asked, in addition to the `medicationId` foreign
+key. If the patient later edits that medication's directions (M2's
+`PATCH /medications/:id`), a historical question must still show what the
+patient and pharmacist actually saw and discussed — not the current,
+possibly-different values. This is the same "don't let a live record
+silently rewrite history" principle M2 already applies by archiving
+instead of deleting.
+
+See "Database changes" below for the full field list.
+
+### 3. Question categories
+
+```
+GENERAL_INFO       — general information about the medication
+ADMINISTRATION     — how to take it
+MISSED_DOSE        — missed-dose handling
+SIDE_EFFECT        — side effect / adverse effect
+DRUG_INTERACTION   — interaction with another medication/substance
+STORAGE            — storage conditions
+ADHERENCE          — trouble taking it consistently
+COST_ACCESS        — affordability / access to the medication
+OTHER              — anything else
+```
+
+Category is **patient-selected first**, not purely AI-inferred: the
+question composer presents these eight categories (plus Other) as an
+explicit step before the free-text question box. This does three things —
+it's itself a structuring action (reinforcing "not a chatbot"), it gives a
+deterministic classification that works even if AI is degraded or
+unavailable, and it lets the AI's own suggested category
+(`aiSuggestedCategory`, stored separately) be compared against the
+patient's choice for QA/analytics rather than silently overriding it.
+
+Only `DRUG_INTERACTION` and `SIDE_EFFECT` trigger capturing a minimal
+snapshot of the patient's *other* active medications (name + strength
+only) as context — every other category leaves that field null, per the
+minimum-necessary-data principle (see "What NOT to store").
+
+### 4. Initiating a question from a specific medication
+
+Two converging entry points, both landing on the same composer:
+
+1. **Home → "Ask a question"** (existing placeholder CTA from M0/M1): if no
+   medication is pre-selected, first shows a medication picker drawn from
+   the patient's own medication list (M2) — active medications by default,
+   with inactive ones selectable too (a patient may reasonably ask about a
+   medication they just stopped).
+2. **Medication detail screen (M2) → new "Ask about this medication" CTA**:
+   skips the picker, medication pre-selected from context.
+
+Both converge on: category selection → free-text question → (at most one)
+AI clarifying question → education response → optional "Ask a Pharmacist."
+This directly reuses M2's medication list/detail infrastructure instead of
+building a parallel medication-selection UI.
+
+### 5. The question structuring pipeline
+
+"Structuring" happens in two layers, and the first layer works with AI
+completely disabled:
+
+**Layer 1 — deterministic (no AI required).** On submission, the API
+assembles a structured record from data it already has: the medication
+snapshot (from the patient's own `PatientMedication` row — already
+patient-resolved, no "medication identification" NLP problem to solve
+here, unlike a from-scratch chatbot), the patient-selected category, the
+verbatim question text, and (for interaction/side-effect categories) the
+minimal other-active-medications snapshot. This alone is enough to create
+a well-formed, pharmacist-reviewable question even with zero AI
+involvement — which is the fallback behavior if AI is down, disabled, or
+not yet built for a given deployment.
+
+**Layer 2 — AI-assisted enrichment (optional, layered on top).** Given the
+Layer 1 structured record, the AI Service Layer (see §7 of the original
+architecture, "AI Architecture") runs, in order: a safety/urgency check, a
+category-suggestion pass, at most one clarifying question if the free text
+is ambiguous, then a general-education generation pass grounded in the
+medication snapshot and (later) retrieved reference content. Every one of
+these is a single bounded call with a typed output — never a freeform
+chat completion appended to a growing transcript.
+
+### 6. AI integration points
+
+Extending the AI Service Layer already specified in the original
+architecture doc (§7), now tied concretely to `MedicationQuestion`:
+
+| Operation | Input | Output | Gate |
+|---|---|---|---|
+| `detectSafetyConcern` | question text | `QuestionDisposition` (ROUTINE / PHARMACIST_RECOMMENDED / URGENT_CARE_GUIDANCE) | Deterministic keyword/rule pass first; LLM-assisted second pass only if the rule pass doesn't already flag it. Runs **before** any other AI step and can short-circuit the rest. |
+| `suggestCategory` | question text | `QuestionCategory` | Advisory only — never overrides the patient's own selection. |
+| `generateClarifyingQuestion` | question text, category, medication snapshot | one question string, or none | Fires at most once per question. If the patient's answer is still ambiguous, proceed to education/pharmacist anyway rather than asking again. |
+| `generateEducation` | question text, category, medication snapshot, clarifying Q&A, retrieved reference content | education text, `is_ai_generated: true` | Only runs if disposition is `ROUTINE`. Enforces the same MUST NOT list from the original AI Architecture section (no diagnosis, no dose changes, no telling a patient to stop a prescription, etc.), independently re-verified here since this is a new call site. |
+| `summarizeForPharmacist` | full structured record | structured JSON (never prose) | Runs when the patient requests pharmacist review, or automatically when disposition is `PHARMACIST_RECOMMENDED`. |
+
+AI never talks to the patient outside of these five typed operations. There
+is no persistent chat session object and no endpoint that accepts arbitrary
+freeform follow-up messages against a question.
+
+### 7. Pharmacist workflow integration points
+
+M1 already created the `PHARMACIST` role, a role-gated placeholder route
+(`/pharmacist/ping`), and a placeholder pharmacist home page. M3's
+architecture is designed to attach real functionality to exactly those
+seams rather than requiring rework:
+
+- **Queue.** A question enters the pharmacist-visible queue when its status
+  becomes `PHARMACIST_REQUESTED` — either the patient tapped "Ask a
+  Pharmacist," or the safety-check pass set disposition to
+  `PHARMACIST_RECOMMENDED` and the system auto-requested review.
+- **Claim.** A pharmacist claims an unclaimed queued question
+  (`pharmacistId` set, status → `PHARMACIST_IN_PROGRESS`). Claiming is
+  exclusive — once claimed, the question drops out of other pharmacists'
+  unclaimed queue view.
+- **Respond.** The pharmacist sees the structured record — patient
+  question, medication snapshot, category, AI education (clearly labeled
+  AI-generated, never presented as the pharmacist's own judgment) — and
+  writes a response. Status → `PHARMACIST_RESOLVED`.
+- **Escalate.** Instead of responding, the pharmacist can escalate (see
+  §8) with a required reason.
+- **Request clarification.** Out of scope for M3's data model as a full
+  two-way thread (that's the "secure messaging" feature from the original
+  architecture's M4 sketch); for now, `WAITING_FOR_PATIENT` is reserved as
+  a status value but the actual back-and-forth UI is not designed here.
+
+Building the pharmacist dashboard UI itself (queue screen, claim/respond
+actions) is intentionally sequenced *after* the data model and patient-side
+flow — see "Recommended implementation sequence."
+
+### 8. Provider escalation architecture
+
+Two distinct triggers, both landing on the same `ESCALATED` status:
+
+1. **Intake-time, automatic.** The deterministic safety-check pass (§6)
+   flags `URGENT_CARE_GUIDANCE` before any AI or pharmacist involvement.
+   The patient is shown clear, non-diagnostic guidance to seek appropriate
+   care — DosePrepped does not attempt to triage or manage the situation
+   itself, matching the original architecture's "Safety/Escalation"
+   section. No professionally-reviewed triage protocol exists yet; this
+   document does not invent one, and the rule set stays intentionally
+   conservative and small (a handful of clearly-urgent keyword patterns)
+   until clinically reviewed rules are available.
+2. **Pharmacist-initiated.** During review, a pharmacist determines the
+   question is beyond general medication guidance (needs a dose change,
+   a new/worsening symptom needs clinical evaluation, etc.) and escalates
+   with a required `escalationReason`.
+
+**What escalation is *not*, in this architecture:** an automated referral,
+an EHR integration, or a message sent to a named provider on the patient's
+behalf. DosePrepped has no provider accounts or EHR connectivity, and none
+is being built now. Escalation means: the patient is clearly told to
+contact their prescriber or usual care source, with the structured context
+of what was discussed. The one forward-looking exception is B2B (§13/16
+below): if the patient was enrolled through a telemedicine organization,
+that organization *is* effectively "the provider," so an escalation event
+is a natural future webhook/notification target for that organization —
+architected for, not built now.
+
+### 9. Distinguishing education, pharmacist review, and provider evaluation
+
+A concrete three-tier rule, not just an architectural nicety:
+
+- **General education (AI, immediate):** factual, generic-to-the-medication
+  information that doesn't require interpreting the patient's specific
+  situation — "how does this medication generally work," "what does
+  'take with food' mean." Always labeled AI-generated. Only produced when
+  disposition is `ROUTINE`.
+- **Pharmacist review (human, asynchronous):** anything requiring judgment
+  applied to *this patient's* specific situation within a
+  pharmacist's scope — interaction concerns, side-effect management,
+  adherence troubleshooting, cost/access alternatives. Triggered by
+  patient request, by `PHARMACIST_RECOMMENDED` disposition, or by the AI
+  education step itself declining to answer generically (low confidence →
+  defer to pharmacist rather than guess).
+- **Provider/medical evaluation (human, off-platform):** anything implying
+  a treatment-plan change, a new or worsening symptom needing diagnosis, or
+  genuine urgency. Never handled by AI or pharmacist alone — either the
+  intake-time safety check routes here directly, or a pharmacist recognizes
+  it during review and escalates. This tier is always a redirect *out* of
+  DosePrepped to the patient's own care team, never something the product
+  attempts to resolve itself.
+
+### 10. Ownership and authorization
+
+Extends the ownership pattern M2 already established
+(`{ id, patientId: request.user.id }` scoped queries, 404-not-403 on
+mismatch) with a second axis for the pharmacist role:
+
+- **Patient access:** unchanged pattern — a question is only ever
+  readable/writable by `patientId === request.user.id`.
+- **Pharmacist access:** scoped, not global. A pharmacist may read a
+  question only if it's unclaimed and in the shared queue
+  (`status = PHARMACIST_REQUESTED`, `pharmacistId = null`) or if
+  `pharmacistId === request.user.id` (their own claimed request). A
+  pharmacist must **not** be able to browse a patient's full question
+  history or medication list outside of a specific assigned request — this
+  is a least-privilege / minimum-necessary-access requirement, not just a
+  nice-to-have. If a pharmacist genuinely needs broader context on a
+  specific request (e.g. the patient's full active medication list, not
+  just the snapshot), that should be a deliberate, logged "view full
+  profile" action scoped to that request — not ambient access.
+- **Admin access:** no new admin capability is being designed here. Any
+  future admin access to question content should be audit-logged the same
+  way pharmacist access is.
+
+### 11. Analytics architecture
+
+Extends the minimal `analytics_events` concept from the original
+architecture (§11) with question-specific events, still under the
+"collect only what's needed, no unnecessary PII" rule:
+
+```
+question_submitted          {category, medicationId, hasClarifyingRound}
+ai_education_generated      {questionId, disposition}
+pharmacist_request_created   {questionId, autoRequested: bool}
+pharmacist_request_claimed    {questionId, responseLatencyFromCreateMs}
+pharmacist_response_sent       {questionId, responseTimeMs}
+question_resolved               {questionId}
+question_escalated               {questionId, reason}
+```
+
+Combined with `MedicationQuestion`'s own timestamps, this supports every
+metric asked for without a separate reporting pipeline:
+
+- **Questions per medication** — `count(*) group by medicationId`.
+- **Question categories** — `count(*) group by category` (and
+  `category` vs `aiSuggestedCategory` agreement rate, as a model-quality
+  signal).
+- **Pharmacist requests / response time** — `pharmacistRespondedAt -
+  pharmacistRequestedAt`, aggregated.
+- **Provider escalations** — `count(*) where status = 'ESCALATED' group by
+  escalationReason`.
+- **Patient engagement** — distinct patients with ≥1 question / total
+  active patients; return-usage rate over time.
+- **Repeat medication questions** — same `patientId` + `medicationId` +
+  `category` recurring within a rolling window; a useful *signal to
+  surface to the pharmacist* ("this patient has asked about missed doses
+  for this medication 3 times this month"), not just a reporting metric.
+
+### 12. What should NOT be stored
+
+Restating and extending the original architecture's "collect only what's
+needed" principle for this specific feature:
+
+- No diagnosis, clinical assessment, vitals, or free-text "other health
+  conditions" fields — the question flow only ever touches the medication
+  the patient selected and (narrowly) their other active medications.
+- No payment/insurance details for `COST_ACCESS` questions — that category
+  is about affordability *concerns*, not a billing intake form.
+- No third-party data pulled from anywhere else (no EHR scraping, no
+  pharmacy-of-record integration) — everything comes from what the patient
+  entered themselves in DosePrepped.
+- No raw AI prompts/chain-of-thought persisted in the primary database —
+  only the final structured output (education text, suggested category,
+  disposition) is stored. If prompt/completion logging is ever needed for
+  AI QA, that belongs in a separate, access-restricted, time-limited log
+  store — not the patient-facing data model — and isn't being built now.
+- No unnecessary intake friction — the patient should never be asked for
+  demographic or clinical detail beyond what a specific category genuinely
+  needs (interaction/side-effect context, as noted in §3).
+
+### 13. B2B extensibility
+
+Reaffirms the original architecture's B2B sketch (§ "B2B Design") without
+building any of it now: a future nullable `organizationId` on `User` would
+let a patient be tagged as enrolled through a specific telemedicine
+partner; escalation events (§8) become a natural webhook/notification
+trigger for that partner; organization-scoped, aggregate-only analytics
+(§11) become possible once that tag exists. No `Organization` table or
+`organizationId` column is being added in M3 — this is called out
+specifically so it isn't accidentally scope-crept into M3's migration.
+
+### 14. Medication-agnostic design guardrails
+
+Nothing in this design is GLP-1-specific, and it needs to stay that way
+deliberately:
+
+- Categories (§3) are generic to any medication class.
+- Medication resolution comes entirely from the patient's own
+  `PatientMedication` entry (manually entered in M2) — there is no
+  GLP-1-specific integration or shortcut anywhere in the intake path.
+- Any future drug-class-specific education content (e.g. injection-site
+  rotation guidance relevant to GLP-1s and other injectables) belongs in
+  the swappable Medication Reference / retrieval layer (§ "Medication Data
+  Abstraction Layer"), keyed by medication attributes, never hardcoded into
+  application logic or copy.
+- Seed/demo data should keep spanning multiple drug classes (already true:
+  Lisinopril, Metformin, Semaglutide, Ondansetron) as new synthetic
+  examples are added for M3 testing — don't let the demo set drift toward
+  GLP-1-only.
+
+### 15. Database changes
+
+Illustrative schema sketch — **not applied to `packages/db/prisma/
+schema.prisma` yet.**
+
+```
+enum QuestionCategory {
+  GENERAL_INFO
+  ADMINISTRATION
+  MISSED_DOSE
+  SIDE_EFFECT
+  DRUG_INTERACTION
+  STORAGE
+  ADHERENCE
+  COST_ACCESS
+  OTHER
+}
+
+enum QuestionDisposition {
+  ROUTINE
+  PHARMACIST_RECOMMENDED
+  URGENT_CARE_GUIDANCE
+}
+
+enum QuestionStatus {
+  AI_PROCESSING
+  AI_ANSWERED
+  PHARMACIST_REQUESTED
+  PHARMACIST_IN_PROGRESS
+  WAITING_FOR_PATIENT      -- reserved; no two-way thread UI designed yet
+  PHARMACIST_RESOLVED
+  ESCALATED
+  CLOSED
+}
+
+model MedicationQuestion {
+  id                          String
+  patient                     User                 -- owner
+  patientId                   String
+  medication                  PatientMedication
+  medicationId                String
+  medicationSnapshot          Json                 -- {name, strength, directions, frequency, route} at creation time
+  otherMedicationsSnapshot    Json?                -- [{name, strength}], only for DRUG_INTERACTION / SIDE_EFFECT
+  category                    QuestionCategory     -- patient-selected
+  aiSuggestedCategory         QuestionCategory?
+  questionText                String
+  clarifyingExchange          Json?                -- {question, answer}, at most one
+  disposition                 QuestionDisposition?
+  aiEducationResponse         String?
+  aiEducationGeneratedAt      DateTime?
+  aiModelVersion              String?              -- audit: which model/prompt version produced the response
+  status                      QuestionStatus
+  pharmacist                  User?
+  pharmacistId                String?
+  pharmacistRequestedAt       DateTime?
+  pharmacistClaimedAt         DateTime?
+  pharmacistResponse          String?
+  pharmacistRespondedAt       DateTime?
+  escalatedAt                 DateTime?
+  escalationReason            String?
+  resolvedAt                  DateTime?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+
+  @@index([patientId])
+  @@index([status])            -- pharmacist queue lookups
+  @@index([medicationId])      -- "questions per medication" analytics
+}
+
+model AnalyticsEvent {                              -- minimal, per §11
+  id          String
+  eventType   String
+  questionId  String?
+  metadata    Json          -- narrow, no unnecessary PII
+  createdAt   DateTime
+
+  @@index([eventType, createdAt])
+}
+```
+
+Notes on relations to existing M0–M2 models: `MedicationQuestion.patient`
+FKs to the existing `User`; `MedicationQuestion.medication` FKs to the
+existing `PatientMedication` (no changes needed to that model itself — see
+§20); `MedicationQuestion.pharmacist` FKs to `User` where `role =
+PHARMACIST`, enforced at the application layer the same way role checks
+already are (Prisma doesn't natively constrain a relation by another
+column's value).
+
+### 16. API changes
+
+Illustrative endpoint sketch — **no routes added yet.** Follows the same
+ownership-scoping, Zod validation, and `requireRole` patterns already
+established in `apps/api/src/routes/medications.ts`.
+
+```
+POST   /questions                     create (medicationId, category, questionText)
+GET    /questions                     patient's own list
+GET    /questions/:id                 detail (ownership-scoped, patient)
+POST   /questions/:id/clarify         submit answer to the one AI clarifying question
+POST   /questions/:id/request-pharmacist    → status PHARMACIST_REQUESTED
+
+# Pharmacist-side (built in a later phase — see §19)
+GET    /pharmacist/queue              unclaimed + own claimed requests
+POST   /questions/:id/claim
+POST   /questions/:id/respond
+POST   /questions/:id/escalate
+POST   /questions/:id/resolve
+```
+
+`POST /questions` is where the structuring pipeline (§5) runs: it always
+executes Layer 1 (deterministic) and, once AI is wired up, Layer 2 in
+sequence within the same request/response cycle for `ROUTINE`-disposition
+questions — no polling or background job is required for M3's scope, since
+each AI call is a single bounded operation, not a long-running task.
+
+### 17. UI changes
+
+Illustrative screen sketch — **no screens built yet.**
+
+- **Medication detail (M2, existing):** add "Ask about this medication."
+- **Ask a Question flow (replaces the M0/M1 placeholder):** medication
+  picker (skipped if pre-selected) → category selector → question text →
+  optional single AI clarifying question → AI education response
+  (labeled) → "Ask a Pharmacist" CTA → confirmation screen.
+- **My Questions (new, parallel to "My Medications"):** list with status
+  badges (Answered / Pharmacist requested / Pharmacist responded /
+  Escalated).
+- **Question detail:** full structured record — question, medication
+  snapshot, category, AI education (labeled), pharmacist response when
+  present.
+- **Pharmacist home (M1 placeholder → real entry point):** becomes the
+  entry to the queue in a later phase (§19), not M3 itself.
+
+### 18. Security considerations
+
+- Ownership scoping and pharmacist queue scoping as in §10, enforced
+  server-side exactly like M2's medication ownership checks — never
+  frontend-only.
+- Rate limiting on `POST /questions` (both abuse/spam prevention and AI
+  cost control), following the same `@fastify/rate-limit` pattern already
+  used for `/auth/login` and `/auth/signup`.
+- AI output is never rendered to the patient without an explicit
+  AI-generated label, and every education response is re-checked against
+  the MUST NOT list (§6) at the point it's about to be shown — not trusted
+  purely because the prompt asked nicely.
+- Question text and AI/pharmacist responses are treated as sensitive:
+  never written to application logs in plaintext, consistent with M2's
+  existing "don't log medication content" precedent.
+- No new PHI-adjacent surface is exposed in URLs — question IDs are opaque
+  UUIDs, matching the medication-ID convention from M2.
+- Still not HIPAA compliant, and nothing in this document should be read
+  as a claim otherwise; the same technical/operational/legal/vendor gate
+  from the original architecture (§8) applies before any real PHI.
+
+### 19. Recommended implementation sequence
+
+Phased so the highest-risk piece (AI/safety) is built and tested in
+isolation before anything depends on it, and so each phase ships something
+independently demonstrable:
+
+1. **Question intake, no AI, no pharmacist.** `MedicationQuestion` schema
+   + migration, `POST/GET /questions`, the composer UI through category +
+   question text, "My Questions" list, question detail screen. Proves the
+   structuring UX and data model on their own.
+2. **Deterministic safety-check layer.** The rule-based (non-LLM) pass for
+   `QuestionDisposition`, built and tested in isolation before any LLM
+   involvement — this is the most conservative, highest-stakes piece and
+   should not be entangled with AI integration work.
+3. **AI Service Layer integration.** `suggestCategory`,
+   `generateClarifyingQuestion`, `generateEducation`, behind the Phase 2
+   safety gate. Ships general education end-to-end.
+4. **Pharmacist request + queue.** `POST /questions/:id/request-pharmacist`,
+   `summarizeForPharmacist`, the real pharmacist queue/claim/respond flow
+   replacing the M1 placeholder pharmacist home.
+5. **Provider escalation + analytics.** Pharmacist-initiated escalation,
+   the `AnalyticsEvent` table and event emission from every phase above
+   (retrofit event emission into phases 1–4 as they ship, rather than
+   bolting it on at the end).
+
+Explicitly **not** part of this sequence: two-way secure messaging threads
+(`WAITING_FOR_PATIENT` stays a reserved-but-unbuilt status), adherence
+check-ins, schedule/reminders, and B2B organization support. Each is a
+separate future milestone building on this foundation, not M3 itself.
+
+### 20. Required changes to M0–M2
+
+Reviewed against the existing implementation; nothing here is breaking:
+
+- **`PatientMedication` (M2): no schema change required.** Questions
+  reference it by FK plus their own snapshot (§2) — the medication model
+  itself doesn't need new fields for M3.
+- **Inactive medications remain askable.** The medication picker (§4) must
+  include `INACTIVE` medications, not just `ACTIVE` ones — a small but
+  important product decision, not a code change to M2 itself.
+- **Auth/session/RBAC (M1): no changes required.** The `PATIENT` and
+  `PHARMACIST` roles already exist; M3 only adds new authorization *rules*
+  (queue scoping, §10) evaluated with the same `requireRole`/ownership
+  patterns already in place, not new role types.
+- **Placeholder screens (M0/M1) are the intended attachment points**, not
+  dead weight to be reworked: "Ask a Question," "Ask a Pharmacist," and the
+  pharmacist home page were placeholders precisely so this milestone could
+  replace their content without restructuring routes or layouts.
+- **`packages/ai-service` is net-new** — the original architecture (§4)
+  specified this package but it was never built in M0–M2 (M0–M2 correctly
+  had no AI functionality in scope). It's created in Phase 3 of §19, not
+  before.
+- No changes needed to `packages/auth`, `packages/types`, or the CORS/
+  cookie/rate-limit plugin setup in `apps/api`.
+
+---
+
 ## Next Step
 
-This document completes Step 1. No application code has been written.
-Awaiting confirmation to proceed with **M0 — Scaffolding**, and confirmation
-on whether DosePrepped should live in its own repository (recommended, §9)
-rather than inside MySupervisely1.
+M0, M1, and M2 are implemented, tested, and merged. This M3 architecture
+update is planning only — no code has been written or modified for it.
+Awaiting direction on which phase of §19 to start with (the recommendation
+is Phase 1: question intake with no AI and no pharmacist involvement yet).
