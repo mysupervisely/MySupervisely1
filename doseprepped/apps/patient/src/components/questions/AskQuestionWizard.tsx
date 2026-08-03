@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { CATEGORY_LABELS, CATEGORY_ORDER, STATUS_LABELS } from "@/lib/question-labels";
+import { CATEGORY_LABELS, CATEGORY_ORDER, DISPOSITION_MESSAGES } from "@/lib/question-labels";
 import type { QuestionCategory, Question } from "@/lib/questions";
 import type { Medication } from "@/lib/medications";
 import { API_URL } from "@/lib/api";
+import { cn } from "@/lib/cn";
 
 type Step = "medication" | "category" | "question" | "review" | "confirmation";
 
@@ -210,13 +211,22 @@ export function AskQuestionWizard({ medications, initialMedicationId }: AskQuest
   }
 
   if (step === "confirmation" && submittedQuestion) {
+    const disposition = submittedQuestion.disposition;
     return (
       <div className="flex flex-col items-center gap-4 text-center">
         <h1 className="text-2xl font-semibold text-ink">Your question has been received.</h1>
-        <Badge tone="info">{STATUS_LABELS[submittedQuestion.status]}</Badge>
-        <p className="text-sm text-ink-muted">
-          A pharmacist has not reviewed this question yet.
-        </p>
+        {disposition && (
+          <Card
+            className={cn(
+              "text-sm",
+              disposition === "URGENT_EMERGENCY"
+                ? "bg-danger-light text-danger"
+                : "bg-accent-light text-ink-muted",
+            )}
+          >
+            {DISPOSITION_MESSAGES[disposition]}
+          </Card>
+        )}
         <div className="flex w-full flex-col gap-3">
           <Button href={`/questions/${submittedQuestion.id}`} variant="primary" fullWidth>
             View question

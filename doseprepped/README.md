@@ -1,25 +1,32 @@
-# DosePrepped — M0–M2 + M3 Phase 1 (Foundation, Auth, Medications, Question Intake)
+# DosePrepped — M0–M2 + M3 Phase 1–2 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition)
 
 DosePrepped is a digital medication-support layer: it helps patients
 understand their medications and, eventually, connect with licensed
 pharmacists (and their own provider when appropriate) when they have
 medication-related questions.
 
-> **Status: through M3 Phase 1 (Question Intake).** Real accounts,
-> login/logout, password hashing, sessions, server-enforced role-based
-> access control (patient / pharmacist / admin), a full patient medication
-> list, and structured medication-question intake are implemented. A
-> patient can ask a question about a specific medication and see it in
-> their question history — but **no AI processes it and no pharmacist
-> reviews it yet**. There is still no authoritative medication database, no
-> OCR, no pharmacist messaging, no provider escalation logic, no payments,
-> and no clinical decision support of any kind. See
+> **Status: through M3 Phase 2 (Deterministic Safety & Disposition
+> Layer).** Real accounts, login/logout, password hashing, sessions,
+> server-enforced role-based access control (patient / pharmacist / admin),
+> a full patient medication list, structured medication-question intake,
+> and a deterministic, AI-independent safety/disposition routing layer are
+> implemented. Every submitted question is now automatically routed to one
+> of four dispositions (general education, pharmacist review, provider
+> evaluation, or urgent/emergency guidance) using explicit, versioned,
+> reviewable rules — **no AI/LLM is involved in this routing, and none is
+> required for it to work.** This is routing only: nothing in this codebase
+> diagnoses, recommends treatment, or tells a patient to start/stop/change
+> a medication. No pharmacist reviews questions yet, no AI generates
+> educational answers yet, and there is still no authoritative medication
+> database, no OCR, no pharmacist messaging, no provider escalation
+> workflow, no payments, and no comprehensive clinical decision support.
+> See
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
 > for the full product spec, the M3 "digital medication-support layer"
 > architecture, and the milestone plan. Ask a Pharmacist and the pharmacist
 > /admin dashboards remain explicit placeholders.
 
-## What's in M0–M2 + M3 Phase 1
+## What's in M0–M2 + M3 Phase 1–2
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -45,8 +52,15 @@ medication-related questions.
   medication (or starts from that medication's own detail page), a
   patient-friendly category, and describes their question in their own
   words. The question is snapshotted, stored, and immediately visible in
-  "My Questions" with a `Received` status — no AI runs, no pharmacist is
-  notified. See "Question data model" below.
+  "My Questions" with a `Received` status. See "Question data model" below.
+- **Deterministic safety & disposition routing (M3 Phase 2):** every
+  submitted question is run, synchronously and server-side, through
+  `packages/safety-rules` — a small, versioned, zero-dependency rule engine
+  that assigns one of four dispositions (`GENERAL_EDUCATION`,
+  `PHARMACIST_REVIEW`, `PROVIDER_EVALUATION`, `URGENT_EMERGENCY`) from the
+  patient's chosen category plus a small set of named, reviewable text
+  patterns. It never calls an AI/LLM and never requires one to be
+  available. See "Deterministic safety & disposition architecture" below.
 - A minimal Fastify backend API: `/health` (DB connectivity), `/auth/*`
   (signup/login/logout/me), `/medications*` (CRUD + archive + reference
   search), `/questions*` (create/list/detail), and one role-gated
@@ -56,14 +70,18 @@ medication-related questions.
   `MedicationReference`, and `MedicationQuestion`, seeded with **synthetic
   demo data only**.
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 41 auth/RBAC/medication/question integration tests against a
-  real (disposable) test database.
+  including 53 auth/RBAC/medication/question/disposition integration tests
+  against a real (disposable) test database, plus 16 standalone unit tests
+  for the safety-rules engine.
 
-Not in scope yet (see the architecture doc for when these land): AI
-processing of questions, an authoritative medication reference database,
-OCR/medication scanning, pharmacist messaging/dashboard functionality,
-provider escalation logic, payments, account deletion, consent tracking,
-drug interaction checking, and any clinical decision support.
+Not in scope yet (see the architecture doc for when these land): AI-
+generated educational answers, an authoritative medication reference
+database, OCR/medication scanning, pharmacist messaging/dashboard
+functionality, provider escalation workflow, payments, account deletion,
+consent tracking, drug interaction checking, and any comprehensive clinical
+decision support. M3 Phase 2's rule engine performs **routing only** — it
+does not diagnose, does not recommend treatment, and does not evaluate
+whether a medication is "safe" for a given patient.
 
 ## Project structure
 
@@ -80,6 +98,9 @@ doseprepped/
                  sessions) used by apps/api; the frontend never sees this
                  package directly — it only talks to the API
     types/       Shared framework-agnostic types (e.g. the Role union)
+    safety-rules/ Deterministic, zero-dependency safety/disposition rule
+                 engine (pure function: category + question text →
+                 disposition). No DB, HTTP, or AI dependency by design.
   docs/          (see ../docs/doseprepped for the architecture plan)
 ```
 
@@ -285,9 +306,10 @@ environment, and `.env*` files are git-ignored.
 ## Question data model
 
 Implements `MedicationQuestion` per `docs/doseprepped/ARCHITECTURE.md` "M3
-— The Digital Medication-Support Layer" §2/§15. M3 Phase 1 only ever writes
-a subset of its fields — the rest exist now so later phases (AI, pharmacist
-review, escalation) don't require a schema change:
+— The Digital Medication-Support Layer" §2/§15. M3 Phase 1–2 only ever
+write a subset of its fields — the rest exist now so later phases (AI
+education, pharmacist review, provider escalation) don't require a schema
+change:
 
 - **Ownership**: `patientId` (owner) and `medicationId` (the medication
   it's about), both FKs, both enforced server-side exactly like
@@ -316,14 +338,89 @@ review, escalation) don't require a schema change:
   `PHARMACIST_IN_PROGRESS`, `WAITING_FOR_PATIENT`, `PHARMACIST_RESOLVED`,
   `ESCALATED`, `CLOSED`) is defined in the schema but unreachable until a
   later phase implements the code path that sets it.
-- **AI/pharmacist/escalation fields** (`disposition`,
-  `aiEducationResponse`, `aiModelVersion`, `pharmacistId`,
+- **Disposition** (`disposition`, `dispositionSource`,
+  `dispositionRuleIds`, `safetyRuleSetVersion`, `dispositionAssignedAt`):
+  assigned deterministically at creation time by `packages/safety-rules`
+  (M3 Phase 2) — see "Deterministic safety & disposition architecture"
+  below. `dispositionSource` is always `DETERMINISTIC` today (the
+  `AI_ASSISTED` value exists for a future refinement layer that is not
+  implemented). `dispositionRuleIds` records which named escalation
+  rule(s), if any, fired; empty means the category baseline applied.
+  `safetyRuleSetVersion` pins the exact rule set that produced the
+  disposition, so a later rule change never silently reinterprets a past
+  question.
+- **AI education / pharmacist / escalation fields**
+  (`aiEducationResponse`, `aiModelVersion`, `pharmacistId`,
   `pharmacistResponse`, `escalatedAt`, `escalationReason`, etc.): present
   in the schema and in every API response (always `null`), but nothing in
   this codebase writes to them yet — no LLM is called, no pharmacist queue
-  exists, no automated clinical judgment is made. This is intentional: it's
-  the "clean integration point" for the next phase, not a placeholder
-  answer that could be mistaken for real guidance.
+  exists. This is intentional: it's the "clean integration point" for the
+  next phase, not a placeholder answer that could be mistaken for real
+  guidance.
+
+## Deterministic safety & disposition architecture
+
+Full rationale and audit trail lives in `docs/doseprepped/ARCHITECTURE.md`
+under "Deterministic Safety & Disposition Rule Engine" — this is a summary.
+
+- **Purpose is routing, not clinical judgment.** The engine decides which
+  human tier (general education / pharmacist / provider) should see a
+  question next, or whether to surface urgent/emergency guidance. It never
+  diagnoses, never recommends a treatment or dose change, never tells a
+  patient to start or stop a medication, and never determines whether a
+  medication is "safe" for that specific patient.
+- **Deterministic-first, AI-independent by construction.**
+  `packages/safety-rules` (`evaluateDisposition(questionText, category)`)
+  is a pure, synchronous function with **zero runtime dependencies** — no
+  database, no HTTP client, no AI/LLM client. There is no code path through
+  which question creation could require an AI service to be available; a
+  future AI-assisted refinement layer (`AI_ASSISTED`, not implemented) can
+  only ever escalate a disposition toward more caution, never downgrade or
+  replace the deterministic result (the "conservative floor").
+- **Two-layer algorithm:**
+  1. **Category baseline** — the patient's own category selection
+     (`GENERAL_INFO` / `ADMINISTRATION` / `STORAGE` → `GENERAL_EDUCATION`;
+     everything else → `PHARMACIST_REVIEW`) is a structured, unambiguous
+     signal, so it sets the floor before any text is examined.
+  2. **Named escalation rules** — a small, intentionally non-exhaustive set
+     of pattern-matching rules (severe allergic reaction, possible overdose
+     or poisoning, loss of consciousness, chest pain, suicidal
+     ideation/self-harm → `URGENT_EMERGENCY`; severe/rapidly worsening
+     symptoms, medication errors with potential harm →
+     `PROVIDER_EVALUATION`) scan the question text and, on a match, raise
+     the disposition above the category baseline — never below it. Each
+     rule has a stable `id`, an audit description, and lives in
+     `packages/safety-rules/src/rules.ts` for clinical review.
+- **When uncertain, it defaults to human review.** Six of the nine
+  categories baseline to `PHARMACIST_REVIEW` rather than
+  `GENERAL_EDUCATION`; there is no confidence threshold or "maybe" state —
+  a question either matches a named escalation pattern or it doesn't, and
+  ambiguous/unmatched text always falls back to its category's
+  human-reviewed baseline rather than being assumed safe for pure
+  education.
+- **Versioned and auditable.** `SAFETY_RULE_SET_VERSION`
+  (`packages/safety-rules/src/rules.ts`) is a date-stamped string bumped on
+  any rule or baseline change. Every question stores the exact version and
+  rule ID(s) that produced its disposition at creation time, so editing the
+  rules later never rewrites the meaning of a past question.
+- **Patient-facing copy** (`apps/patient/src/lib/question-labels.ts`,
+  `DISPOSITION_MESSAGES`) is deliberately routing-only language — e.g.
+  "This question is better reviewed by a pharmacist." — and never implies
+  a pharmacist or physician has already reviewed the question, since none
+  has yet.
+- **Current limitations — requires clinical review before production
+  use.** The rule set is small and intentionally does not attempt to
+  enumerate every possible medical emergency; patterns are English-only
+  and text-based (no medication-specific interaction/risk awareness). This
+  is a first deterministic pass meant to be extended, and reviewed by a
+  licensed pharmacist/clinician, before it is relied on with real patient
+  data.
+- **What Phase 2 does *not* do:** it does not create a pharmacist queue or
+  send any pharmacist/provider notification, does not transition
+  `MedicationQuestion.status` away from `RECEIVED`, and does not generate
+  any AI-written educational answer. It only computes and stores a
+  disposition value at creation time. Those integrations are explicitly
+  future phases.
 
 ## Security notes for this milestone
 
@@ -342,9 +439,12 @@ review, escalation) don't require a schema change:
   question text are never written to logs.
 - No AI/LLM is called anywhere in this codebase yet, and no placeholder or
   simulated AI/pharmacist response is generated — a question's `status`
-  stays `RECEIVED` and every AI/pharmacist field stays `null` until a later
-  phase actually implements that processing, so nothing on screen could be
-  mistaken for reviewed clinical guidance.
+  stays `RECEIVED` and every AI-education/pharmacist field stays `null`
+  until a later phase actually implements that processing, so nothing on
+  screen could be mistaken for reviewed clinical guidance. Disposition
+  assignment (M3 Phase 2) is the one exception to "nothing runs yet" — it
+  is a deterministic, non-AI routing computation, not clinical guidance,
+  and is documented as such everywhere it's surfaced.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

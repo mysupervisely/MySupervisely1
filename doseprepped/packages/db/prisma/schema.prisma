@@ -130,15 +130,34 @@ enum QuestionCategory {
   OTHER
 }
 
-/// The outcome of the (not-yet-implemented) safety/urgency check described
-/// in docs/doseprepped/ARCHITECTURE.md §6. Always null in M3 Phase 1 — no
-/// code path sets this yet, since Phase 1 makes no automated clinical
-/// judgments. Reserved so the later AI phase has a field to write to
-/// without a schema change.
+/// The routing outcome of the deterministic safety/disposition rule engine
+/// (packages/safety-rules) — see docs/doseprepped/ARCHITECTURE.md
+/// "Deterministic Safety & Disposition Rule Engine". Assigned synchronously
+/// at question creation time by rules alone; no AI/LLM call is involved.
+/// This is a routing decision, never a diagnosis or treatment
+/// recommendation.
+///
+/// Renamed/expanded in M3 Phase 2 from the original 3-value Phase 1 sketch
+/// (ROUTINE / PHARMACIST_RECOMMENDED / URGENT_CARE_GUIDANCE), which
+/// conflated "needs a pharmacist" with "needs a provider" and had no way
+/// to distinguish a non-emergency provider concern from a true emergency.
+/// Safe to rename: disposition was never populated before Phase 2 (always
+/// null), so no data migration is affected.
 enum QuestionDisposition {
-  ROUTINE
-  PHARMACIST_RECOMMENDED
-  URGENT_CARE_GUIDANCE
+  GENERAL_EDUCATION
+  PHARMACIST_REVIEW
+  PROVIDER_EVALUATION
+  URGENT_EMERGENCY
+}
+
+/// Distinguishes a disposition the deterministic rule engine assigned
+/// (the only source that exists today) from one a future AI-assisted
+/// refinement pass assigned or adjusted. An AI-assisted result may only
+/// ever escalate a deterministic disposition toward more caution, never
+/// replace or downgrade it — see docs/doseprepped/ARCHITECTURE.md.
+enum DispositionSource {
+  DETERMINISTIC
+  AI_ASSISTED
 }
 
 /// Question lifecycle. Phase 1 only ever sets RECEIVED (on creation) and
@@ -161,10 +180,11 @@ enum QuestionStatus {
 /// A patient's question about one of their own medications — the core
 /// entity of the "digital medication-support layer" direction (see
 /// docs/doseprepped/ARCHITECTURE.md "M3 — The Digital Medication-Support
-/// Layer"). M3 Phase 1 covers structured intake only: no AI processing, no
-/// pharmacist review, no escalation. Every field that belongs to a later
-/// phase is present here already (so later phases don't need a migration)
-/// but is always null / at its initial value in this phase.
+/// Layer"). M3 Phase 1 implemented structured intake; M3 Phase 2 added
+/// deterministic disposition routing (no AI, no pharmacist review, no
+/// escalation messaging yet). Every field that belongs to a still-later
+/// phase is present here already (so those phases don't need a migration)
+/// but is always null / at its initial value until that phase is built.
 model MedicationQuestion {
   id           String            @id @default(uuid())
   patient      User              @relation("PatientQuestions", fields: [patientId], references: [id], onDelete: Cascade)
@@ -196,9 +216,26 @@ model MedicationQuestion {
   /// in Phase 1 (no AI).
   clarifyingExchange Json?
 
-  /// Safety/urgency disposition. Always null in Phase 1 — no automated
-  /// clinical judgment is made yet.
+  /// Routing disposition assigned by packages/safety-rules at creation
+  /// time — see the QuestionDisposition doc comment above. Populated for
+  /// every question as of M3 Phase 2 (never null going forward).
   disposition QuestionDisposition?
+
+  /// Always DETERMINISTIC today — no AI-assisted refinement exists yet.
+  dispositionSource DispositionSource?
+
+  /// Named safety-rule id(s) that fired (see packages/safety-rules), or an
+  /// empty array if only the category baseline applied. Lets a clinical
+  /// reviewer see exactly why a question got the disposition it did.
+  dispositionRuleIds String[] @default([])
+
+  /// The packages/safety-rules SAFETY_RULE_SET_VERSION that produced this
+  /// disposition — any two questions with the same version were evaluated
+  /// by byte-identical rules. A later rule change never retroactively
+  /// changes an already-assigned disposition.
+  safetyRuleSetVersion String?
+
+  dispositionAssignedAt DateTime?
 
   aiEducationResponse    String?
   aiEducationGeneratedAt DateTime?

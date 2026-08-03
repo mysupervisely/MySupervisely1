@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, Role, QuestionCategory, type MedicationQuestion } from "@doseprepped/db";
+import { prisma, Role, QuestionCategory, DispositionSource, type MedicationQuestion } from "@doseprepped/db";
+import { evaluateDisposition } from "@doseprepped/safety-rules";
 import { requireRole } from "../lib/auth.js";
 
 const QUESTION_CATEGORIES = Object.values(QuestionCategory) as [QuestionCategory, ...QuestionCategory[]];
@@ -50,6 +51,12 @@ function serializeQuestion(question: MedicationQuestion) {
     aiSuggestedCategory: question.aiSuggestedCategory,
     questionText: question.questionText,
     disposition: question.disposition,
+    dispositionSource: question.dispositionSource,
+    dispositionRuleIds: question.dispositionRuleIds,
+    safetyRuleSetVersion: question.safetyRuleSetVersion,
+    dispositionAssignedAt: question.dispositionAssignedAt
+      ? question.dispositionAssignedAt.toISOString()
+      : null,
     aiEducationResponse: question.aiEducationResponse,
     status: question.status,
     pharmacistResponse: question.pharmacistResponse,
@@ -127,6 +134,14 @@ export async function questionRoutes(app: FastifyInstance) {
         otherMedicationsSnapshot = others;
       }
 
+      // Deterministic safety/disposition gate (M3 Phase 2) — a pure,
+      // synchronous rule evaluation with no AI/LLM involved. See
+      // docs/doseprepped/ARCHITECTURE.md "Deterministic Safety &
+      // Disposition Rule Engine". This is the only thing that decides
+      // disposition today; it always runs and never depends on any
+      // external service being available.
+      const safetyResult = evaluateDisposition(questionText, category);
+
       const question = await prisma.medicationQuestion.create({
         data: {
           patientId: request.user!.id,
@@ -135,6 +150,11 @@ export async function questionRoutes(app: FastifyInstance) {
           otherMedicationsSnapshot: otherMedicationsSnapshot ?? undefined,
           category,
           questionText,
+          disposition: safetyResult.disposition,
+          dispositionSource: DispositionSource.DETERMINISTIC,
+          dispositionRuleIds: safetyResult.matchedRuleIds,
+          safetyRuleSetVersion: safetyResult.ruleSetVersion,
+          dispositionAssignedAt: new Date(),
         },
       });
 

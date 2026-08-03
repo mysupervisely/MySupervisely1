@@ -25,6 +25,7 @@ export {
   MedicationStatus,
   QuestionCategory,
   QuestionDisposition,
+  DispositionSource,
   QuestionStatus,
 } from "../generated/client/client.js";
 export type {

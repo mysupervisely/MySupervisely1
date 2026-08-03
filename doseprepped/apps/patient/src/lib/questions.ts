@@ -24,6 +24,12 @@ export type QuestionStatus =
   | "ESCALATED"
   | "CLOSED";
 
+export type QuestionDisposition =
+  | "GENERAL_EDUCATION"
+  | "PHARMACIST_REVIEW"
+  | "PROVIDER_EVALUATION"
+  | "URGENT_EMERGENCY";
+
 export interface MedicationSnapshot {
   name: string;
   strength: string;
@@ -40,7 +46,11 @@ export interface Question {
   category: QuestionCategory;
   aiSuggestedCategory: QuestionCategory | null;
   questionText: string;
-  disposition: string | null;
+  disposition: QuestionDisposition | null;
+  dispositionSource: "DETERMINISTIC" | "AI_ASSISTED" | null;
+  dispositionRuleIds: string[];
+  safetyRuleSetVersion: string | null;
+  dispositionAssignedAt: string | null;
   aiEducationResponse: string | null;
   status: QuestionStatus;
   pharmacistResponse: string | null;

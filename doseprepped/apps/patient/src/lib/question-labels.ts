@@ -1,4 +1,4 @@
-import type { QuestionCategory, QuestionStatus } from "./questions";
+import type { QuestionCategory, QuestionDisposition, QuestionStatus } from "./questions";
 
 export const CATEGORY_LABELS: Record<QuestionCategory, string> = {
   GENERAL_INFO: "General medication information",
@@ -37,4 +37,17 @@ export const STATUS_LABELS: Record<QuestionStatus, string> = {
   PHARMACIST_RESOLVED: "Pharmacist responded",
   ESCALATED: "Escalated for care",
   CLOSED: "Closed",
+};
+
+// Patient-facing copy for each deterministic disposition (M3 Phase 2). These
+// describe routing only — none of them state that a pharmacist or provider
+// has already reviewed the question, and none offer diagnosis or treatment
+// advice. See docs/doseprepped/ARCHITECTURE.md "Deterministic Safety &
+// Disposition Rule Engine".
+export const DISPOSITION_MESSAGES: Record<QuestionDisposition, string> = {
+  GENERAL_EDUCATION: "We can provide general information about this medication.",
+  PHARMACIST_REVIEW: "This question is better reviewed by a pharmacist.",
+  PROVIDER_EVALUATION: "This question may require evaluation by your healthcare provider.",
+  URGENT_EMERGENCY:
+    "This may be a medical emergency. Please call 911 or go to the nearest emergency room now, or contact Poison Control at 1-800-222-1222 if this involves a possible overdose or poisoning.",
 };

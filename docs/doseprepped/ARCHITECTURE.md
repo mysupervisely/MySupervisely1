@@ -704,40 +704,53 @@ building a parallel medication-selection UI.
 "Structuring" happens in two layers, and the first layer works with AI
 completely disabled:
 
-**Layer 1 — deterministic (no AI required).** On submission, the API
-assembles a structured record from data it already has: the medication
-snapshot (from the patient's own `PatientMedication` row — already
-patient-resolved, no "medication identification" NLP problem to solve
-here, unlike a from-scratch chatbot), the patient-selected category, the
-verbatim question text, and (for interaction/side-effect categories) the
-minimal other-active-medications snapshot. This alone is enough to create
-a well-formed, pharmacist-reviewable question even with zero AI
-involvement — which is the fallback behavior if AI is down, disabled, or
-not yet built for a given deployment.
+**Layer 1 — deterministic (no AI required, no AI permitted to be
+required).** On submission, the API assembles a structured record from
+data it already has: the medication snapshot (from the patient's own
+`PatientMedication` row — already patient-resolved, no "medication
+identification" NLP problem to solve here, unlike a from-scratch chatbot),
+the patient-selected category, the verbatim question text, and (for
+interaction/side-effect categories) the minimal other-active-medications
+snapshot. **As of Phase 2, this layer also assigns the question's
+`disposition`** (`GENERAL_EDUCATION` / `PHARMACIST_REVIEW` /
+`PROVIDER_EVALUATION` / `URGENT_EMERGENCY`) via a standalone,
+non-AI rule engine — see "Deterministic Safety & Disposition Rule Engine"
+below. Layer 1 alone is enough to create a well-formed, pharmacist- or
+provider-routable question even with zero AI involvement — which is the
+fallback behavior if AI is down, disabled, or not yet built for a given
+deployment, and is in fact *all* that exists in the codebase today.
 
-**Layer 2 — AI-assisted enrichment (optional, layered on top).** Given the
-Layer 1 structured record, the AI Service Layer (see §7 of the original
-architecture, "AI Architecture") runs, in order: a safety/urgency check, a
-category-suggestion pass, at most one clarifying question if the free text
-is ambiguous, then a general-education generation pass grounded in the
-medication snapshot and (later) retrieved reference content. Every one of
-these is a single bounded call with a typed output — never a freeform
-chat completion appended to a growing transcript.
+**Layer 2 — AI-assisted enrichment (future, optional, layered on top).**
+Given the Layer 1 structured record — including its already-assigned
+disposition — a future AI Service Layer (see §7 of the original
+architecture, "AI Architecture") would run, in order: an optional
+LLM-assisted *refinement* of the deterministic disposition (which may only
+escalate it toward more caution, never downgrade it — see the "conservative
+floor" principle below), a category-suggestion pass, at most one clarifying
+question if the free text is ambiguous, then a general-education generation
+pass grounded in the medication snapshot and (later) retrieved reference
+content. Every one of these is a single bounded call with a typed output —
+never a freeform chat completion appended to a growing transcript. None of
+Layer 2 is implemented yet.
 
 ### 6. AI integration points
 
 Extending the AI Service Layer already specified in the original
-architecture doc (§7), now tied concretely to `MedicationQuestion`:
+architecture doc (§7), now tied concretely to `MedicationQuestion`. **None
+of the operations below are implemented yet** — disposition assignment,
+implemented in Phase 2, is deliberately *not* one of these AI operations;
+see "Deterministic Safety & Disposition Rule Engine" below for what
+actually runs today.
 
 | Operation | Input | Output | Gate |
 |---|---|---|---|
-| `detectSafetyConcern` | question text | `QuestionDisposition` (ROUTINE / PHARMACIST_RECOMMENDED / URGENT_CARE_GUIDANCE) | Deterministic keyword/rule pass first; LLM-assisted second pass only if the rule pass doesn't already flag it. Runs **before** any other AI step and can short-circuit the rest. |
+| `refineDisposition` (optional, future) | question text, the deterministic disposition already assigned | `QuestionDisposition` | An LLM-assisted second opinion layered *on top of* the deterministic result from Phase 2 — never a replacement for it. May only move the disposition toward more caution (e.g. `PHARMACIST_REVIEW` → `PROVIDER_EVALUATION`), never downgrade it. If unavailable, the deterministic disposition stands unchanged — this is what "AI-independent operation" means in practice. |
 | `suggestCategory` | question text | `QuestionCategory` | Advisory only — never overrides the patient's own selection. |
 | `generateClarifyingQuestion` | question text, category, medication snapshot | one question string, or none | Fires at most once per question. If the patient's answer is still ambiguous, proceed to education/pharmacist anyway rather than asking again. |
-| `generateEducation` | question text, category, medication snapshot, clarifying Q&A, retrieved reference content | education text, `is_ai_generated: true` | Only runs if disposition is `ROUTINE`. Enforces the same MUST NOT list from the original AI Architecture section (no diagnosis, no dose changes, no telling a patient to stop a prescription, etc.), independently re-verified here since this is a new call site. |
-| `summarizeForPharmacist` | full structured record | structured JSON (never prose) | Runs when the patient requests pharmacist review, or automatically when disposition is `PHARMACIST_RECOMMENDED`. |
+| `generateEducation` | question text, category, medication snapshot, clarifying Q&A, retrieved reference content | education text, `is_ai_generated: true` | Only runs if disposition is `GENERAL_EDUCATION`. Enforces the same MUST NOT list from the original AI Architecture section (no diagnosis, no dose changes, no telling a patient to stop a prescription, etc.), independently re-verified here since this is a new call site. |
+| `summarizeForPharmacist` | full structured record | structured JSON (never prose) | Runs when the patient requests pharmacist review, or automatically when disposition is `PHARMACIST_REVIEW` or `PROVIDER_EVALUATION`. |
 
-AI never talks to the patient outside of these five typed operations. There
+AI never talks to the patient outside of these typed operations. There
 is no persistent chat session object and no endpoint that accepts arbitrary
 freeform follow-up messages against a question.
 
@@ -750,8 +763,10 @@ seams rather than requiring rework:
 
 - **Queue.** A question enters the pharmacist-visible queue when its status
   becomes `PHARMACIST_REQUESTED` — either the patient tapped "Ask a
-  Pharmacist," or the safety-check pass set disposition to
-  `PHARMACIST_RECOMMENDED` and the system auto-requested review.
+  Pharmacist," or the deterministic disposition (Phase 2) is
+  `PHARMACIST_REVIEW`/`PROVIDER_EVALUATION` and the system auto-requests
+  review. **Not built yet** — Phase 2 only assigns `disposition`; the
+  status transition and actual queue are later-phase work (§19).
 - **Claim.** A pharmacist claims an unclaimed queued question
   (`pharmacistId` set, status → `PHARMACIST_IN_PROGRESS`). Claiming is
   exclusive — once claimed, the question drops out of other pharmacists'
@@ -775,15 +790,19 @@ flow — see "Recommended implementation sequence."
 
 Two distinct triggers, both landing on the same `ESCALATED` status:
 
-1. **Intake-time, automatic.** The deterministic safety-check pass (§6)
-   flags `URGENT_CARE_GUIDANCE` before any AI or pharmacist involvement.
-   The patient is shown clear, non-diagnostic guidance to seek appropriate
-   care — DosePrepped does not attempt to triage or manage the situation
-   itself, matching the original architecture's "Safety/Escalation"
-   section. No professionally-reviewed triage protocol exists yet; this
-   document does not invent one, and the rule set stays intentionally
-   conservative and small (a handful of clearly-urgent keyword patterns)
-   until clinically reviewed rules are available.
+1. **Intake-time, automatic.** The deterministic disposition rule engine
+   (implemented in Phase 2 — see "Deterministic Safety & Disposition Rule
+   Engine" below) assigns `URGENT_EMERGENCY` or `PROVIDER_EVALUATION`
+   before any AI or pharmacist involvement. The patient is shown clear,
+   non-diagnostic guidance to seek appropriate care — DosePrepped does not
+   attempt to triage or manage the situation itself, matching the original
+   architecture's "Safety/Escalation" section. No professionally-reviewed
+   triage protocol exists yet; this document does not invent one, and the
+   rule set stays intentionally small and conservative until clinically
+   reviewed rules are available. **Phase 2 stops at assigning the
+   disposition and showing guidance copy** — it does not transition
+   `status` to `ESCALATED`, notify anyone, or create any queue entry; that
+   remains later-phase work.
 2. **Pharmacist-initiated.** During review, a pharmacist determines the
    question is beyond general medication guidance (needs a dose change,
    a new/worsening symptom needs clinical evaluation, etc.) and escalates
@@ -802,27 +821,219 @@ architected for, not built now.
 
 ### 9. Distinguishing education, pharmacist review, and provider evaluation
 
-A concrete three-tier rule, not just an architectural nicety:
+A concrete four-way rule (expanded from three to four in Phase 2 — see
+"Why four dispositions, not three" below), not just an architectural
+nicety:
 
-- **General education (AI, immediate):** factual, generic-to-the-medication
-  information that doesn't require interpreting the patient's specific
-  situation — "how does this medication generally work," "what does
-  'take with food' mean." Always labeled AI-generated. Only produced when
-  disposition is `ROUTINE`.
-- **Pharmacist review (human, asynchronous):** anything requiring judgment
-  applied to *this patient's* specific situation within a
-  pharmacist's scope — interaction concerns, side-effect management,
-  adherence troubleshooting, cost/access alternatives. Triggered by
-  patient request, by `PHARMACIST_RECOMMENDED` disposition, or by the AI
-  education step itself declining to answer generically (low confidence →
-  defer to pharmacist rather than guess).
-- **Provider/medical evaluation (human, off-platform):** anything implying
-  a treatment-plan change, a new or worsening symptom needing diagnosis, or
-  genuine urgency. Never handled by AI or pharmacist alone — either the
-  intake-time safety check routes here directly, or a pharmacist recognizes
-  it during review and escalates. This tier is always a redirect *out* of
-  DosePrepped to the patient's own care team, never something the product
-  attempts to resolve itself.
+- **General education (`GENERAL_EDUCATION`, future AI, immediate):**
+  factual, generic-to-the-medication information that doesn't require
+  interpreting the patient's specific situation — "how does this
+  medication generally work," "what does 'take with food' mean." Would
+  always be labeled AI-generated once Layer 2 exists; **as of Phase 2, no
+  education is actually generated for this disposition yet** — the patient
+  sees only the routing message, not content.
+- **Pharmacist review (`PHARMACIST_REVIEW`, human, asynchronous):**
+  anything requiring judgment applied to *this patient's* specific
+  situation within a pharmacist's scope — interaction concerns,
+  side-effect management, adherence troubleshooting, cost/access
+  alternatives. Triggered by patient request (future), by a
+  `PHARMACIST_REVIEW` deterministic disposition (Phase 2, implemented), or
+  by a future AI education step declining to answer generically (low
+  confidence → defer to pharmacist rather than guess).
+- **Provider/medical evaluation (`PROVIDER_EVALUATION`, human,
+  off-platform, non-emergency):** concerning symptoms, possible adverse
+  reactions, or medication errors that fall short of the explicit
+  emergency signals below but still call for clinical evaluation rather
+  than general education or pharmacist-only guidance. Implemented in
+  Phase 2 as a deterministic disposition; no messaging/referral exists yet
+  (§8).
+- **Urgent/emergency (`URGENT_EMERGENCY`, immediate redirect):** signals
+  consistent with a medical emergency (see the rule engine below).
+  Implemented in Phase 2. Never handled by AI or pharmacist — the
+  deterministic safety check routes here directly and the patient is shown
+  emergency-care guidance immediately, bypassing everything else.
+
+Both `PROVIDER_EVALUATION` and `URGENT_EMERGENCY` are always a redirect
+*out* of DosePrepped to the patient's own care team (or emergency
+services), never something the product attempts to resolve itself.
+
+### Deterministic Safety & Disposition Rule Engine (implemented in Phase 2)
+
+**Status: implemented.** This section documents `packages/safety-rules`,
+the module that assigns every `MedicationQuestion`'s `disposition` today.
+Everything in this section is deterministic — no LLM call is made or
+required anywhere in this engine.
+
+#### Why four dispositions, not three
+
+Phase 1's schema sketch (§15, original) used a 3-value
+`QuestionDisposition` (`ROUTINE` / `PHARMACIST_RECOMMENDED` /
+`URGENT_CARE_GUIDANCE`) carried over from the pre-M3 architecture. Building
+the actual rule engine surfaced a real gap: that set conflated "this needs
+a pharmacist's judgment" with "this needs a provider's judgment," and had
+no way to represent "concerning, needs clinical evaluation, but not an
+emergency" separately from "this is an emergency, bypass everything."
+Per this document's own §9 three-tier framing (education / pharmacist /
+provider) plus the explicit urgent-care carve-out from the original
+architecture's Safety/Escalation section, the correct model is four
+values, not three:
+
+```
+GENERAL_EDUCATION   — factual, generic-to-the-medication (§9 tier 1)
+PHARMACIST_REVIEW   — needs judgment on this patient's specific situation (§9 tier 2)
+PROVIDER_EVALUATION — concerning; needs clinical evaluation; not an emergency (§9 tier 3, non-urgent)
+URGENT_EMERGENCY    — immediate redirect to emergency/urgent care (§9 tier 3, urgent)
+```
+
+This is a schema change from the original Phase 1 sketch, made here per
+"update the architecture before modifying the schema" — `disposition` was
+never populated in Phase 1 (always `null`), so renaming/expanding the enum
+carries no data-migration risk.
+
+#### Design principle: deterministic first, AI never required
+
+The engine is a plain TypeScript package (`packages/safety-rules`) with
+**no dependency on `packages/db`, any HTTP framework, or any AI/LLM
+client.** It's a pure function: `(questionText, category) →
+{ disposition, matchedRuleIds, ruleSetVersion }`. This is what makes "the
+system must continue to function if the AI service is unavailable" true by
+construction, not by fallback logic — there is no AI in this code path to
+fail. A future `refineDisposition` AI operation (§6) would call this
+engine first, then optionally escalate its result — it structurally cannot
+run instead of it.
+
+#### The algorithm
+
+Two layers, applied in order, taking the *most severe* result:
+
+1. **Category baseline.** The patient's own category selection (§3) is
+   itself a structured, unambiguous signal — not inferred, not guessed —
+   and maps to a baseline disposition per this document's §9 tier
+   definitions:
+
+   | Category | Baseline | Why |
+   |---|---|---|
+   | `GENERAL_INFO` | `GENERAL_EDUCATION` | Generic factual information about the medication itself |
+   | `ADMINISTRATION` | `GENERAL_EDUCATION` | Generic "how to take it" guidance |
+   | `STORAGE` | `GENERAL_EDUCATION` | Generic storage conditions |
+   | `MISSED_DOSE` | `PHARMACIST_REVIEW` | Correct missed-dose handling is medication-dependent and can be unsafe if generic advice is misapplied |
+   | `SIDE_EFFECT` | `PHARMACIST_REVIEW` | Explicitly "pharmacist scope" per §9 |
+   | `DRUG_INTERACTION` | `PHARMACIST_REVIEW` | Explicitly "pharmacist scope" per §9 |
+   | `ADHERENCE` | `PHARMACIST_REVIEW` | Explicitly "pharmacist scope" per §9 |
+   | `COST_ACCESS` | `PHARMACIST_REVIEW` | Explicitly "pharmacist scope" per §9 (alternatives, assistance programs) |
+   | `OTHER` | `PHARMACIST_REVIEW` | Uncategorized → default toward human review, not toward answering |
+
+   This is deliberately *not* a 50/50 split for the sake of it: three
+   categories are generic-enough-to-educate-on, six are not, matching this
+   document's own repeated principle that anything patient-specific
+   defaults to a human.
+
+2. **Escalation patterns.** A small, named set of pattern-based rules scans
+   the question text for signals that override the category baseline
+   *upward* (toward more caution) — never downward. Each rule has a stable
+   `id`, a clinician-readable `description` of what it targets and why,
+   and maps to exactly one of the two escalation dispositions:
+
+   **→ `URGENT_EMERGENCY`:**
+   - `anaphylaxis-or-severe-allergic-reaction` — swelling of the
+     face/lips/tongue/throat, difficulty breathing, or the word
+     "anaphylaxis" itself.
+   - `possible-overdose-or-poisoning` — explicit mention of overdose or
+     poisoning, or taking a clearly excessive quantity.
+   - `loss-of-consciousness-or-unresponsiveness` — passed out, unconscious,
+     unresponsive, not breathing.
+   - `chest-pain-or-severe-cardiac-symptom` — chest pain or
+     crushing chest sensation.
+   - `suicidal-ideation-or-self-harm` — statements suggesting intent to
+     harm oneself.
+
+   **→ `PROVIDER_EVALUATION`:**
+   - `severe-or-rapidly-worsening-symptom` — explicit "severe," "getting
+     worse," "rapidly worsening," uncontrolled symptoms, or specific
+     concerning combinations (e.g. blood in stool/vomit/urine, spreading
+     rash/hives).
+   - `medication-error-with-potential-harm` — reports of taking/giving the
+     wrong medication, wrong dose, doubling a dose, or a similar error,
+     without an explicit emergency signal already present.
+
+   If **any** `URGENT_EMERGENCY` rule matches, that's the final result,
+   full stop — no further evaluation. Else if any `PROVIDER_EVALUATION`
+   rule matches, that's the result. Else, the category baseline stands.
+
+   The exact regular expressions are the actual reviewable artifact and
+   live in `packages/safety-rules/src/rules.ts` next to each rule's `id`
+   and `description` — this document intentionally describes *what each
+   rule targets and why*, not the regex itself, so this section stays
+   accurate without needing to track pattern-syntax edits line-for-line. A
+   clinical reviewer auditing the rule set should read that file directly.
+
+#### Rule versioning
+
+`packages/safety-rules` exports a single `SAFETY_RULE_SET_VERSION`
+constant (date-stamped, e.g. `"2026-08-04.1"`). Every disposition a
+question receives stores this exact version string
+(`safetyRuleSetVersion`), plus which named rule(s) fired
+(`dispositionRuleIds`, empty if only the category baseline applied) and
+`dispositionSource: DETERMINISTIC`. This means:
+
+- Any two questions with the same `safetyRuleSetVersion` were evaluated by
+  byte-identical rules — directly comparable for audit or QA.
+- Changing a rule (adding, removing, editing a pattern, changing a
+  baseline mapping) requires bumping the version constant. Old questions
+  keep their original disposition and version untouched — a rule change is
+  never retroactively applied to already-created questions.
+- A pharmacist/clinical reviewer can answer "which rule version was live
+  when this patient's question came in, and exactly what did it match" for
+  any historical question without guessing.
+
+#### What happens when the system is uncertain
+
+There is no "uncertain, give up" state — the algorithm is total (every
+input produces exactly one of the four dispositions), but its *design*
+resolves uncertainty conservatively at two points: (1) any category not
+clearly generic-factual defaults to `PHARMACIST_REVIEW`, not
+`GENERAL_EDUCATION` — six of nine categories, including the catch-all
+`OTHER`, default to human review; (2) escalation rules only ever move the
+result *up* in severity and a match on any tier-appropriate pattern is
+sufficient — there is no "maybe" state or confidence threshold to tune,
+because a pattern-match false positive costs a routing decision toward
+more caution (acceptable), while a false negative would cost the opposite
+(not acceptable). This is the literal implementation of "where
+deterministic rules cannot confidently determine disposition, default
+toward appropriate human review."
+
+#### Current limitations — requires clinical review before production use
+
+**This initial rule set is intentionally small and is not a substitute for
+clinical judgment.** It is scoped to the specific situations named in this
+phase's requirements (possible serious adverse reactions, severe allergic
+reactions, severe/rapidly worsening symptoms, possible overdose/poisoning,
+consequential medication errors) and does **not** attempt to enumerate
+every possible medical emergency or concerning symptom. Known limitations:
+
+- Pattern matching on English free text will miss non-English input,
+  heavy misspellings, and phrasings not anticipated by the current
+  patterns (e.g. regional/colloquial ways of describing the same
+  symptom).
+- The category-baseline table (six of nine categories → `PHARMACIST_REVIEW`
+  by default) is a reasonable starting heuristic, not a clinically
+  validated triage instrument.
+- No rule considers medication-specific risk (e.g. a "missed dose"
+  question about a narrow-therapeutic-index drug isn't treated any
+  differently from any other missed-dose question) — that level of
+  medication-aware reasoning is out of scope until a much later phase, if
+  ever, and would itself require clinical input to design safely.
+- **Before this rule set (or any expansion of it) is used with real
+  patient data, it must be reviewed and signed off by a licensed
+  pharmacist/clinical reviewer** — nothing in this codebase constitutes
+  that review. This mirrors the original architecture's Safety/Escalation
+  section: "do not invent medical triage protocols" — this rule set is a
+  first, conservative, engineering-reviewable draft, not a clinical
+  artifact.
+- The architecture supports adding rules incrementally after clinical
+  review (append a new `SafetyRule` entry, bump
+  `SAFETY_RULE_SET_VERSION`) without touching any caller — this is the
+  intended long-term path, not a one-time initial build.
 
 ### 10. Ownership and authorization
 
@@ -935,8 +1146,11 @@ deliberately:
 
 ### 15. Database changes
 
-Illustrative schema sketch — **not applied to `packages/db/prisma/
-schema.prisma` yet.**
+Schema sketch. **`QuestionCategory`, `MedicationQuestion`'s core fields,
+and (as of Phase 2) `QuestionDisposition`/`DispositionSource`/the
+disposition audit fields are applied to `packages/db/prisma/
+schema.prisma`.** Everything under "not yet implemented" below (AI,
+pharmacist, escalation fields on the model) remains illustrative only.
 
 ```
 enum QuestionCategory {
@@ -951,10 +1165,24 @@ enum QuestionCategory {
   OTHER
 }
 
+// Renamed/expanded in Phase 2 from the original 3-value sketch
+// (ROUTINE / PHARMACIST_RECOMMENDED / URGENT_CARE_GUIDANCE). The original
+// set conflated "needs a pharmacist" with "needs a provider" and had no
+// way to distinguish a non-emergency provider concern from a true
+// emergency. See "Deterministic Safety & Disposition Rule Engine" below
+// for the full rationale.
 enum QuestionDisposition {
-  ROUTINE
-  PHARMACIST_RECOMMENDED
-  URGENT_CARE_GUIDANCE
+  GENERAL_EDUCATION
+  PHARMACIST_REVIEW
+  PROVIDER_EVALUATION
+  URGENT_EMERGENCY
+}
+
+// New in Phase 2 — distinguishes a disposition the deterministic rule
+// engine assigned from one a future AI refinement pass assigned/adjusted.
+enum DispositionSource {
+  DETERMINISTIC
+  AI_ASSISTED
 }
 
 enum QuestionStatus {
@@ -980,7 +1208,11 @@ model MedicationQuestion {
   aiSuggestedCategory         QuestionCategory?
   questionText                String
   clarifyingExchange          Json?                -- {question, answer}, at most one
-  disposition                 QuestionDisposition?
+  disposition                 QuestionDisposition? -- implemented (Phase 2)
+  dispositionSource           DispositionSource?   -- implemented (Phase 2) — always DETERMINISTIC today
+  dispositionRuleIds          String[]             -- implemented (Phase 2) — which named rule(s) fired, [] if only the category baseline applied
+  safetyRuleSetVersion        String?              -- implemented (Phase 2) — packages/safety-rules version that produced this disposition
+  dispositionAssignedAt       DateTime?            -- implemented (Phase 2)
   aiEducationResponse         String?
   aiEducationGeneratedAt      DateTime?
   aiModelVersion              String?              -- audit: which model/prompt version produced the response
@@ -1043,28 +1275,49 @@ POST   /questions/:id/resolve
 ```
 
 `POST /questions` is where the structuring pipeline (§5) runs: it always
-executes Layer 1 (deterministic) and, once AI is wired up, Layer 2 in
-sequence within the same request/response cycle for `ROUTINE`-disposition
-questions — no polling or background job is required for M3's scope, since
-each AI call is a single bounded operation, not a long-running task.
+executes Layer 1 (deterministic — implemented, includes disposition
+assignment) and, once AI is wired up, Layer 2 in sequence within the same
+request/response cycle for `GENERAL_EDUCATION`-disposition questions — no
+polling or background job is required for M3's scope, since each AI call
+is a single bounded operation, not a long-running task.
 
 ### 17. UI changes
 
-Illustrative screen sketch — **no screens built yet.**
+- **Medication detail (M2, implemented):** "Ask about this medication" CTA
+  — implemented in Phase 1.
+- **Ask a Question flow (implemented, replacing the M0/M1 placeholder):**
+  medication picker (skipped if pre-selected) → category selector →
+  question text → review → submit → confirmation screen. As of Phase 2,
+  confirmation shows disposition-appropriate routing copy (§ patient
+  experience below) — **no AI clarifying question and no AI education
+  response exist yet**; those remain Phase 3.
+- **My Questions (implemented, parallel to "My Medications"):** list with
+  status badges. As of Phase 1 every item shows `Received`; disposition
+  itself isn't surfaced as a separate list-level badge yet (it's visible
+  on the detail screen).
+- **Question detail (implemented):** structured record — question,
+  medication snapshot, category — plus, as of Phase 2, the
+  disposition-appropriate routing message. AI education and pharmacist
+  response sections remain future work.
+- **Pharmacist home (M1 placeholder):** still a placeholder — becomes the
+  entry to the queue in a later phase (§19), not part of M3 Phase 1 or 2.
 
-- **Medication detail (M2, existing):** add "Ask about this medication."
-- **Ask a Question flow (replaces the M0/M1 placeholder):** medication
-  picker (skipped if pre-selected) → category selector → question text →
-  optional single AI clarifying question → AI education response
-  (labeled) → "Ask a Pharmacist" CTA → confirmation screen.
-- **My Questions (new, parallel to "My Medications"):** list with status
-  badges (Answered / Pharmacist requested / Pharmacist responded /
-  Escalated).
-- **Question detail:** full structured record — question, medication
-  snapshot, category, AI education (labeled), pharmacist response when
-  present.
-- **Pharmacist home (M1 placeholder → real entry point):** becomes the
-  entry to the queue in a later phase (§19), not M3 itself.
+**Patient-facing disposition messaging (Phase 2, implemented).** Shown on
+the confirmation screen after submitting and on the question detail
+screen — never implying AI or human review has occurred, since neither
+has:
+
+| Disposition | Message shown to the patient |
+|---|---|
+| `GENERAL_EDUCATION` | "We can provide general information about this medication." |
+| `PHARMACIST_REVIEW` | "This question is better reviewed by a pharmacist." |
+| `PROVIDER_EVALUATION` | "This question may require evaluation by your healthcare provider." |
+| `URGENT_EMERGENCY` | Direct, unambiguous guidance to seek emergency/urgent care now — not a routing suggestion. |
+
+None of these messages diagnose, recommend treatment, or claim a
+pharmacist/physician has reviewed anything — they describe the *routing*
+DosePrepped has determined, which is the only thing Phase 2 actually
+does.
 
 ### 18. Security considerations
 
@@ -1093,17 +1346,24 @@ Phased so the highest-risk piece (AI/safety) is built and tested in
 isolation before anything depends on it, and so each phase ships something
 independently demonstrable:
 
-1. **Question intake, no AI, no pharmacist.** `MedicationQuestion` schema
-   + migration, `POST/GET /questions`, the composer UI through category +
-   question text, "My Questions" list, question detail screen. Proves the
-   structuring UX and data model on their own.
-2. **Deterministic safety-check layer.** The rule-based (non-LLM) pass for
-   `QuestionDisposition`, built and tested in isolation before any LLM
-   involvement — this is the most conservative, highest-stakes piece and
-   should not be entangled with AI integration work.
-3. **AI Service Layer integration.** `suggestCategory`,
-   `generateClarifyingQuestion`, `generateEducation`, behind the Phase 2
-   safety gate. Ships general education end-to-end.
+1. **✅ Implemented — Question intake, no AI, no pharmacist.**
+   `MedicationQuestion` schema + migration, `POST/GET /questions`, the
+   composer UI through category + question text, "My Questions" list,
+   question detail screen. Proves the structuring UX and data model on
+   their own.
+2. **✅ Implemented — Deterministic safety-check layer.** The rule-based
+   (non-LLM) pass for `QuestionDisposition`, built and tested in isolation
+   before any LLM involvement — this is the most conservative,
+   highest-stakes piece and should not be entangled with AI integration
+   work. See "Deterministic Safety & Disposition Rule Engine" below for
+   the implementation. Explicitly does not touch `status`, the pharmacist
+   queue, or provider messaging — only `disposition` and its audit fields.
+3. **Not started — AI Service Layer integration.** `suggestCategory`,
+   `generateClarifyingQuestion`, `generateEducation`, and the optional
+   `refineDisposition` pass, all layered *on top of* the Phase 2
+   deterministic disposition (which stands unchanged if AI is unavailable
+   — see "AI-independent operation" below). Ships general education
+   end-to-end, gated to `GENERAL_EDUCATION`-disposition questions only.
 4. **Pharmacist request + queue.** `POST /questions/:id/request-pharmacist`,
    `summarizeForPharmacist`, the real pharmacist queue/claim/respond flow
    replacing the M1 placeholder pharmacist home.
@@ -1146,7 +1406,10 @@ Reviewed against the existing implementation; nothing here is breaking:
 
 ## Next Step
 
-M0, M1, and M2 are implemented, tested, and merged. This M3 architecture
-update is planning only — no code has been written or modified for it.
-Awaiting direction on which phase of §19 to start with (the recommendation
-is Phase 1: question intake with no AI and no pharmacist involvement yet).
+M0, M1, M2, M3 Phase 1 (question intake), and M3 Phase 2 (deterministic
+safety & disposition) are implemented, tested, and merged. Every question
+now receives a `disposition` at creation time via
+`packages/safety-rules` — no AI involved, no pharmacist queue, no provider
+messaging. Awaiting direction on Phase 3 (§19): AI Service Layer
+integration, gated behind the Phase 2 deterministic disposition and
+required to leave it unchanged if AI is unavailable.

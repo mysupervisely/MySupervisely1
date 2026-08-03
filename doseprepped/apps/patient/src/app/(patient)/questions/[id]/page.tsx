@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/question-labels";
+import { CATEGORY_LABELS, DISPOSITION_MESSAGES, STATUS_LABELS } from "@/lib/question-labels";
 import { getQuestion } from "@/lib/questions";
+import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = {
   title: "Question details — DosePrepped",
@@ -59,11 +60,18 @@ export default async function QuestionDetailPage({ params }: PageProps<"/questio
         </div>
       </Card>
 
-      <Card className="bg-accent-light text-sm text-ink-muted">
-        We&apos;ve received your question. A pharmacist has not reviewed it
-        yet — pharmacist review and general medication education are coming
-        in a later update.
-      </Card>
+      {question.disposition && (
+        <Card
+          className={cn(
+            "text-sm",
+            question.disposition === "URGENT_EMERGENCY"
+              ? "bg-danger-light text-danger"
+              : "bg-accent-light text-ink-muted",
+          )}
+        >
+          {DISPOSITION_MESSAGES[question.disposition]}
+        </Card>
+      )}
     </>
   );
 }

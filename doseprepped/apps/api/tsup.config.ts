@@ -11,5 +11,10 @@ export default defineConfig({
   // Bundle our own workspace packages (which ship TypeScript source, per
   // Prisma 7's generated client) instead of leaving them as unresolved
   // relative imports at runtime; real npm dependencies stay external.
-  noExternal: ["@doseprepped/db", "@doseprepped/types", "@doseprepped/auth"],
+  noExternal: [
+    "@doseprepped/db",
+    "@doseprepped/types",
+    "@doseprepped/auth",
+    "@doseprepped/safety-rules",
+  ],
 });
