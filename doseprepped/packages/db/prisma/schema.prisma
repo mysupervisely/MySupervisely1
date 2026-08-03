@@ -1,12 +1,12 @@
-// DosePrepped database schema — M0/M1/M2 scope only.
+// DosePrepped database schema — through M3 Phase 1 (question intake).
 //
-// This intentionally covers just enough to establish the DB framework, the
-// patient/pharmacist/admin role structure, authentication (User + Session),
-// and a patient's manually-entered medication list. Clinical entities
-// (questions, AI messages, pharmacist requests, secure messages, escalation
-// rules) are designed in docs/doseprepped/ARCHITECTURE.md and will be added
-// starting in M3+ once that functionality is actually implemented — they
-// are deliberately not modeled here yet.
+// This covers the DB framework, the patient/pharmacist/admin role
+// structure, authentication (User + Session), a patient's manually-entered
+// medication list, and medication question intake (MedicationQuestion).
+// AI processing, pharmacist review, and provider escalation are modeled as
+// fields/statuses per docs/doseprepped/ARCHITECTURE.md ("M3 — The Digital
+// Medication-Support Layer") but are not populated by any code path yet —
+// that's later-phase work, deliberately not implemented here.
 
 generator client {
   provider = "prisma-client"
@@ -34,8 +34,10 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  medications PatientMedication[]
-  sessions    Session[]
+  medications         PatientMedication[]
+  sessions            Session[]
+  questions           MedicationQuestion[] @relation("PatientQuestions")
+  pharmacistQuestions MedicationQuestion[] @relation("PharmacistQuestions")
 
   @@map("users")
 }
@@ -72,8 +74,8 @@ enum MedicationStatus {
 /// if the owning account itself is deleted (see User), which is a separate,
 /// not-yet-implemented concern from a patient archiving one medication.
 model PatientMedication {
-  id         String            @id @default(uuid())
-  patient    User              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id         String           @id @default(uuid())
+  patient    User             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   patientId  String
   name       String
   strength   String
@@ -84,10 +86,12 @@ model PatientMedication {
   startDate  DateTime
   endDate    DateTime?
   notes      String?
-  status     MedicationStatus  @default(ACTIVE)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  status     MedicationStatus @default(ACTIVE)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
   archivedAt DateTime?
+
+  questions MedicationQuestion[]
 
   @@index([patientId])
   @@map("patient_medications")
@@ -112,4 +116,113 @@ model MedicationReference {
 
   @@index([name])
   @@map("medication_reference")
+}
+
+enum QuestionCategory {
+  GENERAL_INFO
+  ADMINISTRATION
+  MISSED_DOSE
+  SIDE_EFFECT
+  DRUG_INTERACTION
+  STORAGE
+  ADHERENCE
+  COST_ACCESS
+  OTHER
+}
+
+/// The outcome of the (not-yet-implemented) safety/urgency check described
+/// in docs/doseprepped/ARCHITECTURE.md §6. Always null in M3 Phase 1 — no
+/// code path sets this yet, since Phase 1 makes no automated clinical
+/// judgments. Reserved so the later AI phase has a field to write to
+/// without a schema change.
+enum QuestionDisposition {
+  ROUTINE
+  PHARMACIST_RECOMMENDED
+  URGENT_CARE_GUIDANCE
+}
+
+/// Question lifecycle. Phase 1 only ever sets RECEIVED (on creation) and
+/// never transitions it further — every status past RECEIVED belongs to a
+/// later phase (AI processing/answering, pharmacist request/review,
+/// escalation, closure) and exists here only so those phases don't require
+/// a schema change to add.
+enum QuestionStatus {
+  RECEIVED
+  AI_PROCESSING
+  AI_ANSWERED
+  PHARMACIST_REQUESTED
+  PHARMACIST_IN_PROGRESS
+  WAITING_FOR_PATIENT
+  PHARMACIST_RESOLVED
+  ESCALATED
+  CLOSED
+}
+
+/// A patient's question about one of their own medications — the core
+/// entity of the "digital medication-support layer" direction (see
+/// docs/doseprepped/ARCHITECTURE.md "M3 — The Digital Medication-Support
+/// Layer"). M3 Phase 1 covers structured intake only: no AI processing, no
+/// pharmacist review, no escalation. Every field that belongs to a later
+/// phase is present here already (so later phases don't need a migration)
+/// but is always null / at its initial value in this phase.
+model MedicationQuestion {
+  id           String            @id @default(uuid())
+  patient      User              @relation("PatientQuestions", fields: [patientId], references: [id], onDelete: Cascade)
+  patientId    String
+  medication   PatientMedication @relation(fields: [medicationId], references: [id])
+  medicationId String
+
+  /// Point-in-time snapshot of the medication's relevant fields
+  /// ({name, strength, directions, frequency, route}) at question creation.
+  /// Deliberately NOT re-derived from the live PatientMedication row on
+  /// read — if the patient edits that medication later (M2
+  /// PATCH /medications/:id), this question's history must not change.
+  medicationSnapshot Json
+
+  /// Minimal {name, strength}[] snapshot of the patient's other ACTIVE
+  /// medications at question creation, captured only for categories where
+  /// cross-medication context is relevant (DRUG_INTERACTION, SIDE_EFFECT).
+  /// Null for every other category — not collected unless needed.
+  otherMedicationsSnapshot Json?
+
+  /// Patient-selected category — the source of truth. AI may later suggest
+  /// a category (aiSuggestedCategory) but never overrides this one.
+  category            QuestionCategory
+  aiSuggestedCategory QuestionCategory?
+
+  questionText String
+
+  /// {question, answer} — at most one AI clarifying exchange. Always null
+  /// in Phase 1 (no AI).
+  clarifyingExchange Json?
+
+  /// Safety/urgency disposition. Always null in Phase 1 — no automated
+  /// clinical judgment is made yet.
+  disposition QuestionDisposition?
+
+  aiEducationResponse    String?
+  aiEducationGeneratedAt DateTime?
+  /// Which AI model/prompt version produced aiEducationResponse, for audit.
+  aiModelVersion         String?
+
+  status QuestionStatus @default(RECEIVED)
+
+  pharmacist            User?     @relation("PharmacistQuestions", fields: [pharmacistId], references: [id])
+  pharmacistId          String?
+  pharmacistRequestedAt DateTime?
+  pharmacistClaimedAt   DateTime?
+  pharmacistResponse    String?
+  pharmacistRespondedAt DateTime?
+
+  escalatedAt      DateTime?
+  escalationReason String?
+
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([patientId])
+  @@index([status])
+  @@index([medicationId])
+  @@map("medication_questions")
 }

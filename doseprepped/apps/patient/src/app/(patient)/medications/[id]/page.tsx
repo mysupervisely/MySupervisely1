@@ -56,6 +56,10 @@ export default async function MedicationDetailPage({ params }: PageProps<"/medic
         ))}
       </Card>
 
+      <Button href={`/ask-a-question?medicationId=${medication.id}`} variant="primary" fullWidth>
+        Ask about this medication
+      </Button>
+
       <div className="flex gap-3">
         <Button href={`/medications/${medication.id}/edit`} variant="secondary">
           Edit

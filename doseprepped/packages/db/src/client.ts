@@ -20,5 +20,17 @@ if (process.env["NODE_ENV"] !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-export { Role, MedicationStatus } from "../generated/client/client.js";
-export type { User, Session, PatientMedication, MedicationReference } from "../generated/client/client.js";
+export {
+  Role,
+  MedicationStatus,
+  QuestionCategory,
+  QuestionDisposition,
+  QuestionStatus,
+} from "../generated/client/client.js";
+export type {
+  User,
+  Session,
+  PatientMedication,
+  MedicationReference,
+  MedicationQuestion,
+} from "../generated/client/client.js";

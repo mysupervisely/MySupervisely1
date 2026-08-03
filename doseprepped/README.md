@@ -1,25 +1,31 @@
-# DosePrepped — M0 + M1 + M2 (Foundation + Auth + Medication Profiles)
+# DosePrepped — M0–M2 + M3 Phase 1 (Foundation, Auth, Medications, Question Intake)
 
-DosePrepped helps patients understand their medications and connect with
-licensed pharmacists when they have medication-related questions.
+DosePrepped is a digital medication-support layer: it helps patients
+understand their medications and, eventually, connect with licensed
+pharmacists (and their own provider when appropriate) when they have
+medication-related questions.
 
-> **Status: through M2 (Medication Profiles).** Real accounts, login/logout,
-> password hashing, sessions, server-enforced role-based access control
-> (patient / pharmacist / admin), and a full patient medication list
-> (add/view/edit/mark inactive) are implemented. There is still no AI, no
-> authoritative medication database, no OCR, no pharmacist messaging, no
-> payments, and no clinical decision support of any kind. See
+> **Status: through M3 Phase 1 (Question Intake).** Real accounts,
+> login/logout, password hashing, sessions, server-enforced role-based
+> access control (patient / pharmacist / admin), a full patient medication
+> list, and structured medication-question intake are implemented. A
+> patient can ask a question about a specific medication and see it in
+> their question history — but **no AI processes it and no pharmacist
+> reviews it yet**. There is still no authoritative medication database, no
+> OCR, no pharmacist messaging, no provider escalation logic, no payments,
+> and no clinical decision support of any kind. See
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
-> for the full product spec and milestone plan. Every screen beyond
-> authentication and medication management is still an explicit placeholder.
+> for the full product spec, the M3 "digital medication-support layer"
+> architecture, and the milestone plan. Ask a Pharmacist and the pharmacist
+> /admin dashboards remain explicit placeholders.
 
-## What's in M0 + M1 + M2
+## What's in M0–M2 + M3 Phase 1
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
   Landing, Login, Sign up, Patient Home, Medications (list/add/detail/edit),
-  Ask a Question, Ask a Pharmacist, Profile, plus a Pharmacist home and an
-  Admin home.
+  Ask a Question (structured intake wizard), My Questions (list/detail),
+  Ask a Pharmacist, Profile, plus a Pharmacist home and an Admin home.
 - Real authentication: sign up, log in, log out, bcrypt password hashing,
   password strength validation, and DB-backed sessions via a signed httpOnly
   cookie.
@@ -35,20 +41,29 @@ licensed pharmacists when they have medication-related questions.
   (`packages/db/src/medication-reference.ts`) designed so a real
   RxNorm/DailyMed-backed provider can be swapped in later without touching
   any caller.
+- **Structured medication-question intake (M3 Phase 1):** a patient picks a
+  medication (or starts from that medication's own detail page), a
+  patient-friendly category, and describes their question in their own
+  words. The question is snapshotted, stored, and immediately visible in
+  "My Questions" with a `Received` status — no AI runs, no pharmacist is
+  notified. See "Question data model" below.
 - A minimal Fastify backend API: `/health` (DB connectivity), `/auth/*`
   (signup/login/logout/me), `/medications*` (CRUD + archive + reference
-  search), and one role-gated placeholder ping route per role
-  (`/patient/ping`, `/pharmacist/ping`, `/admin/ping`).
+  search), `/questions*` (create/list/detail), and one role-gated
+  placeholder ping route per role (`/patient/ping`, `/pharmacist/ping`,
+  `/admin/ping`).
 - A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
-  and `MedicationReference`, seeded with **synthetic demo data only**.
+  `MedicationReference`, and `MedicationQuestion`, seeded with **synthetic
+  demo data only**.
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 27 auth/RBAC/medication integration tests against a real
-  (disposable) test database.
+  including 41 auth/RBAC/medication/question integration tests against a
+  real (disposable) test database.
 
-Not in scope yet (see the architecture doc for when these land): AI,
-an authoritative medication reference database, OCR/medication scanning,
-pharmacist messaging/dashboard content, payments, account deletion, consent
-tracking, drug interaction checking, and any clinical decision support.
+Not in scope yet (see the architecture doc for when these land): AI
+processing of questions, an authoritative medication reference database,
+OCR/medication scanning, pharmacist messaging/dashboard functionality,
+provider escalation logic, payments, account deletion, consent tracking,
+drug interaction checking, and any clinical decision support.
 
 ## Project structure
 
@@ -236,12 +251,15 @@ environment, and `.env*` files are git-ignored.
 - The three roles today: `PATIENT` (self-service sign-up), `PHARMACIST` and
   `ADMIN` (seeded/DB-created only — no public self-registration path
   exists for these roles).
-- **Resource ownership** (new in M2) is a separate check from role: every
-  medication route scopes its database query to `{ id, patientId:
-  request.user.id }` together, never `id` alone (`apps/api/src/routes/
-  medications.ts`). A medication that exists but belongs to another patient
-  returns the same `404` as one that doesn't exist at all, so the API never
-  confirms or denies another patient's records exist.
+- **Resource ownership** (introduced in M2, extended in M3) is a separate
+  check from role: every medication and question route scopes its database
+  query to `{ id, patientId: request.user.id }` together, never `id` alone
+  (`apps/api/src/routes/medications.ts`, `.../questions.ts`). A record that
+  exists but belongs to another patient returns the same `404` as one that
+  doesn't exist at all, so the API never confirms or denies another
+  patient's records exist. Creating a question additionally re-verifies
+  that the given `medicationId` belongs to the requesting patient before
+  anything is written — a client-supplied ID is never trusted on its own.
 
 ## Medication data model
 
@@ -264,6 +282,49 @@ environment, and `.env*` files are git-ignored.
   clinical fact. All medication *record* fields remain free-text patient
   entry — picking a suggestion just pre-fills the form.
 
+## Question data model
+
+Implements `MedicationQuestion` per `docs/doseprepped/ARCHITECTURE.md` "M3
+— The Digital Medication-Support Layer" §2/§15. M3 Phase 1 only ever writes
+a subset of its fields — the rest exist now so later phases (AI, pharmacist
+review, escalation) don't require a schema change:
+
+- **Ownership**: `patientId` (owner) and `medicationId` (the medication
+  it's about), both FKs, both enforced server-side exactly like
+  `PatientMedication`.
+- **Medication snapshot** (`medicationSnapshot`, JSON): `{name, strength,
+  directions, frequency, route}` captured from the live `PatientMedication`
+  row **at the moment the question is created**, and never re-derived on
+  read. If the patient later edits that medication (M2
+  `PATCH /medications/:id`), this question's snapshot — and therefore its
+  history — does not change. Verified by a dedicated test
+  (`does not change the snapshot when the medication is edited afterward`).
+- **Other-medications snapshot** (`otherMedicationsSnapshot`, JSON,
+  nullable): a minimal `{name, strength}[]` list of the patient's other
+  *active* medications, captured only when the category is
+  `DRUG_INTERACTION` or `SIDE_EFFECT` — every other category leaves this
+  `null`, per the minimum-necessary-data principle.
+- **Category** (`category`): patient-selected, one of `GENERAL_INFO`,
+  `ADMINISTRATION`, `MISSED_DOSE`, `SIDE_EFFECT`, `DRUG_INTERACTION`,
+  `STORAGE`, `ADHERENCE`, `COST_ACCESS`, `OTHER`. `aiSuggestedCategory`
+  exists for a later phase and is always `null` today.
+- **Question text** (`questionText`): the patient's own words, required,
+  length-capped.
+- **Status** (`status`): defaults to `RECEIVED` on creation and is never
+  transitioned further by any code path in Phase 1. Every other status
+  value (`AI_PROCESSING`, `AI_ANSWERED`, `PHARMACIST_REQUESTED`,
+  `PHARMACIST_IN_PROGRESS`, `WAITING_FOR_PATIENT`, `PHARMACIST_RESOLVED`,
+  `ESCALATED`, `CLOSED`) is defined in the schema but unreachable until a
+  later phase implements the code path that sets it.
+- **AI/pharmacist/escalation fields** (`disposition`,
+  `aiEducationResponse`, `aiModelVersion`, `pharmacistId`,
+  `pharmacistResponse`, `escalatedAt`, `escalationReason`, etc.): present
+  in the schema and in every API response (always `null`), but nothing in
+  this codebase writes to them yet — no LLM is called, no pharmacist queue
+  exists, no automated clinical judgment is made. This is intentional: it's
+  the "clean integration point" for the next phase, not a placeholder
+  answer that could be mistaken for real guidance.
+
 ## Security notes for this milestone
 
 - No real patient data anywhere in this repo or its seed data — synthetic
@@ -275,9 +336,15 @@ environment, and `.env*` files are git-ignored.
 - Login failures return the same generic "Invalid email or password" for
   both "no such user" and "wrong password", to avoid leaking which emails
   have accounts.
-- Medication IDs in URLs are opaque UUIDs (never medication names/content);
-  Fastify's request logging records method/URL/status only, never request
-  bodies, so medication details are never written to logs.
+- Medication and question IDs in URLs are opaque UUIDs (never medication
+  names or question content); Fastify's request logging records
+  method/URL/status only, never request bodies, so medication details and
+  question text are never written to logs.
+- No AI/LLM is called anywhere in this codebase yet, and no placeholder or
+  simulated AI/pharmacist response is generated — a question's `status`
+  stays `RECEIVED` and every AI/pharmacist field stays `null` until a later
+  phase actually implements that processing, so nothing on screen could be
+  mistaken for reviewed clinical guidance.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

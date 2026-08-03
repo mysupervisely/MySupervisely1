@@ -2,33 +2,28 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { PlaceholderNotice } from "@/components/ui/PlaceholderNotice";
 import { MedicationCard } from "@/components/medications/MedicationCard";
+import { QuestionCard } from "@/components/questions/QuestionCard";
 import { requireRole } from "@/lib/require-role";
 import { getMedications } from "@/lib/medications";
+import { getQuestions } from "@/lib/questions";
 
 export const metadata: Metadata = {
   title: "Home — DosePrepped",
 };
 
 const HOME_MEDICATION_PREVIEW_COUNT = 3;
-
-// Synthetic/demo data only — see docs/doseprepped/ARCHITECTURE.md
-// §"Prototype Data". Real pharmacist conversations arrive in a later
-// milestone (Ask a Question / Ask a Pharmacist are still placeholders).
-const demoQuestions = [
-  {
-    text: "Can I take Tylenol with my medication?",
-    status: "Pharmacist answered",
-  },
-];
+const HOME_QUESTION_PREVIEW_COUNT = 3;
 
 export default async function PatientHomePage() {
   const user = await requireRole("PATIENT");
   const medications = await getMedications();
   const active = medications.filter((m) => m.status === "ACTIVE");
-  const preview = active.slice(0, HOME_MEDICATION_PREVIEW_COUNT);
+  const medicationPreview = active.slice(0, HOME_MEDICATION_PREVIEW_COUNT);
+
+  const questions = await getQuestions();
+  const questionPreview = questions.slice(0, HOME_QUESTION_PREVIEW_COUNT);
 
   return (
     <>
@@ -56,13 +51,13 @@ export default async function PatientHomePage() {
           </Button>
         </div>
 
-        {preview.length === 0 ? (
+        {medicationPreview.length === 0 ? (
           <Card className="text-sm text-ink-muted">
             You haven&apos;t added any medications yet.
           </Card>
         ) : (
           <div className="flex flex-col gap-3">
-            {preview.map((medication) => (
+            {medicationPreview.map((medication) => (
               <MedicationCard key={medication.id} medication={medication} />
             ))}
           </div>
@@ -77,21 +72,30 @@ export default async function PatientHomePage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-ink">Recent Questions</h2>
-        <Card className="flex flex-col divide-y divide-border p-0">
-          {demoQuestions.map((q) => (
-            <div key={q.text} className="flex flex-col gap-1 px-5 py-3">
-              <span className="text-sm text-ink">&ldquo;{q.text}&rdquo;</span>
-              <Badge tone="info" className="w-fit">
-                {q.status}
-              </Badge>
-            </div>
-          ))}
-        </Card>
+
+        {questionPreview.length === 0 ? (
+          <Card className="text-sm text-ink-muted">
+            You haven&apos;t asked a medication question yet.
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {questionPreview.map((question) => (
+              <QuestionCard key={question.id} question={question} />
+            ))}
+          </div>
+        )}
+
+        {questions.length > HOME_QUESTION_PREVIEW_COUNT && (
+          <Link href="/questions" className="text-sm font-medium text-primary hover:underline">
+            View all questions
+          </Link>
+        )}
       </section>
 
       <PlaceholderNotice>
-        Recent Questions above is synthetic demo data — Ask a Question and
-        Ask a Pharmacist are not implemented yet.
+        Questions are received and organized, but AI-assisted general
+        education and pharmacist review are not available yet — that&apos;s
+        coming in a later update.
       </PlaceholderNotice>
     </>
   );

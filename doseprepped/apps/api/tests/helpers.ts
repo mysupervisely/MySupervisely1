@@ -36,3 +36,27 @@ export async function loginAndGetCookie(
   });
   return cookieHeader(response);
 }
+
+export const VALID_MEDICATION_PAYLOAD = {
+  name: "Lisinopril",
+  strength: "10 mg",
+  dosageForm: "Tablet",
+  directions: "Take one tablet by mouth once daily.",
+  frequency: "Once daily",
+  route: "Oral",
+  startDate: "2026-01-01",
+};
+
+export async function createMedicationForPatient(
+  app: ReturnType<typeof buildApp>,
+  cookie: string,
+  overrides: Partial<typeof VALID_MEDICATION_PAYLOAD> = {},
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: "/medications",
+    headers: { cookie },
+    payload: { ...VALID_MEDICATION_PAYLOAD, ...overrides },
+  });
+  return response.json().medication;
+}
