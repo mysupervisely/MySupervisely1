@@ -12,12 +12,18 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@doseprepped/auth": "workspace:*",
     "@doseprepped/db": "workspace:*",
     "@doseprepped/types": "workspace:*",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "fastify": "^5.11.2",
+    "fastify-plugin": "^6.0.0",
     "pg": "^8.22.0",
     "zod": "^4.3.6"
   },

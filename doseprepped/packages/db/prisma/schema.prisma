@@ -1,12 +1,12 @@
-// DosePrepped database schema — M0 scope only.
+// DosePrepped database schema — M0/M1 scope only.
 //
-// This intentionally covers just enough to establish the DB framework and
-// the patient/pharmacist/admin role structure: accounts and a patient's
-// manually-entered medications. Clinical entities (questions, AI messages,
-// pharmacist requests, secure messages, escalation rules) are designed in
-// docs/doseprepped/ARCHITECTURE.md and will be added starting in M1+ once
-// that functionality is actually implemented — they are deliberately not
-// modeled here yet.
+// This intentionally covers just enough to establish the DB framework, the
+// patient/pharmacist/admin role structure, authentication (User + Session),
+// and a patient's manually-entered medications. Clinical entities
+// (questions, AI messages, pharmacist requests, secure messages, escalation
+// rules) are designed in docs/doseprepped/ARCHITECTURE.md and will be added
+// starting in M2+ once that functionality is actually implemented — they
+// are deliberately not modeled here yet.
 
 generator client {
   provider = "prisma-client"
@@ -24,16 +24,36 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  role      Role
-  email     String   @unique
-  name      String
-  createdAt DateTime @default(now())
-  deletedAt DateTime?
+  id           String    @id @default(uuid())
+  role         Role
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
   medications PatientMedication[]
+  sessions    Session[]
 
   @@map("users")
+}
+
+/// An active login session, identified to the browser by an opaque cookie
+/// token. Only a salted hash of the token is stored — see
+/// packages/auth/src/session.ts — so a database read alone can't be used to
+/// impersonate a session.
+model Session {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 /// Manually-entered medication on a patient's profile. This is patient-

@@ -1,49 +1,68 @@
-# DosePrepped — M0 Project Foundation
+# DosePrepped — M0 + M1 (Project Foundation + Authentication)
 
 DosePrepped helps patients understand their medications and connect with
 licensed pharmacists when they have medication-related questions.
 
-> **Status: M0 (Project Foundation).** This is a structural scaffold only.
-> There is no authentication, no AI, no medication database, no pharmacist
-> workflow, and no real patient data. See
+> **Status: through M1 (Authentication & User Roles).** Real accounts,
+> login/logout, password hashing, sessions, and server-enforced
+> role-based access control (patient / pharmacist / admin) are implemented.
+> There is still no AI, no medication database, no OCR, no pharmacist
+> messaging, no payments, and no clinical functionality of any kind. See
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
-> for the full product spec and milestone plan. Every screen in the app is
-> explicitly labeled as a placeholder.
+> for the full product spec and milestone plan. Every screen beyond
+> authentication is still explicitly labeled as a placeholder.
 
-## What's in M0
+## What's in M0 + M1
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
-  (mobile-first, healthcare-oriented, non-clinical) and eight structural
-  placeholder screens: Landing, Login, Sign up, Patient Home, Medications,
-  Ask a Question, Ask a Pharmacist, Profile.
-- A minimal Fastify backend API (`/health`, verifying real DB connectivity).
-- A PostgreSQL database via Prisma, with a `Role` (patient/pharmacist/admin)
-  structure and a `PatientMedication` model, seeded with **synthetic demo
-  data only**.
-- Automated tests (Vitest) and lint/typecheck across every package.
+  (mobile-first, healthcare-oriented, non-clinical) and screens for:
+  Landing, Login, Sign up, Patient Home, Medications, Ask a Question, Ask a
+  Pharmacist, Profile, plus a Pharmacist home and an Admin home.
+- Real authentication: sign up, log in, log out, bcrypt password hashing,
+  password strength validation, and DB-backed sessions via a signed httpOnly
+  cookie.
+- Server-enforced role-based access control (RBAC) for three roles —
+  patient, pharmacist, admin — checked on the API for every protected
+  request, not just hidden in the frontend. The frontend independently
+  redirects unauthenticated/wrong-role visitors for UX, but that's a
+  convenience layer on top of the API's own enforcement, not a substitute
+  for it.
+- A minimal Fastify backend API: `/health` (DB connectivity), `/auth/*`
+  (signup/login/logout/me), and one role-gated placeholder ping route per
+  role (`/patient/ping`, `/pharmacist/ping`, `/admin/ping`) that proves RBAC
+  works without implementing any real functionality behind it.
+- A PostgreSQL database via Prisma: `User` (with `firstName`, `lastName`,
+  `email`, `passwordHash`, `role`, `createdAt`, `updatedAt`), `Session`, and
+  `PatientMedication`, seeded with **synthetic demo data only**.
+- Automated tests (Vitest) and lint/typecheck across every package,
+  including 13 auth/RBAC integration tests against a real (disposable) test
+  database.
 
-Not in scope for M0 (see the architecture doc for when these land): AI,
+Not in scope yet (see the architecture doc for when these land): AI,
 medication reference database, OCR/medication scanning, pharmacist
-messaging/dashboard, payments, real accounts, and any clinical decision
-support.
+messaging/dashboard content, payments, account deletion, consent tracking,
+and any clinical decision support.
 
 ## Project structure
 
 ```
 doseprepped/
   apps/
-    patient/     Next.js 16 patient PWA (App Router, TypeScript, Tailwind v4)
+    patient/     Next.js 16 app (App Router, TypeScript, Tailwind v4) —
+                 hosts the patient PWA *and*, for now, the pharmacist/admin
+                 placeholder home screens (no separate pharmacist app yet)
     api/         Fastify backend (TypeScript, built with tsup)
   packages/
     db/          Prisma schema, migrations, synthetic seed data, DB client
+    auth/        Shared password hashing + session logic (bcrypt, DB-backed
+                 sessions) used by apps/api; the frontend never sees this
+                 package directly — it only talks to the API
     types/       Shared framework-agnostic types (e.g. the Role union)
   docs/          (see ../docs/doseprepped for the architecture plan)
 ```
 
 `packages/ui` (a shared component library) is intentionally **not** created
-yet — there is only one consumer app (`patient`) so far. It's reserved in
-the architecture for when the pharmacist dashboard is built and there's an
-actual second consumer to share components with.
+yet — there is only one consumer app (`patient`) so far.
 
 ## Prerequisites
 
@@ -67,24 +86,35 @@ cp apps/patient/.env.example apps/patient/.env.local
 cp packages/db/.env.example packages/db/.env
 ```
 
-At minimum, set `DATABASE_URL` in `apps/api/.env` and `packages/db/.env` to
-point at your local Postgres database. Never point it at a database
-containing real patient data — this milestone (and the MVP pilot generally)
-uses synthetic data only.
+At minimum, set in `apps/api/.env`:
+- `DATABASE_URL` — your local Postgres connection string. Never point this
+  at a database containing real patient data.
+- `SESSION_SECRET` — a real random value, e.g. `openssl rand -base64 32`.
+  Required; the API refuses to start without it.
 
 Then set up the database:
 
 ```bash
 pnpm db:generate    # generate the Prisma client
-pnpm db:migrate      # create the doseprepped_dev schema locally
-pnpm db:seed          # load synthetic demo patients/pharmacist/admin
+pnpm db:migrate      # apply migrations to doseprepped_dev locally
+pnpm db:seed          # load synthetic demo accounts
 ```
 
-The seed creates four synthetic accounts (`patient-a@demo.doseprepped.dev`,
-`patient-b@demo.doseprepped.dev`, `pharmacist@demo.doseprepped.dev`,
-`admin@demo.doseprepped.dev`) matching the demo patients described in the
-architecture doc (Patient A: Lisinopril + Metformin; Patient B: Semaglutide
-+ Ondansetron). None of this is real patient data.
+The seed creates four synthetic accounts, all with the password
+**`DosepreppedDemo!1`** (a publicly-documented local-dev-only demo
+password — not a secret, never use it for anything real):
+
+| Email | Role |
+|---|---|
+| `patient-a@demo.doseprepped.dev` | Patient (Lisinopril + Metformin) |
+| `patient-b@demo.doseprepped.dev` | Patient (Semaglutide + Ondansetron) |
+| `pharmacist@demo.doseprepped.dev` | Pharmacist |
+| `admin@demo.doseprepped.dev` | Admin |
+
+None of this is real patient data. Public sign-up (via the UI or
+`POST /auth/signup`) always creates a **patient** account — pharmacist and
+admin accounts are only created via seeding/direct DB access in this
+milestone, by design (no public pharmacist self-registration).
 
 ## Development commands
 
@@ -121,7 +151,23 @@ pnpm dev:api    # terminal 2 — http://localhost:4000
 - `apps/patient` uses Vitest + React Testing Library (jsdom) for component
   and page tests: `pnpm --filter @doseprepped/patient test`.
 - `apps/api` uses Vitest with Fastify's `inject()` for route tests (no open
-  port needed): `pnpm --filter @doseprepped/api test`.
+  port needed): `pnpm --filter @doseprepped/api test`. The auth/RBAC suite
+  does real reads/writes against Postgres, so it needs a reachable
+  **disposable** test database — never point it at data that matters:
+
+  ```bash
+  # one-time setup, as the postgres superuser:
+  createdb -O doseprepped doseprepped_test
+  # apply migrations to it:
+  DATABASE_URL="postgresql://doseprepped:<password>@localhost:5432/doseprepped_test" \
+    pnpm --filter @doseprepped/db exec prisma migrate deploy
+  ```
+
+  By default the tests point at
+  `postgresql://doseprepped:doseprepped_dev_password@localhost:5432/doseprepped_test`;
+  override with a `TEST_DATABASE_URL` env var if yours differs. Test data
+  lives under the `@test.doseprepped.local` email domain and is deleted by
+  the suite's `afterAll` hook.
 - `pnpm test` from the root runs both.
 
 ## Environment variables
@@ -133,11 +179,56 @@ environment, and `.env*` files are git-ignored.
 
 | Variable | Used by | Notes |
 |---|---|---|
-| `DATABASE_URL` | `packages/db`, `apps/api` | Local Postgres only in M0 — never point at real patient data |
+| `DATABASE_URL` | `packages/db`, `apps/api` | Local Postgres only — never point at real patient data |
 | `NODE_ENV` | `apps/api` | `development` \| `test` \| `production` |
 | `API_PORT`, `API_HOST` | `apps/api` | Defaults to `4000` / `0.0.0.0` |
-| `SESSION_SECRET` | `apps/api` | Reserved for M1 (auth); optional and unused until then |
-| `NEXT_PUBLIC_API_URL` | `apps/patient` | Reserved — the patient app doesn't call the API yet in M0 |
+| `SESSION_SECRET` | `apps/api` | **Required.** Signs the session cookie. Generate with `openssl rand -base64 32`; never reuse the example value |
+| `APP_ORIGINS` | `apps/api` | Comma-separated frontend origin(s) allowed to call the API with credentials (CORS). Defaults to `http://localhost:3000` |
+| `NEXT_PUBLIC_API_URL` | `apps/patient` | Base URL the frontend (browser and server) uses to reach the API |
+
+## Authentication architecture
+
+- **Passwords**: hashed with bcrypt (cost factor 12) via `packages/auth`.
+  Never logged, never returned by any API response, never stored in
+  plaintext. Validated server-side (min 10 chars, at least one letter and
+  one number, checked against a common-password blocklist) independent of
+  any client-side checks.
+- **Sessions**: on login/signup the API generates a 256-bit random token,
+  stores only its SHA-256 hash in the `sessions` table (so a database read
+  alone can't be replayed as a live session), and sends the raw token to
+  the browser as an `httpOnly`, `SameSite=Lax`, **signed** cookie
+  (`@fastify/cookie`, signed with `SESSION_SECRET`) — signing lets a
+  tampered cookie be rejected before it ever reaches a database lookup.
+  Sessions expire after 7 days. Logout deletes the session server-side and
+  clears the cookie.
+- **Frontend**: the Next.js app never talks to the database directly for
+  auth. Server Components forward the incoming request's cookies to the
+  API's `GET /auth/me` (see `apps/patient/src/lib/session.ts`) to resolve
+  the current user, then redirect via `apps/patient/src/lib/require-role.ts`
+  if unauthenticated or wrong-role. This keeps one authoritative session
+  check (the API) instead of duplicating session-validation logic in two
+  runtimes.
+- **Rate limiting**: `/auth/login` and `/auth/signup` are limited to 10
+  requests/minute per IP (stricter than the API's 100/minute global
+  default) via `@fastify/rate-limit`, to slow credential-stuffing attempts.
+
+## Role-based access control architecture
+
+- Enforcement lives entirely on the API (`apps/api/src/lib/auth.ts`):
+  `authenticate` is a Fastify `preHandler` that resolves and attaches the
+  session user or responds `401`; `requireRole(...roles)` composes with it
+  and responds `403` if the user's role doesn't match. Every protected
+  route declares its own required role(s) explicitly — there's no implicit
+  hierarchy (an admin does **not** automatically pass a pharmacist-only
+  check, and vice versa).
+- The frontend's route guards (`requireRole` in
+  `apps/patient/src/lib/require-role.ts`) are a UX convenience — they
+  redirect a signed-in user to their own role's home page instead of
+  showing a 403 page — but they call the same API endpoint the backend
+  trusts, so there is no separate, weaker "frontend-only" check to bypass.
+- The three roles today: `PATIENT` (self-service sign-up), `PHARMACIST` and
+  `ADMIN` (seeded/DB-created only — no public self-registration path
+  exists for these roles).
 
 ## Security notes for this milestone
 
@@ -147,8 +238,13 @@ environment, and `.env*` files are git-ignored.
   `.env.example` files (with placeholder values) are tracked.
 - The API validates its environment configuration at startup (via Zod) and
   fails fast on misconfiguration rather than running with defaults.
-- Authentication, session management, RBAC enforcement, audit logging, and
-  the rest of the security architecture in
-  `docs/doseprepped/ARCHITECTURE.md` §8 are **not implemented yet** — the
-  `Role` field on `User` establishes the data model only. Do not treat this
-  milestone as handling anything beyond structural scaffolding.
+- Login failures return the same generic "Invalid email or password" for
+  both "no such user" and "wrong password", to avoid leaking which emails
+  have accounts.
+- Not implemented yet, and out of scope for this milestone: audit logging,
+  account lockout after repeated failures, password reset, email
+  verification, multi-factor auth, account deletion, and consent tracking.
+  See `docs/doseprepped/ARCHITECTURE.md` §8 for the full target security
+  architecture and what's still required — technically, operationally, and
+  legally — before this could handle real PHI. This project is **not**
+  HIPAA compliant, and nothing here should be read as a claim otherwise.

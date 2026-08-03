@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PlaceholderNotice } from "@/components/ui/PlaceholderNotice";
+import { requireRole } from "@/lib/require-role";
 
 export const metadata: Metadata = {
   title: "Home — DosePrepped",
@@ -23,11 +24,15 @@ const demoQuestions = [
   },
 ];
 
-export default function PatientHomePage() {
+export default async function PatientHomePage() {
+  const user = await requireRole("PATIENT");
+
   return (
     <>
       <section className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold text-ink">Good morning.</h1>
+        <h1 className="text-2xl font-semibold text-ink">
+          Welcome, {user.firstName}
+        </h1>
         <p className="text-ink-muted">Have a medication question?</p>
       </section>
 

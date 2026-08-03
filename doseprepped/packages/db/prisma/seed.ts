@@ -1,19 +1,27 @@
 import "dotenv/config";
+import bcrypt from "bcryptjs";
 import { PrismaClient, Role } from "../generated/client/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // Synthetic/demo data only — see docs/doseprepped/ARCHITECTURE.md
-// "Prototype Data". These are not real patients.
+// "Prototype Data". These are not real patients, and this is not a secret:
+// it's a publicly-documented local-dev-only demo password (see README).
+const DEMO_PASSWORD = "DosepreppedDemo!1";
+
 const adapter = new PrismaPg({ connectionString: process.env["DATABASE_URL"]! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
+
   const patientA = await prisma.user.upsert({
     where: { email: "patient-a@demo.doseprepped.dev" },
     update: {},
     create: {
       email: "patient-a@demo.doseprepped.dev",
-      name: "Demo Patient A",
+      firstName: "Demo",
+      lastName: "Patient A",
+      passwordHash,
       role: Role.PATIENT,
       medications: {
         create: [
@@ -39,7 +47,9 @@ async function main() {
     update: {},
     create: {
       email: "patient-b@demo.doseprepped.dev",
-      name: "Demo Patient B",
+      firstName: "Demo",
+      lastName: "Patient B",
+      passwordHash,
       role: Role.PATIENT,
       medications: {
         create: [
@@ -65,7 +75,9 @@ async function main() {
     update: {},
     create: {
       email: "pharmacist@demo.doseprepped.dev",
-      name: "Demo Pharmacist",
+      firstName: "Demo",
+      lastName: "Pharmacist",
+      passwordHash,
       role: Role.PHARMACIST,
     },
   });
@@ -75,12 +87,14 @@ async function main() {
     update: {},
     create: {
       email: "admin@demo.doseprepped.dev",
-      name: "Demo Admin",
+      firstName: "Demo",
+      lastName: "Admin",
+      passwordHash,
       role: Role.ADMIN,
     },
   });
 
-  console.log("Seeded synthetic demo users:", {
+  console.log("Seeded synthetic demo users (password for all: see README):", {
     patientA: patientA.email,
     patientB: patientB.email,
     pharmacist: pharmacist.email,

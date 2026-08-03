@@ -6,10 +6,17 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_HOST: z.string().min(1).default("0.0.0.0"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  // Used to sign the session cookie (see @fastify/cookie) so a tampered
+  // cookie value is rejected before it ever reaches a database lookup.
   SESSION_SECRET: z
     .string()
-    .min(32, "SESSION_SECRET must be at least 32 characters")
-    .optional(),
+    .min(32, "SESSION_SECRET must be at least 32 characters"),
+  // Origin of the frontend app, for CORS. Comma-separated for multiple.
+  APP_ORIGINS: z
+    .string()
+    .min(1)
+    .default("http://localhost:3000")
+    .transform((value) => value.split(",").map((origin) => origin.trim())),
 });
 
 function loadEnv() {

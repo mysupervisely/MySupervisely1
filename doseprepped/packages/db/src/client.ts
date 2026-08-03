@@ -21,4 +21,4 @@ if (process.env["NODE_ENV"] !== "production") {
 }
 
 export { Role } from "../generated/client/client.js";
-export type { User, PatientMedication } from "../generated/client/client.js";
+export type { User, Session, PatientMedication } from "../generated/client/client.js";

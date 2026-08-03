@@ -1,0 +1,20 @@
+{
+  "name": "@doseprepped/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@doseprepped/db": "workspace:*",
+    "bcryptjs": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.9.3"
+  }
+}

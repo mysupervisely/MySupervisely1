@@ -3,12 +3,21 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { PlaceholderNotice } from "@/components/ui/PlaceholderNotice";
+import { LogoutButton } from "@/components/LogoutButton";
+import { requireRole } from "@/lib/require-role";
 
 export const metadata: Metadata = {
   title: "Profile — DosePrepped",
 };
 
-export default function ProfilePage() {
+export default async function ProfilePage() {
+  const user = await requireRole("PATIENT");
+  const createdAt = new Date(user.createdAt).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   return (
     <>
       <h1 className="text-2xl font-semibold text-ink">Profile</h1>
@@ -16,19 +25,21 @@ export default function ProfilePage() {
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="text-sm text-ink-muted">Name</span>
-          <span className="text-sm font-medium text-ink">Demo Patient</span>
+          <span className="text-sm font-medium text-ink">
+            {user.firstName} {user.lastName}
+          </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-sm text-ink-muted">Email</span>
-          <span className="text-sm font-medium text-ink">demo.patient@example.com</span>
+          <span className="text-sm font-medium text-ink">{user.email}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-sm text-ink-muted">Role</span>
           <Badge tone="info">Patient</Badge>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-ink-muted">Consent</span>
-          <Badge tone="neutral">Not recorded</Badge>
+          <span className="text-sm text-ink-muted">Member since</span>
+          <span className="text-sm font-medium text-ink">{createdAt}</span>
         </div>
       </Card>
 
@@ -42,9 +53,11 @@ export default function ProfilePage() {
         </Button>
       </Card>
 
+      <LogoutButton />
+
       <PlaceholderNotice>
-        Profile data shown here is a synthetic placeholder. Real accounts,
-        consent tracking, and account deletion are reserved for milestone M1.
+        Account deletion and consent tracking are not implemented yet —
+        reserved for a later milestone.
       </PlaceholderNotice>
     </>
   );
