@@ -1402,14 +1402,331 @@ Reviewed against the existing implementation; nothing here is breaking:
 - No changes needed to `packages/auth`, `packages/types`, or the CORS/
   cookie/rate-limit plugin setup in `apps/api`.
 
+### Phase 3 — AI-Assisted Medication Education (implemented)
+
+**Status: implemented.** Builds directly on §19 step 3 ("AI Service Layer
+integration") and §6's operation table. This section documents what was
+actually built — `packages/ai-service` — and the specific design choices
+made to keep it a bounded, typed, non-chat system rather than the
+open-ended `ai-service` sketched in §4/§7 of the original architecture.
+
+#### Scope decision: one combined typed call, not four separate ones
+
+§6 lists five discrete AI operations (`refineDisposition`,
+`suggestCategory`, `generateClarifyingQuestion`, `generateEducation`,
+`summarizeForPharmacist`). Phase 3 implements the last four — not
+`refineDisposition`, which stays explicitly out of scope (the Phase 2
+deterministic disposition is not refined or second-guessed by AI in this
+phase; see "Disposition is read-only input" below).
+
+Rather than four separate network calls per question (four times the
+latency and cost, and four separate places output validation could
+diverge), the four remaining operations are implemented as **one
+structured provider call** —
+`MedicationEducationProvider.generateEducation(input)` — whose typed
+output carries all four operations' results as separate fields:
+`responseText` (the education/context content), `suggestedCategory`
+(structuring), `clarifyingQuestion` (at most one, optional), and
+`pharmacistSummary` (populated only when the disposition calls for it).
+This is an implementation consolidation, not a scope reduction — each
+operation still has its own typed field, is independently validated, and
+is independently nullable/omittable. It also makes "no multi-turn
+conversation" true by construction: there is exactly one AI call per
+question, ever, with no follow-up endpoint that accepts a second message
+against the same question.
+
+**Why the clarifying question doesn't block on a patient answer.** §5's
+Layer 2 sketch described a clarify-then-generate sequence. Building it as
+a real two-step, wait-for-the-patient flow would require either a second
+endpoint plus a "waiting for clarification" status (edging toward a
+mini-conversation) or a client-side delay before generation. Instead,
+`clarifyingQuestion` is generated *alongside* the education response in
+the same call, from the same model turn, and shown to the patient as a
+"you could also tell us..." suggestion beneath the answer — not a gate.
+This satisfies the requirement directly: "if the patient does not answer
+the clarification, the system should still be able to proceed safely" is
+trivially true because the system never waits for an answer in the first
+place. There is no `POST /questions/:id/clarify` endpoint in this phase;
+§16's sketch of that route remains illustrative/future.
+
+#### Disposition is read-only input, never AI-writable output
+
+The Phase 2 deterministic `disposition` is passed into
+`MedicationEducationProvider.generateEducation` as **context only** — the
+provider needs to know it (to decide how much to say and how directive to
+be) — but `MedicationEducationOutput` has **no disposition field at all**.
+There is no code path, schema field, or database column through which an
+AI response could change `disposition`, `dispositionSource`,
+`dispositionRuleIds`, or `safetyRuleSetVersion`; those are written exactly
+once, by `packages/safety-rules`, before the AI provider is ever called.
+Even a malicious or buggy provider that returns an extra `"disposition"`
+key in its raw JSON has no effect: `validateEducationOutput` parses the
+response through a Zod schema that only recognizes the four approved
+output fields, so any extra key is silently dropped before it reaches
+application code.
+
+#### Disposition-gated behavior
+
+| Disposition | Is the provider called? | What it may produce |
+|---|---|---|
+| `GENERAL_EDUCATION` | Yes | Full general educational `responseText`, optional `suggestedCategory`, optional `clarifyingQuestion`. `pharmacistSummary` is not requested (nothing to hand off yet). |
+| `PHARMACIST_REVIEW` | Yes | A brief acknowledgment + limited general context only (never a full answer to the individualized question), plus a `pharmacistSummary` prepared for a future pharmacist queue. |
+| `PROVIDER_EVALUATION` | Yes | Same shape as `PHARMACIST_REVIEW` — brief, non-diagnostic context if safe to give, plus a `pharmacistSummary` — with prompt instructions oriented toward "contact your healthcare provider" rather than "a pharmacist will review this." |
+| `URGENT_EMERGENCY` | **No — never called.** | Nothing. The existing Phase 2 urgent routing message is returned as-is. Calling an LLM here would add latency in front of emergency guidance and risks generating exactly the kind of normal educational content the requirements prohibit for this tier. This is enforced in code before any provider call is constructed, not by prompting. |
+
+For `PHARMACIST_REVIEW` and `PROVIDER_EVALUATION`, the AI-produced
+`responseText` (when present) is rendered in the UI as supplementary
+context beneath the Phase 2 routing message — never as the primary answer,
+and never positioned in a way that could read as "your question has been
+resolved."
+
+#### AI provider abstraction
+
+```
+packages/ai-service/
+  src/
+    types.ts       — MedicationEducationInput/Output/Result,
+                      MedicationEducationProvider interface
+    validate.ts     — Zod schema + guardrail pattern checks
+    prompt.ts        — PROMPT_VERSION + system/user prompt builder
+    providers/
+      mock.ts         — deterministic, dependency-free provider (default;
+                        also the provider tests inject directly — see
+                        "Testing" below)
+      anthropic.ts     — real provider, minimal fetch-based Messages API
+                        client (no SDK dependency), only constructed if
+                        AI_PROVIDER=anthropic
+    index.ts          — createMedicationEducationProvider(env) factory
+```
+
+```typescript
+interface MedicationEducationInput {
+  medicationSnapshot: { name, strength, directions, frequency, route };
+  otherMedicationsSnapshot: { name, strength }[] | null; // only when the
+                                                           // category already
+                                                           // captured it (§3)
+  category: QuestionCategory;         // patient-selected, read-only
+  questionText: string;
+  disposition: QuestionDisposition;   // Phase 2 result, read-only context
+}
+
+interface MedicationEducationOutput {
+  responseText: string;               // education or brief context, per disposition
+  suggestedCategory: QuestionCategory | null;  // structuring; advisory only
+  clarifyingQuestion: string | null;  // at most one, never an array
+  pharmacistSummary: string | null;   // only for PHARMACIST_REVIEW/PROVIDER_EVALUATION
+}
+
+interface MedicationEducationResult {
+  output: MedicationEducationOutput;
+  provider: string;      // "mock" | "anthropic"
+  model: string;         // e.g. "mock-v1" | a real model identifier
+  promptVersion: string; // PROMPT_VERSION at call time
+  usage: { inputTokens: number; outputTokens: number };
+}
+
+interface MedicationEducationProvider {
+  readonly providerName: string;
+  generateEducation(input: MedicationEducationInput): Promise<MedicationEducationResult>;
+}
+```
+
+`packages/ai-service` has exactly one internal dependency
+(`packages/types`, for the shared category/disposition unions) and no
+dependency on `packages/db`, Fastify, or any HTTP framework — the same
+"pure, swappable" shape as `packages/safety-rules`. `apps/api` is the only
+caller; it owns the timeout/fallback orchestration (see "Failure
+behavior") and all database writes. The provider itself never touches the
+database.
+
+**Provider selection**: `AI_PROVIDER` env var — `mock` (default) or
+`anthropic`. If set to `anthropic` without `ANTHROPIC_API_KEY` present,
+the API fails fast at startup (same pattern as the existing
+`SESSION_SECRET` check), rather than silently falling back. The **mock
+provider is what this codebase actually runs with today** — there is no
+`ANTHROPIC_API_KEY` configured anywhere in this environment, and none is
+required for Phase 3's tests, build, or smoke test. It produces
+deterministic, clearly-synthetic text derived from the input's category/
+disposition/medication name, run through the exact same validation and
+storage path a real provider's output would go through. This is called
+out explicitly, and loudly, in the README: **the demo/dev "AI education"
+text is not real AI-generated content**; wiring a real
+`ANTHROPIC_API_KEY` and `AI_PROVIDER=anthropic` is required before this
+could honestly be called "AI-generated" in a deployed environment.
+
+#### Input minimization
+
+`MedicationEducationInput` carries only: the medication snapshot already
+captured for this question (not the patient's full medication list), the
+`otherMedicationsSnapshot` *only if the category already triggered
+capturing it in Phase 1* (`DRUG_INTERACTION`/`SIDE_EFFECT` — Phase 3 adds
+no new data collection here, it just forwards what Phase 1 already
+snapshots), the category, the question text, and the disposition. It never
+receives: the patient's name/email/DOB, their full medication list, any
+other question they've ever asked, or any account/session data. The
+provider has no database access and could not fetch more even if a prompt
+tried to induce it to.
+
+#### Output validation ("FAIL SAFE")
+
+`validateEducationOutput(raw)` in `packages/ai-service/src/validate.ts`
+runs two passes before any AI content is trusted:
+
+1. **Structural.** A Zod schema requiring `responseText` (non-empty,
+   length-capped), and the three other fields as `null` or a
+   length-capped string — nothing else survives parsing. Anything that
+   doesn't match this shape (wrong types, missing `responseText`, extra
+   unexpected top-level content masquerading as the response) fails
+   validation immediately.
+2. **Guardrail patterns.** A small, named, non-exhaustive set of
+   regex checks (mirroring the style of `packages/safety-rules`, with
+   stable `id`s for audit) scans `responseText`, `clarifyingQuestion`, and
+   `pharmacistSummary` for directive clinical language the requirements
+   explicitly prohibit — e.g. "you should start/stop/increase/decrease
+   your dose/medication," "I diagnose," "stop taking this." A match fails
+   validation. This is explicitly **defense-in-depth, not the primary
+   safety mechanism** — the primary mechanism is the disposition gate
+   (§ above) and the system prompt's MUST NOT list; this check exists in
+   case either of those is insufficient for a given output, exactly per
+   the original architecture's §7 three-layer guardrail design (prompt +
+   schema + post-generation pattern check).
+
+If either pass fails — or the provider call throws (network error) or
+exceeds its timeout (`AI_TIMEOUT_MS`, default 8000ms) — the question is
+marked `aiResponseStatus: FAILED` and **no AI content is stored or
+shown**. The patient still sees the Phase 2 disposition routing message
+(unchanged, unaffected) plus a short, honest fallback line noting general
+information isn't available right now and pointing to the same
+human-resource path the disposition already implies (pharmacist review
+request for `GENERAL_EDUCATION`/`PHARMACIST_REVIEW`, provider contact for
+`PROVIDER_EVALUATION`). Nothing fabricated is ever shown. `URGENT_EMERGENCY`
+never reaches this path at all (§ above).
+
+#### Audit metadata
+
+New `MedicationQuestion` fields (see "Database changes" below):
+`aiProvider`, `aiPromptVersion`, `aiResponseStatus`
+(`SUCCESS`/`FAILED`/`SKIPPED`), `aiUsage` (`{inputTokens, outputTokens}`).
+Combined with the existing `aiModelVersion` and `aiEducationGeneratedAt`
+fields (reserved since Phase 1, populated for the first time here), every
+question that goes through the AI path has a complete, queryable record of
+which provider/model/prompt version ran, whether it succeeded, and its
+token usage — without storing the prompt or the raw response anywhere.
+None of this audit metadata is returned in the patient-facing API response
+(`GET /questions`, `GET /questions/:id`) — it's operational/audit data, not
+something the patient UI needs, per the minimum-necessary-exposure
+principle already applied to `dispositionRuleIds`/`safetyRuleSetVersion`
+in Phase 2.
+
+#### Cost control
+
+- The deterministic disposition (Phase 2) always runs first and is free
+  (no network call); the AI provider is only ever invoked after it, never
+  before or in place of it.
+- `URGENT_EMERGENCY` never invokes the provider (table above) — the
+  highest-frequency-risk tier for "this shouldn't cost anything or add
+  latency" is structurally excluded.
+- `aiUsage` is stored per question specifically so token cost can be
+  aggregated later (e.g. `sum(aiUsage->>'inputTokens')` grouped by day/
+  disposition/category) without a new table or a separate cost-tracking
+  system — this is the "future B2B economics" hook the requirements ask
+  for, built as a byproduct of the audit fields rather than a separate
+  feature.
+- Response caching (e.g. keyed on medication name + category + a
+  normalized question) is explicitly **not implemented** in Phase 3 — it's
+  named in the requirements as a future opportunity ("where clinically
+  appropriate"), which itself needs a clinical/product decision about
+  when two patients' phrasing of "the same" question can safely share a
+  cached answer. Flagged as a limitation, not attempted here.
+
+#### What this phase does NOT do
+
+Restating the explicit exclusions: no pharmacist queue or pharmacist
+messaging (the `pharmacistSummary` this phase generates is stored, ready
+for that future queue, but nothing surfaces it to a pharmacist yet — there
+is no pharmacist-facing UI or endpoint reading it), no provider messaging/
+EHR integration, no payments, no medication reminders/adherence system, no
+drug interaction database, no comprehensive clinical decision support, and
+no `refineDisposition` AI-assisted disposition adjustment (§6's optional
+future operation — Phase 3 leaves Phase 2's disposition untouched, full
+stop, rather than adding an AI second-opinion pass on top of it).
+
+#### Testing
+
+All Phase 3 tests use the mock provider (`packages/ai-service`'s
+`MockMedicationEducationProvider`, injected into `buildApp({ aiProvider,
+aiTimeoutMs })`) — **no test makes a real network call to any AI vendor**,
+matching the explicit requirement. The mock provider supports four modes
+(`success`, `fail`, `invalid`, `slow`) so tests can exercise the success
+path, a thrown-error failure, a schema-violating output, and a
+timeout-triggering delay without any nondeterminism or real latency.
+
+#### Limitations — requires clinical, legal, privacy, and security review before production use
+
+- **Clinical:** the system prompt's MUST NOT list and the post-generation
+  guardrail patterns are an engineering approximation of a clinical
+  boundary, not a clinically validated one. A licensed pharmacist/
+  clinician must review actual model outputs (not just the prompt) before
+  this is used with real patients, the same standing caveat as Phase 2's
+  rule set.
+- **Model risk:** even with disposition gating, schema validation, and
+  guardrail patterns, an LLM can produce subtly non-compliant phrasing the
+  current pattern list doesn't catch — this is acknowledged, not solved,
+  by the current guardrail set (same "non-exhaustive, defense-in-depth"
+  caveat as Phase 2).
+- **No caching, no rate limiting specific to AI cost** beyond the existing
+  `POST /questions` rate limit — a determined abuser could still drive up
+  AI spend within that per-IP/per-user cap; a dedicated AI-cost rate limit
+  is a reasonable near-term follow-up, not built here.
+- **Mock provider is the only provider actually exercised** in this
+  environment (no `ANTHROPIC_API_KEY` configured); the `anthropic`
+  provider is implemented and unit-testable in shape, but has not been
+  run against the real API as part of this work.
+- **Legal/privacy:** per §8/§13 of the original architecture, no BAA
+  exists with any AI vendor in this environment; this remains
+  synthetic-data-only, and real PHI must not reach any AI provider
+  (including a real Anthropic account) until that review is complete.
+
+### Database changes (Phase 3 additions)
+
+```
+enum AiResponseStatus {
+  SUCCESS
+  FAILED
+  SKIPPED   -- disposition is URGENT_EMERGENCY; provider deliberately not called
+}
+```
+
+New fields on `MedicationQuestion` (in addition to the Phase 1/2 fields
+already listed in §15):
+
+```
+aiProvider           String?          -- "mock" | "anthropic"
+aiPromptVersion      String?          -- packages/ai-service PROMPT_VERSION at call time
+aiResponseStatus     AiResponseStatus?
+aiUsage              Json?            -- {inputTokens, outputTokens}
+aiPharmacistSummary  Json?            -- {summaryText, isAiGenerated: true}; stored for a
+                                       -- future pharmacist queue, not surfaced anywhere yet
+```
+
+The previously-reserved `aiEducationResponse`, `aiEducationGeneratedAt`,
+`aiModelVersion`, `aiSuggestedCategory`, and `clarifyingExchange` fields
+(present in the schema since Phase 1, always null until now) are populated
+for the first time in Phase 3. `clarifyingExchange` stores
+`{question, answer: null}` — `answer` stays structurally reserved for a
+future two-way flow but is never written to in Phase 3 (§ "Why the
+clarifying question doesn't block").
+
 ---
 
 ## Next Step
 
-M0, M1, M2, M3 Phase 1 (question intake), and M3 Phase 2 (deterministic
-safety & disposition) are implemented, tested, and merged. Every question
-now receives a `disposition` at creation time via
-`packages/safety-rules` — no AI involved, no pharmacist queue, no provider
-messaging. Awaiting direction on Phase 3 (§19): AI Service Layer
-integration, gated behind the Phase 2 deterministic disposition and
-required to leave it unchanged if AI is unavailable.
+M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
+& disposition), and M3 Phase 3 (AI-assisted medication education) are
+implemented, tested, and merged. Every `GENERAL_EDUCATION`/
+`PHARMACIST_REVIEW`/`PROVIDER_EVALUATION` question now attempts a single,
+typed, validated AI education call via `packages/ai-service` after the
+Phase 2 deterministic disposition is assigned; `URGENT_EMERGENCY`
+questions never invoke AI. No pharmacist queue, no provider messaging, no
+multi-turn conversation exists anywhere in this codebase. Awaiting
+direction on the next milestone (§19 step 4: pharmacist request + queue).

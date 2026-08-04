@@ -16,5 +16,6 @@ export default defineConfig({
     "@doseprepped/types",
     "@doseprepped/auth",
     "@doseprepped/safety-rules",
+    "@doseprepped/ai-service",
   ],
 });

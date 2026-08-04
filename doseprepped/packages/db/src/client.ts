@@ -26,6 +26,7 @@ export {
   QuestionCategory,
   QuestionDisposition,
   DispositionSource,
+  AiResponseStatus,
   QuestionStatus,
 } from "../generated/client/client.js";
 export type {

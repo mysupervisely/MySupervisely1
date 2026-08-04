@@ -1,8 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, Role, QuestionCategory, DispositionSource, type MedicationQuestion } from "@doseprepped/db";
+import {
+  prisma,
+  Role,
+  QuestionCategory,
+  QuestionStatus,
+  DispositionSource,
+  AiResponseStatus,
+  type MedicationQuestion,
+} from "@doseprepped/db";
 import { evaluateDisposition } from "@doseprepped/safety-rules";
+import type { MedicationEducationProvider } from "@doseprepped/ai-service";
 import { requireRole } from "../lib/auth.js";
+import { runEducationPipeline } from "../lib/ai-education.js";
 
 const QUESTION_CATEGORIES = Object.values(QuestionCategory) as [QuestionCategory, ...QuestionCategory[]];
 
@@ -41,7 +51,27 @@ interface OtherMedicationSnapshot {
   [key: string]: string;
 }
 
+interface ClarifyingExchangeJson {
+  question: string;
+  answer: null;
+  [key: string]: string | null;
+}
+
+interface AiUsageJson {
+  inputTokens: number;
+  outputTokens: number;
+  [key: string]: number;
+}
+
+interface AiPharmacistSummaryJson {
+  summaryText: string;
+  isAiGenerated: true;
+  [key: string]: string | boolean;
+}
+
 function serializeQuestion(question: MedicationQuestion) {
+  const clarifyingExchange = question.clarifyingExchange as unknown as { question: string } | null;
+
   return {
     id: question.id,
     medicationId: question.medicationId,
@@ -57,7 +87,17 @@ function serializeQuestion(question: MedicationQuestion) {
     dispositionAssignedAt: question.dispositionAssignedAt
       ? question.dispositionAssignedAt.toISOString()
       : null,
+    // AI-generated education/context (Phase 3). aiProvider, aiModelVersion,
+    // aiPromptVersion, and aiUsage are audit-only fields, deliberately not
+    // returned here — see docs/doseprepped/ARCHITECTURE.md "Audit
+    // metadata". aiPharmacistSummary is likewise withheld — it's prepared
+    // for a future pharmacist queue, not for the patient.
     aiEducationResponse: question.aiEducationResponse,
+    aiEducationGeneratedAt: question.aiEducationGeneratedAt
+      ? question.aiEducationGeneratedAt.toISOString()
+      : null,
+    aiResponseStatus: question.aiResponseStatus,
+    clarifyingQuestion: clarifyingExchange?.question ?? null,
     status: question.status,
     pharmacistResponse: question.pharmacistResponse,
     escalatedAt: question.escalatedAt ? question.escalatedAt.toISOString() : null,
@@ -68,7 +108,12 @@ function serializeQuestion(question: MedicationQuestion) {
   };
 }
 
-export async function questionRoutes(app: FastifyInstance) {
+export interface QuestionRoutesOptions {
+  aiProvider: MedicationEducationProvider;
+  aiTimeoutMs: number;
+}
+
+export async function questionRoutes(app: FastifyInstance, opts: QuestionRoutesOptions) {
   app.get(
     "/questions",
     { preHandler: requireRole(Role.PATIENT) },
@@ -138,9 +183,66 @@ export async function questionRoutes(app: FastifyInstance) {
       // synchronous rule evaluation with no AI/LLM involved. See
       // docs/doseprepped/ARCHITECTURE.md "Deterministic Safety &
       // Disposition Rule Engine". This is the only thing that decides
-      // disposition today; it always runs and never depends on any
-      // external service being available.
+      // disposition, ever; it always runs first and never depends on any
+      // external service being available. Nothing below can change its
+      // result.
       const safetyResult = evaluateDisposition(questionText, category);
+      const disposition = safetyResult.disposition;
+
+      // M3 Phase 3 — AI-assisted education, gated behind the disposition
+      // above. URGENT_EMERGENCY never invokes the provider at all: no
+      // normal educational content should ever precede emergency
+      // guidance, and there's no cost/latency reason to call it. See
+      // docs/doseprepped/ARCHITECTURE.md "Disposition-gated behavior".
+      const aiOutcome =
+        disposition === "URGENT_EMERGENCY"
+          ? ({ status: "SKIPPED", reason: "urgent_emergency_disposition" } as const)
+          : await runEducationPipeline(opts.aiProvider, opts.aiTimeoutMs, {
+              medicationSnapshot,
+              otherMedicationsSnapshot,
+              category,
+              questionText,
+              disposition,
+            });
+
+      let aiEducationResponse: string | undefined;
+      let aiEducationGeneratedAt: Date | undefined;
+      let aiModelVersion: string | undefined;
+      let aiProvider: string | undefined;
+      let aiPromptVersion: string | undefined;
+      let aiUsage: AiUsageJson | undefined;
+      let aiSuggestedCategory: QuestionCategory | undefined;
+      let clarifyingExchange: ClarifyingExchangeJson | undefined;
+      let aiPharmacistSummary: AiPharmacistSummaryJson | undefined;
+      let status: QuestionStatus | undefined;
+
+      if (aiOutcome.status === "SUCCESS") {
+        aiEducationResponse = aiOutcome.responseText;
+        aiEducationGeneratedAt = new Date();
+        aiModelVersion = aiOutcome.model;
+        aiProvider = aiOutcome.provider;
+        aiPromptVersion = aiOutcome.promptVersion;
+        aiUsage = { inputTokens: aiOutcome.usage.inputTokens, outputTokens: aiOutcome.usage.outputTokens };
+        if (aiOutcome.suggestedCategory) {
+          aiSuggestedCategory = aiOutcome.suggestedCategory as QuestionCategory;
+        }
+        if (aiOutcome.clarifyingQuestion) {
+          clarifyingExchange = { question: aiOutcome.clarifyingQuestion, answer: null };
+        }
+        if (aiOutcome.pharmacistSummary) {
+          aiPharmacistSummary = { summaryText: aiOutcome.pharmacistSummary, isAiGenerated: true };
+        }
+        if (disposition === "GENERAL_EDUCATION") {
+          status = QuestionStatus.AI_ANSWERED;
+        }
+      }
+
+      const aiResponseStatus =
+        aiOutcome.status === "SUCCESS"
+          ? AiResponseStatus.SUCCESS
+          : aiOutcome.status === "FAILED"
+            ? AiResponseStatus.FAILED
+            : AiResponseStatus.SKIPPED;
 
       const question = await prisma.medicationQuestion.create({
         data: {
@@ -155,6 +257,17 @@ export async function questionRoutes(app: FastifyInstance) {
           dispositionRuleIds: safetyResult.matchedRuleIds,
           safetyRuleSetVersion: safetyResult.ruleSetVersion,
           dispositionAssignedAt: new Date(),
+          aiEducationResponse,
+          aiEducationGeneratedAt,
+          aiModelVersion,
+          aiProvider,
+          aiPromptVersion,
+          aiUsage,
+          aiSuggestedCategory,
+          clarifyingExchange,
+          aiPharmacistSummary,
+          aiResponseStatus,
+          status,
         },
       });
 

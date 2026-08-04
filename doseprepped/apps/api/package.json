@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@doseprepped/ai-service": "workspace:*",
     "@doseprepped/auth": "workspace:*",
     "@doseprepped/db": "workspace:*",
     "@doseprepped/safety-rules": "workspace:*",

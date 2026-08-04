@@ -52,6 +52,9 @@ export interface Question {
   safetyRuleSetVersion: string | null;
   dispositionAssignedAt: string | null;
   aiEducationResponse: string | null;
+  aiEducationGeneratedAt: string | null;
+  aiResponseStatus: "SUCCESS" | "FAILED" | "SKIPPED" | null;
+  clarifyingQuestion: string | null;
   status: QuestionStatus;
   pharmacistResponse: string | null;
   escalatedAt: string | null;

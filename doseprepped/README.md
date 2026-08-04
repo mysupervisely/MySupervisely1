@@ -1,32 +1,33 @@
-# DosePrepped — M0–M2 + M3 Phase 1–2 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition)
+# DosePrepped — M0–M2 + M3 Phase 1–3 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education)
 
 DosePrepped is a digital medication-support layer: it helps patients
 understand their medications and, eventually, connect with licensed
 pharmacists (and their own provider when appropriate) when they have
 medication-related questions.
 
-> **Status: through M3 Phase 2 (Deterministic Safety & Disposition
-> Layer).** Real accounts, login/logout, password hashing, sessions,
-> server-enforced role-based access control (patient / pharmacist / admin),
-> a full patient medication list, structured medication-question intake,
-> and a deterministic, AI-independent safety/disposition routing layer are
-> implemented. Every submitted question is now automatically routed to one
-> of four dispositions (general education, pharmacist review, provider
-> evaluation, or urgent/emergency guidance) using explicit, versioned,
-> reviewable rules — **no AI/LLM is involved in this routing, and none is
-> required for it to work.** This is routing only: nothing in this codebase
-> diagnoses, recommends treatment, or tells a patient to start/stop/change
-> a medication. No pharmacist reviews questions yet, no AI generates
-> educational answers yet, and there is still no authoritative medication
-> database, no OCR, no pharmacist messaging, no provider escalation
-> workflow, no payments, and no comprehensive clinical decision support.
-> See
+> **Status: through M3 Phase 3 (AI-Assisted Medication Education).** Real
+> accounts, login/logout, password hashing, sessions, server-enforced
+> role-based access control (patient / pharmacist / admin), a full patient
+> medication list, structured medication-question intake, a deterministic
+> AI-independent safety/disposition routing layer, and a single, typed,
+> validated AI education call gated behind that disposition are
+> implemented. Every submitted question is first routed to one of four
+> dispositions by explicit, versioned, non-AI rules; for three of the four
+> (everything except an urgent/emergency routing), a bounded AI call may
+> then generate general educational content or brief supplementary
+> context — **the AI can never see or change the disposition it was given,
+> and is never called at all for urgent/emergency questions.** DosePrepped
+> is not a chatbot: there is no chat history, no multi-turn conversation,
+> and at most one AI call per question, ever. No pharmacist reviews
+> questions yet, and there is still no authoritative medication database,
+> no OCR, no pharmacist messaging, no provider escalation workflow, no
+> payments, and no comprehensive clinical decision support. See
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
 > for the full product spec, the M3 "digital medication-support layer"
 > architecture, and the milestone plan. Ask a Pharmacist and the pharmacist
 > /admin dashboards remain explicit placeholders.
 
-## What's in M0–M2 + M3 Phase 1–2
+## What's in M0–M2 + M3 Phase 1–3
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -61,6 +62,17 @@ medication-related questions.
   patient's chosen category plus a small set of named, reviewable text
   patterns. It never calls an AI/LLM and never requires one to be
   available. See "Deterministic safety & disposition architecture" below.
+- **AI-assisted medication education (M3 Phase 3):** gated strictly behind
+  the Phase 2 disposition, a single typed call to
+  `packages/ai-service`'s `MedicationEducationProvider` generates general
+  educational content (for `GENERAL_EDUCATION`) or brief supplementary
+  context plus a structured pharmacist summary (for `PHARMACIST_REVIEW`/
+  `PROVIDER_EVALUATION`) — never for `URGENT_EMERGENCY`, which the
+  provider is never even called for. Every response is schema- and
+  guardrail-validated before being stored or shown; any failure, timeout,
+  or invalid output fails safe to the existing routing message, never a
+  fabricated answer. See "AI-assisted medication education architecture"
+  below.
 - A minimal Fastify backend API: `/health` (DB connectivity), `/auth/*`
   (signup/login/logout/me), `/medications*` (CRUD + archive + reference
   search), `/questions*` (create/list/detail), and one role-gated
@@ -70,18 +82,20 @@ medication-related questions.
   `MedicationReference`, and `MedicationQuestion`, seeded with **synthetic
   demo data only**.
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 53 auth/RBAC/medication/question/disposition integration tests
-  against a real (disposable) test database, plus 16 standalone unit tests
-  for the safety-rules engine.
+  including 68 auth/RBAC/medication/question/disposition/AI-education
+  integration tests against a real (disposable) test database, plus 16
+  standalone unit tests for the safety-rules engine and 17 for the
+  ai-service package (validation + mock provider) — 106 tests total. No
+  test makes a real call to any AI vendor.
 
-Not in scope yet (see the architecture doc for when these land): AI-
-generated educational answers, an authoritative medication reference
-database, OCR/medication scanning, pharmacist messaging/dashboard
-functionality, provider escalation workflow, payments, account deletion,
-consent tracking, drug interaction checking, and any comprehensive clinical
-decision support. M3 Phase 2's rule engine performs **routing only** — it
-does not diagnose, does not recommend treatment, and does not evaluate
-whether a medication is "safe" for a given patient.
+Not in scope yet (see the architecture doc for when these land): a
+pharmacist queue/dashboard/messaging, provider messaging/EHR integration,
+an authoritative medication reference database, OCR/medication scanning,
+payments, account deletion, consent tracking, drug interaction checking,
+and any comprehensive clinical decision support. Neither the Phase 2 rule
+engine nor the Phase 3 AI layer diagnoses, recommends treatment, or
+evaluates whether a medication is "safe" for a given patient — both are
+routing/education aids, not clinical decision-makers.
 
 ## Project structure
 
@@ -101,6 +115,12 @@ doseprepped/
     safety-rules/ Deterministic, zero-dependency safety/disposition rule
                  engine (pure function: category + question text →
                  disposition). No DB, HTTP, or AI dependency by design.
+    ai-service/  AI provider abstraction (MedicationEducationProvider),
+                 output validation, and prompt building for M3 Phase 3.
+                 Zero workspace/DB/HTTP-framework dependencies (only zod),
+                 mirroring safety-rules's zero-dependency pattern. Ships a
+                 mock provider (the only one this environment actually
+                 runs with) and a minimal fetch-based Anthropic provider.
   docs/          (see ../docs/doseprepped for the architecture plan)
 ```
 
@@ -228,6 +248,10 @@ environment, and `.env*` files are git-ignored.
 | `SESSION_SECRET` | `apps/api` | **Required.** Signs the session cookie. Generate with `openssl rand -base64 32`; never reuse the example value |
 | `APP_ORIGINS` | `apps/api` | Comma-separated frontend origin(s) allowed to call the API with credentials (CORS). Defaults to `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | `apps/patient` | Base URL the frontend (browser and server) uses to reach the API |
+| `AI_PROVIDER` | `apps/api` | `mock` (default) or `anthropic`. `mock` is the only provider this environment actually runs with — see "AI-assisted medication education architecture" |
+| `ANTHROPIC_API_KEY` | `apps/api` | **Required if `AI_PROVIDER=anthropic`** — the API fails fast at startup if it's missing. Not set anywhere in this environment |
+| `ANTHROPIC_MODEL` | `apps/api` | Optional, only used with `AI_PROVIDER=anthropic`. Defaults to a current Claude model identifier |
+| `AI_TIMEOUT_MS` | `apps/api` | Milliseconds before an AI provider call is abandoned and the question fails safe. Defaults to `8000` |
 
 ## Authentication architecture
 
@@ -349,14 +373,22 @@ change:
   `safetyRuleSetVersion` pins the exact rule set that produced the
   disposition, so a later rule change never silently reinterprets a past
   question.
-- **AI education / pharmacist / escalation fields**
-  (`aiEducationResponse`, `aiModelVersion`, `pharmacistId`,
-  `pharmacistResponse`, `escalatedAt`, `escalationReason`, etc.): present
-  in the schema and in every API response (always `null`), but nothing in
-  this codebase writes to them yet — no LLM is called, no pharmacist queue
-  exists. This is intentional: it's the "clean integration point" for the
-  next phase, not a placeholder answer that could be mistaken for real
-  guidance.
+- **AI education fields** (`aiEducationResponse`, `aiEducationGeneratedAt`,
+  `aiModelVersion`, `aiProvider`, `aiPromptVersion`, `aiResponseStatus`,
+  `aiUsage`, `aiPharmacistSummary`, `clarifyingExchange`,
+  `aiSuggestedCategory`): populated by `packages/ai-service` as of M3
+  Phase 3, gated by disposition (see below). `aiProvider`,
+  `aiPromptVersion`, `aiModelVersion`, and `aiUsage` are audit-only and
+  never returned by `GET /questions`/`GET /questions/:id` — only
+  `aiEducationResponse`, `aiEducationGeneratedAt`, `aiResponseStatus`, and
+  a derived `clarifyingQuestion` string reach the patient-facing API
+  response.
+- **Pharmacist/escalation fields** (`pharmacistId`, `pharmacistResponse`,
+  `escalatedAt`, `escalationReason`, etc.): present in the schema and in
+  every API response (always `null`), but nothing in this codebase writes
+  to them yet — no pharmacist queue exists. This is intentional: it's the
+  "clean integration point" for the next phase, not a placeholder answer
+  that could be mistaken for real guidance.
 
 ## Deterministic safety & disposition architecture
 
@@ -422,6 +454,65 @@ under "Deterministic Safety & Disposition Rule Engine" — this is a summary.
   disposition value at creation time. Those integrations are explicitly
   future phases.
 
+## AI-assisted medication education architecture
+
+Full rationale lives in `docs/doseprepped/ARCHITECTURE.md` under "Phase 3
+— AI-Assisted Medication Education" — this is a summary.
+
+- **Disposition-gated, never disposition-changing.** The Phase 2
+  deterministic disposition is passed into the AI provider as read-only
+  context; `MedicationEducationOutput` has no field that could report a
+  disposition back, so there is no code path through which an AI response
+  could change `disposition`. Even a malformed provider response with an
+  extra `"disposition"` key is silently stripped by Zod validation before
+  it reaches application code.
+- **One typed call, not a chatbot.** A single
+  `MedicationEducationProvider.generateEducation(input)` call per question
+  returns structuring (`suggestedCategory`, advisory only), at most one
+  optional clarifying question (never blocking — the system proceeds
+  without waiting for an answer), the education/context text, and (when
+  applicable) a pharmacist summary. There is no follow-up endpoint, no chat
+  history, and no second call against the same question.
+- **`URGENT_EMERGENCY` never invokes the provider.** Checked in code before
+  any provider call is constructed — not by prompting — so there is no
+  latency or cost in front of emergency guidance, and no chance of normal
+  educational content appearing where it shouldn't.
+- **Fail-safe output validation.** Every response goes through
+  `validateEducationOutput` (`packages/ai-service/src/validate.ts`): a
+  structural Zod pass, then a small set of named guardrail regex checks for
+  prohibited directive-clinical language (dose-change instructions, "stop
+  taking," diagnostic phrasing). A provider error, a timeout
+  (`AI_TIMEOUT_MS`), or a validation failure all produce the same outcome —
+  `aiResponseStatus: FAILED`, nothing stored or shown, and the patient sees
+  the unaffected Phase 2 routing message plus an honest fallback line.
+  Nothing fabricated is ever displayed.
+- **Input minimization.** The provider receives only the already-captured
+  medication snapshot, the (already-conditionally-captured)
+  other-medications snapshot, category, question text, and disposition —
+  never the patient's identity, full medication list, or any other
+  question.
+- **Audit metadata, not prompt/response logging.** `aiProvider`,
+  `aiModelVersion`, `aiPromptVersion`, `aiResponseStatus`, and `aiUsage`
+  (`{inputTokens, outputTokens}`) are stored per question for auditability
+  and future cost analysis — never the raw prompt or, for a real provider,
+  the raw model response. Fastify's request logging already excludes
+  bodies, and no application code logs question text or AI output.
+- **Provider selection**: `AI_PROVIDER=mock` (default, and the only
+  provider this codebase actually runs with — no `ANTHROPIC_API_KEY` is
+  configured anywhere here) or `AI_PROVIDER=anthropic` (fails fast at
+  startup without a key, same pattern as `SESSION_SECRET`). **The demo/dev
+  "AI education" text you'll see running this app is the mock provider's
+  synthetic output, not real AI-generated content** — see
+  `packages/ai-service/src/providers/mock.ts`.
+- **Current limitations — requires clinical, legal, privacy, and security
+  review before production use.** The guardrail pattern list is
+  non-exhaustive defense-in-depth, not a clinically validated boundary; the
+  `anthropic` provider is implemented and unit-testable in shape but has
+  not been exercised against the real API in this environment; there is no
+  AI-specific rate limit beyond the existing per-route limit; response
+  caching is explicitly not implemented. No BAA exists with any AI vendor
+  here — this remains synthetic-data-only.
+
 ## Security notes for this milestone
 
 - No real patient data anywhere in this repo or its seed data — synthetic
@@ -437,14 +528,15 @@ under "Deterministic Safety & Disposition Rule Engine" — this is a summary.
   names or question content); Fastify's request logging records
   method/URL/status only, never request bodies, so medication details and
   question text are never written to logs.
-- No AI/LLM is called anywhere in this codebase yet, and no placeholder or
-  simulated AI/pharmacist response is generated — a question's `status`
-  stays `RECEIVED` and every AI-education/pharmacist field stays `null`
-  until a later phase actually implements that processing, so nothing on
-  screen could be mistaken for reviewed clinical guidance. Disposition
-  assignment (M3 Phase 2) is the one exception to "nothing runs yet" — it
-  is a deterministic, non-AI routing computation, not clinical guidance,
-  and is documented as such everywhere it's surfaced.
+- No pharmacist queue exists and no simulated pharmacist response is ever
+  generated — every pharmacist-related field stays `null` until a later
+  phase implements that processing. Disposition assignment (M3 Phase 2)
+  and AI education (M3 Phase 3) are both real, implemented computations,
+  but neither is clinical guidance: disposition is a deterministic,
+  non-AI routing decision, and AI content is schema/guardrail-validated,
+  fails safe on any doubt, and is always labeled AI-generated with an
+  explicit "not a diagnosis or personalized medical advice" disclosure —
+  see "AI-assisted medication education architecture" above.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { CATEGORY_LABELS, DISPOSITION_MESSAGES, STATUS_LABELS } from "@/lib/question-labels";
+import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/question-labels";
 import { getQuestion } from "@/lib/questions";
-import { cn } from "@/lib/cn";
+import { AiEducationSection } from "@/components/questions/AiEducationSection";
 
 export const metadata: Metadata = {
   title: "Question details — DosePrepped",
@@ -60,18 +60,7 @@ export default async function QuestionDetailPage({ params }: PageProps<"/questio
         </div>
       </Card>
 
-      {question.disposition && (
-        <Card
-          className={cn(
-            "text-sm",
-            question.disposition === "URGENT_EMERGENCY"
-              ? "bg-danger-light text-danger"
-              : "bg-accent-light text-ink-muted",
-          )}
-        >
-          {DISPOSITION_MESSAGES[question.disposition]}
-        </Card>
-      )}
+      <AiEducationSection question={question} />
     </>
   );
 }
