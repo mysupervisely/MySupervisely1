@@ -29,6 +29,7 @@ export {
   AiResponseStatus,
   QuestionStatus,
   EscalationReasonCategory,
+  PharmacistCredentialStatus,
 } from "../generated/client/client.js";
 export type {
   User,
@@ -36,5 +37,6 @@ export type {
   PatientMedication,
   MedicationReference,
   MedicationQuestion,
+  PharmacistProfile,
   Prisma,
 } from "../generated/client/client.js";

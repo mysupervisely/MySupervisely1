@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, Role } from "@doseprepped/db";
+import { prisma, Role, type PharmacistProfile } from "@doseprepped/db";
 import {
   createSession,
   deleteSession,
@@ -40,6 +40,19 @@ function serializeUser(user: SessionUser | { id: string; email: string; firstNam
     email: user.email,
     role: user.role,
     createdAt: user.createdAt.toISOString(),
+  };
+}
+
+// M5.1 — pharmacist profile foundation. Storage/read only; see
+// docs/doseprepped/ARCHITECTURE.md "M5.1 — Pharmacist profile foundation".
+// Never surfaced for a patient or admin, and never for another
+// pharmacist's profile — only GET /auth/me, for the authenticated caller's
+// own record.
+function serializePharmacistProfile(profile: PharmacistProfile) {
+  return {
+    licenseState: profile.licenseState,
+    licenseNumber: profile.licenseNumber,
+    credentialStatus: profile.credentialStatus,
   };
 }
 
@@ -120,6 +133,20 @@ export async function authRoutes(app: FastifyInstance) {
     if (!request.user) {
       return reply.code(401).send({ error: "Authentication required." });
     }
+
+    // pharmacistProfile is included only for the pharmacist's own record —
+    // omitted entirely (not even `null`) for patients/admins, and there is
+    // no route anywhere that lets a caller fetch anyone else's.
+    if (request.user.role === Role.PHARMACIST) {
+      const profile = await prisma.pharmacistProfile.findUnique({
+        where: { pharmacistId: request.user.id },
+      });
+      return reply.send({
+        user: serializeUser(request.user),
+        pharmacistProfile: profile ? serializePharmacistProfile(profile) : null,
+      });
+    }
+
     return reply.send({ user: serializeUser(request.user) });
   });
 }

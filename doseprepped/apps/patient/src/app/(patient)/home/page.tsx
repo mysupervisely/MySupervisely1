@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { PlaceholderNotice } from "@/components/ui/PlaceholderNotice";
 import { MedicationCard } from "@/components/medications/MedicationCard";
 import { QuestionCard } from "@/components/questions/QuestionCard";
 import { requireRole } from "@/lib/require-role";
@@ -91,12 +90,6 @@ export default async function PatientHomePage() {
           </Link>
         )}
       </section>
-
-      <PlaceholderNotice>
-        Questions are received and organized, but AI-assisted general
-        education and pharmacist review are not available yet — that&apos;s
-        coming in a later update.
-      </PlaceholderNotice>
     </>
   );
 }

@@ -1,11 +1,11 @@
-# DosePrepped — M0–M4 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow)
+# DosePrepped — M0–M5.1 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening)
 
 DosePrepped is a digital medication-support layer: it helps patients
 understand their medications and connect with licensed pharmacists (and
 their own provider when appropriate) when they have medication-related
 questions.
 
-> **Status: through M4 (Pharmacist Review & Concierge Workflow).** Real
+> **Status: through M5.1 (Pilot Readiness & Product Hardening).** Real
 > accounts, login/logout, password hashing, sessions, server-enforced
 > role-based access control (patient / pharmacist / admin), a full patient
 > medication list, structured medication-question intake, a deterministic
@@ -17,17 +17,29 @@ questions.
 > claims it via a concurrency-safe atomic operation, writes their own
 > response (stored completely separately from any AI content — the AI can
 > never become "the pharmacist's answer"), or escalates it with a required
-> structured reason. DosePrepped is still not a chatbot: no chat history,
-> no multi-turn AI conversation, and no automated pharmacist response —
-> only an authenticated pharmacist can create one. There is still no
-> authoritative medication database, no OCR, no provider messaging/EHR
-> integration, no B2B organizations, no payments, and no comprehensive
-> clinical decision support. See
+> structured reason. M5.1 hardened this M0–M4 product for a controlled
+> pilot: corrected stale placeholder copy, added Next.js loading/error/404
+> states, closed the one confirmed gap in error handling (unsanitized 500s
+> could leak internal detail — now a global handler sanitizes them), and
+> added a minimal, storage-only pharmacist profile (license state/number,
+> unverified by default) as a foundation for future licensing/state
+> scoping — it implements no verification logic and is never shown to
+> patients. See "M5.1 — Pilot Readiness & Product Hardening" in
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
-> for the full product spec, architecture, and milestone plan. The admin
+> for the full audit and rationale. DosePrepped is still not a chatbot: no
+> chat history, no multi-turn AI conversation, and no automated pharmacist
+> response — only an authenticated pharmacist can create one. There is
+> still no medication adherence tracking, no payments, no B2B organization
+> management, no telemedicine/EHR integration, no real patient onboarding,
+> no pharmacist compensation, no authoritative medication database, no
+> OCR, and no comprehensive clinical decision support. DosePrepped is
+> medication support infrastructure connecting patients, medication
+> education, pharmacists, and appropriate provider escalation — it is not
+> an AI doctor, an emergency service, a replacement for the dispensing
+> pharmacy, a diagnostic tool, or a replacement for a prescriber. The admin
 > dashboard remains an explicit placeholder.
 
-## What's in M0–M4
+## What's in M0–M5.1
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -90,17 +102,36 @@ questions.
   search), `/questions*` (create/list/detail),
   `/pharmacist/queue`+`/pharmacist/questions/*` (queue, claim, release,
   respond, escalate), and one role-gated placeholder ping route per role.
+- **Pilot readiness & product hardening (M5.1):** corrected stale
+  placeholder copy on the dev banner, patient home, and "Ask a Pharmacist"
+  (which now explains automatic pharmacist routing and lists the
+  patient's own pharmacist-routed questions); added root-level Next.js
+  `loading`/`error`/`not-found` UI so every route has an intentional state
+  instead of a blank screen or the framework default; added a global
+  Fastify error handler so an unexpected thrown error (e.g. a raw
+  database error) always returns a generic, safe 500 instead of leaking
+  internal detail; and added a minimal `PharmacistProfile` model
+  (license state, license number, `credentialStatus` — defaulting to
+  `UNVERIFIED`) as a foundation for future licensing/state scoping. It is
+  storage only — no verification logic, no claim that entering a license
+  number verifies anything — and is only ever returned to the pharmacist
+  it belongs to, via their own `GET /auth/me`; it is never exposed to
+  patients or other pharmacists. See "M5.1 — Pilot Readiness & Product
+  Hardening" in the architecture doc for the full audit (auth/authz, PHI
+  in logs, auditability) and its findings.
 - A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
-  `MedicationReference`, and `MedicationQuestion`, seeded with **synthetic
-  demo data only** (including two synthetic pharmacist accounts so the
-  shared queue has more than one demo reviewer).
+  `MedicationReference`, `MedicationQuestion`, and `PharmacistProfile`,
+  seeded with **synthetic demo data only** (including two synthetic
+  pharmacist accounts, each with a demo profile, so the shared queue has
+  more than one demo reviewer).
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 86 auth/RBAC/medication/question/disposition/AI-education/
-  pharmacist-workflow integration tests (one of them a genuine concurrent
-  two-pharmacist claim race) against a real (disposable) test database,
-  plus 16 standalone unit tests for the safety-rules engine and 17 for the
-  ai-service package — 124 tests total. No test makes a real call to any
-  AI vendor.
+  including 91 auth/RBAC/medication/question/disposition/AI-education/
+  pharmacist-workflow/error-handling integration tests (one of them a
+  genuine concurrent two-pharmacist claim race) against a real
+  (disposable) test database, plus 16 standalone unit tests for the
+  safety-rules engine, 17 for the ai-service package, and 5 for the
+  patient app's own components — 129 tests total. No test makes a real
+  call to any AI vendor.
 
 Not in scope yet (see the architecture doc for when these land): provider
 messaging/EHR integration, secure two-way patient/pharmacist messaging, an
@@ -647,6 +678,15 @@ Pharmacist Review & Concierge Workflow" — this is a summary.
   content" precedent — the pharmacist claim/respond/escalate handlers log
   nothing beyond what Fastify's standard method/URL/status request logging
   already captures.
+- **M5.1 additions:** the global Fastify error handler (see "Pilot
+  readiness & product hardening" above) logs the thrown error object
+  itself for debugging, but never the request body — so a bug that throws
+  mid-request still can't put question/response text into the logs. The
+  new `PharmacistProfile` (license state/number, credential status) is
+  storage/read-only, requires no verification to populate, is never
+  claimed to constitute verification, and is exposed only to the
+  pharmacist it belongs to via their own `GET /auth/me` — never to
+  patients, never to other pharmacists.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

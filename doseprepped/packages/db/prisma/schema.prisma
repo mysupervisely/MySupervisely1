@@ -1,14 +1,16 @@
-// DosePrepped database schema — through M4 (pharmacist review &
-// concierge workflow).
+// DosePrepped database schema — through M5.1 (pilot readiness & product
+// hardening).
 //
 // This covers the DB framework, the patient/pharmacist/admin role
 // structure, authentication (User + Session), a patient's manually-entered
 // medication list, medication question intake (MedicationQuestion),
 // deterministic safety/disposition routing (Phase 2), AI-assisted
 // education/summary generation gated behind that disposition (Phase 3),
-// and the pharmacist queue/claim/respond/escalate workflow (M4). Provider
-// messaging, B2B organizations, and payments remain out of scope —
-// deliberately not implemented here.
+// the pharmacist queue/claim/respond/escalate workflow (M4), and a minimal
+// pharmacist profile foundation for future licensing/state scoping (M5.1,
+// storage only — no verification logic). Provider messaging, B2B
+// organizations, and payments remain out of scope — deliberately not
+// implemented here.
 
 generator client {
   provider = "prisma-client"
@@ -40,8 +42,45 @@ model User {
   sessions            Session[]
   questions           MedicationQuestion[] @relation("PatientQuestions")
   pharmacistQuestions MedicationQuestion[] @relation("PharmacistQuestions")
+  /// Only ever present for role = PHARMACIST. See PharmacistProfile below
+  /// and docs/doseprepped/ARCHITECTURE.md "M5.1 — Pharmacist profile
+  /// foundation" — storage/read only, no verification logic.
+  pharmacistProfile   PharmacistProfile?
 
   @@map("users")
+}
+
+/// Closed-taxonomy status for a pharmacist's credential review — set by
+/// direct DB/admin access only in M5.1 (no verification workflow exists
+/// yet). Defaulting to UNVERIFIED, and every M5.1 seed value being
+/// obviously synthetic, is deliberate: this field's existence does not
+/// constitute a claim that anyone has verified it.
+enum PharmacistCredentialStatus {
+  UNVERIFIED
+  PENDING_REVIEW
+  VERIFIED
+  SUSPENDED
+}
+
+/// Minimum data-model foundation for future pharmacist licensing/state
+/// scoping (M5.1) — deliberately inert beyond storage and read access.
+/// No license-format validation, no state-scoping enforcement on
+/// claim/respond/escalate, and no admin UI to edit it exist yet. Never
+/// exposed to patients; see docs/doseprepped/ARCHITECTURE.md "M5.1 —
+/// Pharmacist profile foundation" for the full read-access boundary.
+model PharmacistProfile {
+  id               String                      @id @default(uuid())
+  pharmacist       User                        @relation(fields: [pharmacistId], references: [id], onDelete: Cascade)
+  pharmacistId     String                      @unique
+  /// Free-text state/jurisdiction — not validated against any registry.
+  licenseState     String?
+  /// Free-text license number — not checked against any registry.
+  licenseNumber    String?
+  credentialStatus PharmacistCredentialStatus  @default(UNVERIFIED)
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  @@map("pharmacist_profiles")
 }
 
 /// An active login session, identified to the browser by an opaque cookie

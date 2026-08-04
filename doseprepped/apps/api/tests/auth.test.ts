@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { prisma, Role } from "@doseprepped/db";
+import { prisma, PharmacistCredentialStatus, Role } from "@doseprepped/db";
 import {
   TEST_EMAIL_DOMAIN,
   VALID_PASSWORD,
@@ -214,6 +214,64 @@ describe("Protected routes and role-based access control", () => {
 
     const response = await app.inject({ method: "GET", url: "/admin/ping", headers: { cookie } });
     expect(response.statusCode).toBe(200);
+
+    await app.close();
+  });
+});
+
+// M5.1 — pharmacist profile foundation. See
+// docs/doseprepped/ARCHITECTURE.md "M5.1 — Pharmacist profile foundation".
+// pharmacistProfile must appear (with the right shape) for a pharmacist's
+// own GET /auth/me, be null when no profile row exists yet, and be
+// entirely absent (not even a null key) for any other role.
+describe("GET /auth/me — pharmacistProfile visibility", () => {
+  it("includes the pharmacist's own profile", async () => {
+    const app = buildApp();
+    const { user, email } = await createUserDirectly(Role.PHARMACIST, "me-profile");
+    await prisma.pharmacistProfile.create({
+      data: {
+        pharmacistId: user.id,
+        licenseState: "CA",
+        licenseNumber: "DEMO-PH-TEST",
+        credentialStatus: PharmacistCredentialStatus.UNVERIFIED,
+      },
+    });
+    const cookie = await loginAndGetCookie(app, email);
+
+    const response = await app.inject({ method: "GET", url: "/auth/me", headers: { cookie } });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().pharmacistProfile).toEqual({
+      licenseState: "CA",
+      licenseNumber: "DEMO-PH-TEST",
+      credentialStatus: "UNVERIFIED",
+    });
+
+    await app.close();
+  });
+
+  it("returns null pharmacistProfile for a pharmacist with no profile row", async () => {
+    const app = buildApp();
+    const { email } = await createUserDirectly(Role.PHARMACIST, "me-no-profile");
+    const cookie = await loginAndGetCookie(app, email);
+
+    const response = await app.inject({ method: "GET", url: "/auth/me", headers: { cookie } });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().pharmacistProfile).toBeNull();
+
+    await app.close();
+  });
+
+  it("omits pharmacistProfile entirely for a patient", async () => {
+    const app = buildApp();
+    const { email } = await createUserDirectly(Role.PATIENT, "me-patient-no-profile-key");
+    const cookie = await loginAndGetCookie(app, email);
+
+    const response = await app.inject({ method: "GET", url: "/auth/me", headers: { cookie } });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).not.toHaveProperty("pharmacistProfile");
 
     await app.close();
   });

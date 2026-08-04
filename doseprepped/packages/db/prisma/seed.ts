@@ -1,6 +1,6 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient, Role } from "../generated/client/client.js";
+import { PrismaClient, Role, PharmacistCredentialStatus } from "../generated/client/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // Synthetic/demo data only — see docs/doseprepped/ARCHITECTURE.md
@@ -106,6 +106,30 @@ async function main() {
       lastName: "Pharmacist B",
       passwordHash,
       role: Role.PHARMACIST,
+    },
+  });
+
+  // Minimal, obviously-synthetic pharmacist profiles (M5.1) — storage only,
+  // no verification has actually occurred. See
+  // docs/doseprepped/ARCHITECTURE.md "M5.1 — Pharmacist profile foundation".
+  await prisma.pharmacistProfile.upsert({
+    where: { pharmacistId: pharmacist.id },
+    update: {},
+    create: {
+      pharmacistId: pharmacist.id,
+      licenseState: "CA",
+      licenseNumber: "DEMO-PH-0001",
+      credentialStatus: PharmacistCredentialStatus.UNVERIFIED,
+    },
+  });
+  await prisma.pharmacistProfile.upsert({
+    where: { pharmacistId: pharmacistB.id },
+    update: {},
+    create: {
+      pharmacistId: pharmacistB.id,
+      licenseState: "NY",
+      licenseNumber: "DEMO-PH-0002",
+      credentialStatus: PharmacistCredentialStatus.UNVERIFIED,
     },
   });
 

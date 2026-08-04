@@ -2106,19 +2106,314 @@ category plus a human-readable explanation, rather than either alone.
   flagged by the original architecture's `audit_log` table (§5, §8) that
   M4 does not close.
 
+## M5.1 — Pilot Readiness & Product Hardening (implemented)
+
+**Status: implemented.** M0–M4 built the full patient→disposition→AI→
+pharmacist pipeline. M5.1 does not add a new pipeline stage — it audits
+and hardens what exists so it's presentable to a controlled pilot: honest
+UI copy in every state, a safe error-handling boundary, a documented
+authn/authz audit, and the minimum schema foundation for pharmacist
+licensing/state-scoping that later milestones will build logic on top of.
+Explicitly **not** in scope, per the milestone brief: medication
+adherence, payments, B2B organizations, telemedicine/EHR integration,
+real patient onboarding, pharmacist compensation, or any production
+deployment change.
+
+**DosePrepped's positioning, restated (unchanged by M5.1):** medication
+support infrastructure connecting patients, medication education,
+pharmacists, and appropriate provider escalation. It is not an AI doctor,
+not an emergency service, not a replacement for the dispensing pharmacy,
+not a diagnostic tool, and not a replacement for a prescriber.
+
+### Audit method
+
+Before writing any code, this milestone re-read `README.md`, this
+document in full, every patient screen, the pharmacist dashboard and
+review screen, `apps/api/src/lib/auth.ts` and every route file,
+`packages/auth/src/session.ts` and `password.ts`,
+`packages/db/prisma/schema.prisma`, and the full existing test suite
+(124 tests: 86 API, 17 ai-service, 16 safety-rules, 5 patient). The
+findings below are organized by the milestone brief's eight review areas;
+each one states either a confirmed, fixed issue or an explicit "reviewed,
+no change needed" conclusion — nothing was changed speculatively.
+
+### 1. Patient UX hardening
+
+Confirmed issues, fixed:
+
+- **Two stale, factually-wrong "not implemented yet" notices.** The
+  patient Home screen's placeholder notice said "AI-assisted general
+  education and pharmacist review are not available yet" — both have been
+  fully implemented since Phase 3 and M4. The `/ask-a-pharmacist` screen
+  (linked from Home and the bottom nav) showed a permanently `disabled`
+  "Request pharmacist review" button and a notice reserving the feature
+  for "milestone M4," which is now the current milestone's own already-
+  shipped predecessor. Left as-is, a pilot user tapping the primary
+  "Ask a pharmacist" CTA would land on a dead end that actively
+  contradicts what the product now does. Both screens are rewritten to
+  describe the real, implemented model: pharmacist review is **automatic**
+  — triggered by a question's deterministic disposition, not a manual
+  request — so `/ask-a-pharmacist` now explains that, points to
+  "Ask a question" as the actual entry point, and lists the patient's own
+  questions currently in a pharmacist-routed status
+  (`PHARMACIST_REQUESTED`/`_IN_PROGRESS`/`_RESOLVED`/`ESCALATED`, reusing
+  the same `GET /questions` data and `QuestionCard` component already
+  used elsewhere — no new endpoint), so the screen is useful instead of a
+  dead end. Home's notice is removed (the states it described no longer
+  need a disclaimer; they're real product behavior, not placeholders).
+- **The top-of-app `DevBanner` still said "M0 — structural placeholders
+  only. No real accounts, medication data, or patient information."**
+  Also inaccurate: this build has real (synthetic) accounts, medication
+  records, question/AI/pharmacist flows. Reworded to accurately describe
+  pilot status — synthetic data only, not a production/compliance claim —
+  without repeating the specific "M0" milestone tag, which will otherwise
+  need updating forever.
+- **No intentional Loading, Error, or Not-Found states.** Next.js's
+  App Router convention files (`loading.tsx`, `error.tsx`,
+  `not-found.tsx`) did not exist anywhere in `apps/patient`, so an
+  in-flight navigation showed nothing, a thrown error showed Next's
+  default unstyled dev/prod error screen, and an unmatched route showed
+  the framework default 404 — none on-brand, none reassuring to a pilot
+  user. Root-level versions are added, matching the existing design
+  system (not a new one), with the error boundary explicitly not
+  rendering any error detail (message/stack) to the user — see "Error
+  handling" below for why.
+
+States confirmed **already correct, left alone**: Empty (medications,
+questions, pharmacist queue all had real empty-state copy already),
+Success (question confirmation, pharmacist response, escalation
+confirmation all already existed with correct content per Phase 2/3/M4),
+Unauthorized (wrong-role access already redirects via
+`apps/patient/src/lib/require-role.ts`; unauthenticated access to any
+protected server component already redirects to `/login`), Question
+pending pharmacist / completed / escalated (Phase 2/M4 disposition and
+status messaging, see `AiEducationSection.tsx`), AI unavailable (Phase 3's
+`AI_FALLBACK_MESSAGES`, unchanged). Rebuilding any of these would have
+been redesign, not hardening, so none were touched.
+
+### 2. Pharmacist UX hardening
+
+Reviewed against every item in the milestone brief (what requires
+attention, why routed to them, the deterministic disposition, what AI
+generated, what they're responsible for, claim state, whether the
+patient already has a response) against the M4 dashboard and review
+screen. **No confirmed gaps** — the M4 build already surfaces: dashboard
+counts and a disposition-sorted queue (what needs attention and why,
+transparently labeled "Sorted: provider-evaluation questions first, then
+oldest first"); `Disposition` and `Safety rule version` fields on the
+review screen; the AI-generated summary in its own card, explicitly
+labeled "AI-generated summary (assistive only)"; a `Your response` /
+respond-composer that only appears once claimed, making claim ownership
+and responsibility unambiguous by construction (an unclaimed question has
+no compose box at all); and status badges (New/In Review/Completed/
+Escalated) driven by the same `status` enum the patient sees. No new
+clinical functionality was added, per the milestone brief.
+
+### 3. Authentication / authorization review
+
+Audited `apps/api/src/lib/auth.ts`, `routes/auth.ts`,
+`packages/auth/src/session.ts`, and every route file's `preHandler`/
+ownership-scoping. **No confirmed issues** — every item in the brief's
+checklist was already true and is now covered by an explicit regression
+test where one didn't already exist (see "Testing" below):
+
+- Patient routes require `requireRole(Role.PATIENT)`; pharmacist routes
+  require `requireRole(Role.PHARMACIST)` — verified by reading every
+  route registration, not sampled.
+- A patient hitting a pharmacist endpoint (or vice versa) gets `403`
+  (`requireRole`), already covered by existing tests.
+- A pharmacist can only reach a question via the shared-unclaimed-OR-own-
+  claimed `where` clause (`pharmacist-questions.ts`), returning `404` —
+  never `403` — for anything outside that scope, so existence of another
+  pharmacist's claimed question is never confirmed or denied.
+- No route accepts a client-supplied user/pharmacist ID for any write —
+  every mutation uses `request.user.id` from the verified session,
+  eliminating impersonation by construction, not by a runtime check that
+  could be forgotten on a new route.
+- Session invalidation: `deleteSession` removes the DB row by token hash
+  on logout; `getSessionUser` checks `expiresAt` and the owning user's
+  `deletedAt` on every request, so a deleted account's existing sessions
+  stop resolving immediately, not just at next expiry.
+- Logout (`POST /auth/logout`) requires an authenticated session, deletes
+  it server-side, and clears the cookie — already tested
+  (`logs out and invalidates the session`).
+- Unauthenticated requests to every protected route fail with `401`
+  before touching any handler logic (`authenticate` runs first in
+  `requireRole`) — already tested across `auth.test.ts`,
+  `medications.test.ts`, `questions.test.ts`, and
+  `pharmacist-questions.test.ts`.
+
+**One confirmed gap, fixed**, that is adjacent to authorization rather
+than authorization itself: there was no global Fastify error handler, so
+an *unexpected* thrown error (not one of the deliberate `reply.code(...)
+.send(...)` calls above) would fall through to Fastify's default
+handler, which includes `error.message` in the JSON response — for a raw
+Prisma error this could leak schema/query detail to the client. See
+"Error handling" below.
+
+### 4. Pharmacist profile foundation
+
+New `PharmacistProfile` model, one-to-one with `User` (nullable relation
+— only ever created for `PHARMACIST`-role accounts), added to
+`schema.prisma`:
+
+```
+enum PharmacistCredentialStatus {
+  UNVERIFIED        -- default; no review has occurred
+  PENDING_REVIEW     -- submitted, awaiting admin/compliance review
+  VERIFIED             -- reviewed and confirmed (not implemented: no
+                        -- verification workflow exists to set this)
+  SUSPENDED             -- reviewed and found ineligible / paused
+}
+
+model PharmacistProfile {
+  id                String                       @id @default(uuid())
+  pharmacist        User                          @relation(fields: [pharmacistId], references: [id], onDelete: Cascade)
+  pharmacistId      String                        @unique
+  licenseState      String?                       -- free-text state/jurisdiction; no format validation yet
+  licenseNumber     String?                       -- free-text; not checked against any registry
+  credentialStatus  PharmacistCredentialStatus     @default(UNVERIFIED)
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+}
+```
+
+This is deliberately inert beyond storage and read access — **no
+verification logic, no state-scoping enforcement on claim/respond/
+escalate, no license-format validation, and no admin UI to edit it** are
+built in M5.1, matching the brief's "do not implement clinical licensing
+logic yet." `credentialStatus` defaulting to `UNVERIFIED` and every
+demo/seed value being obviously synthetic is intentional so that entering
+a license number is never mistaken for verifying one — the field
+existing does not constitute a claim that anyone has checked it.
+
+**Exposure:** `GET /auth/me` now includes `pharmacistProfile` (the four
+fields above, or `null`) **only when the authenticated caller's own role
+is `PHARMACIST`** — a pharmacist can see their own profile status; the
+key is omitted entirely (not present, not `null`-for-everyone) from a
+patient's or admin's own `/auth/me` response, and there is no route
+anywhere that lets a pharmacist read another pharmacist's profile or a
+patient read any pharmacist's profile. This is pilot/admin-facing
+groundwork, not a patient-facing feature — nothing in the patient app
+reads or displays it.
+
+### 5. Auditability
+
+Reviewed the full `MedicationQuestion` timestamp/ownership field set
+against the brief's checklist (created, disposition-assigned, claimed +
+by whom, responded + by whom, escalated + by whom). **Every field the
+brief asks for already exists and is already populated** —
+`createdAt`, `dispositionAssignedAt`, `pharmacistClaimedAt` +
+`pharmacistId`, `pharmacistRespondedAt` (same `pharmacistId` — one actor
+per question by construction), `escalatedAt` (same `pharmacistId`). Per
+the explicit instruction ("if the current timestamps and ownership fields
+are sufficient for M5.1, leave them alone"), **no schema change was made
+here** — this section documents the conclusion, not a build.
+
+### 6. PHI / logging review
+
+Re-audited every `console.*`/logging call site in both apps.
+**No confirmed violations** — `apps/api/src/config/env.ts` logs Zod
+*validation error shape* (field names and messages) on a misconfigured
+environment, never a secret or PHI value; nothing else in either app logs
+directly. Fastify's request logging (already configured, unchanged since
+M1) logs method/URL/status only — request and response bodies are never
+included, so question text, AI output, and pharmacist responses were
+already excluded before M5.1.
+
+The one gap **was** the error-handler leak path described in §3/§7 —
+without a global handler, an unexpected exception's `.message` (which,
+for some error types, could include values from the failed operation)
+would reach the client response. Fixed by the same change described next.
+This document still makes **no HIPAA-compliance claim** — see
+"Remaining pilot limitations" below and the original §8 for what's still
+required before real PHI.
+
+### 7. Error handling
+
+Added `app.setErrorHandler(...)` in `apps/api/src/app.ts`: every
+*deliberate* `reply.code(...).send({ error: "..." })` call already in the
+codebase (400/401/403/404/409, all with hand-written, safe messages) is
+unaffected — those never reach the error handler, since a handled
+response is not a thrown error. The handler only intercepts what would
+otherwise be an *unexpected* exception, and for those:
+
+- Logs the full error server-side via `request.log.error` (so it's still
+  debuggable) — logging is intentionally *not* changed to skip this; only
+  the client-facing response is sanitized.
+- Zod validation errors thrown by Fastify's own body/query parsing (as
+  opposed to the routes' own `safeParse` calls, which already return a
+  controlled 400) are still mapped to `400` with a generic message, not
+  the raw Zod issue tree.
+- Fastify's built-in rate-limit errors keep their existing `429` status
+  and message (already safe, unchanged).
+- Every other thrown error returns a flat `500` with
+  `{ error: "Something went wrong. Please try again." }` — no
+  `error.message`, no stack trace, no Prisma error detail, no internal
+  IDs beyond what the request already carried. This closes the one
+  confirmed leak path from §3/§6 above.
+
+The frontend's new `error.tsx` (see "Patient UX hardening") applies the
+same principle client-side: it never renders the caught error's message
+or stack to the user, only a generic "Something went wrong" screen with a
+retry action.
+
+### 8. Testing
+
+New: `apps/api/tests/error-handling.test.ts` (the sanitized-500 behavior
+— asserts a deliberately-triggered unexpected error returns a generic
+message with no leaked detail, and that existing deliberate 4xx responses
+are unaffected) and a `pharmacistProfile` visibility assertion added to
+`apps/api/tests/auth.test.ts` (present for a pharmacist's own
+`/auth/me`, absent for a patient's). Everything else the brief's testing
+checklist asks for (authentication boundaries, patient/pharmacist
+authorization, logout/session invalidation, question lifecycle,
+pharmacist claim/response/escalation, the safety rules, AI behavior,
+ownership isolation) was already comprehensively covered by the 124
+pre-existing tests audited in this milestone — see "Audit method" above
+— so no duplicate tests were added for already-covered ground, per the
+explicit "add or update tests only where needed" instruction.
+
+### Remaining pilot limitations
+
+Everything M4's own "Current limitations" already listed still applies
+unchanged (synthetic pharmacist accounts, no SLA enforcement, no two-way
+messaging, no pharmacist state/licensure *enforcement*, presentation-only
+prioritization, no independent audit-log table). M5.1 adds:
+
+- **`PharmacistProfile` is storage only.** No verification workflow, no
+  license-format validation, no state-scoping enforcement anywhere a
+  pharmacist claims/responds/escalates. Any pharmacist can still act on
+  any queued question regardless of `licenseState`.
+- **No admin UI** to view or edit pharmacist profiles — the only write
+  path today is direct database/seed access, matching the "no clinical
+  licensing logic yet" instruction.
+- **No production deployment changes were made or evaluated** — this
+  milestone is app-layer hardening only, per the explicit constraint.
+- The full technical/operational/legal/vendor requirements list in the
+  original architecture's §8 remains entirely unmet (penetration testing,
+  MFA, Argon2, encryption-at-rest policy, BAAs, HIPAA risk assessment,
+  etc.) — nothing in M5.1 changes that gate, and this document continues
+  to make no HIPAA-compliance claim.
+
 ---
 
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
-& disposition), M3 Phase 3 (AI-assisted medication education), and M4
-(pharmacist review & concierge workflow) are implemented, tested, and
-merged. A question now flows end-to-end through deterministic safety →
+& disposition), M3 Phase 3 (AI-assisted medication education), M4
+(pharmacist review & concierge workflow), and M5.1 (pilot readiness &
+product hardening) are implemented, tested, and merged. A question now
+flows end-to-end through deterministic safety →
 (non-emergency, non-fully-AI-answered) AI education → automatic pharmacist
 queueing → atomic claim → a human pharmacist response or a structured
 escalation, with no code path anywhere that lets AI-generated content
 become an official pharmacist response or change a deterministic
-disposition. Still not built: B2B organizations, payments, pharmacist
-compensation, EHR integration, telemedicine/provider messaging, secure
-two-way patient/pharmacist messaging, and the `AnalyticsEvent` table.
+disposition. Every patient- and pharmacist-facing screen now shows
+accurate, current copy rather than stale placeholder text, and API errors
+fail safely without leaking internal detail. Still not built: B2B
+organizations, payments, pharmacist compensation, EHR integration,
+telemedicine/provider messaging, secure two-way patient/pharmacist
+messaging, pharmacist license verification/enforcement, and the
+`AnalyticsEvent` table. Awaiting direction on M5.2.
 Awaiting direction on the next milestone.
