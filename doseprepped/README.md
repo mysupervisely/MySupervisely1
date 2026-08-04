@@ -1,12 +1,12 @@
-# DosePrepped — M0–M5.1 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening)
+# DosePrepped — M0–M5.2 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening, Medication Journey & Adherence Foundation)
 
 DosePrepped is a digital medication-support layer: it helps patients
 understand their medications and connect with licensed pharmacists (and
 their own provider when appropriate) when they have medication-related
 questions.
 
-> **Status: through M5.1 (Pilot Readiness & Product Hardening).** Real
-> accounts, login/logout, password hashing, sessions, server-enforced
+> **Status: through M5.2 (Medication Journey & Adherence Foundation).**
+> Real accounts, login/logout, password hashing, sessions, server-enforced
 > role-based access control (patient / pharmacist / admin), a full patient
 > medication list, structured medication-question intake, a deterministic
 > AI-independent safety/disposition routing layer, a single typed AI
@@ -18,28 +18,32 @@ questions.
 > response (stored completely separately from any AI content — the AI can
 > never become "the pharmacist's answer"), or escalates it with a required
 > structured reason. M5.1 hardened this M0–M4 product for a controlled
-> pilot: corrected stale placeholder copy, added Next.js loading/error/404
-> states, closed the one confirmed gap in error handling (unsanitized 500s
-> could leak internal detail — now a global handler sanitizes them), and
-> added a minimal, storage-only pharmacist profile (license state/number,
-> unverified by default) as a foundation for future licensing/state
-> scoping — it implements no verification logic and is never shown to
-> patients. See "M5.1 — Pilot Readiness & Product Hardening" in
+> pilot (accurate UI copy, sanitized error responses, a storage-only
+> pharmacist profile foundation). **M5.2 adds the post-prescription
+> medication journey**, medication-agnostic throughout: a patient can
+> record a dose as taken/missed/skipped, see a deterministic adherence
+> percentage, complete a structured (non-clinical) medication check-in,
+> and view a derived timeline for a medication; a pharmacist reviewing a
+> routed question sees bounded, clearly-labeled context (adherence %,
+> most recent check-in, most recent other question about the same
+> medication) alongside it. None of this recommends a medication or dose
+> change, diagnoses anything, or replaces pharmacist/provider judgment —
+> see "M5.2 — Medication Journey & Adherence Foundation" in
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
-> for the full audit and rationale. DosePrepped is still not a chatbot: no
-> chat history, no multi-turn AI conversation, and no automated pharmacist
-> response — only an authenticated pharmacist can create one. There is
-> still no medication adherence tracking, no payments, no B2B organization
-> management, no telemedicine/EHR integration, no real patient onboarding,
-> no pharmacist compensation, no authoritative medication database, no
-> OCR, and no comprehensive clinical decision support. DosePrepped is
-> medication support infrastructure connecting patients, medication
-> education, pharmacists, and appropriate provider escalation — it is not
-> an AI doctor, an emergency service, a replacement for the dispensing
-> pharmacy, a diagnostic tool, or a replacement for a prescriber. The admin
-> dashboard remains an explicit placeholder.
+> for the full design and safety rationale. DosePrepped is still not a
+> chatbot: no chat history, no multi-turn AI conversation, and no
+> automated pharmacist response — only an authenticated pharmacist can
+> create one. There is still no payments, no B2B organization management,
+> no telemedicine/EHR integration, no real patient onboarding, no
+> pharmacist compensation, no authoritative medication database, no OCR,
+> no dosing/reminder engine, and no comprehensive clinical decision
+> support. DosePrepped is medication support infrastructure connecting
+> patients, medication education, pharmacists, and appropriate provider
+> escalation — it is not an AI doctor, an emergency service, a replacement
+> for the dispensing pharmacy, a diagnostic tool, or a replacement for a
+> prescriber. The admin dashboard remains an explicit placeholder.
 
-## What's in M0–M5.1
+## What's in M0–M5.2
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -99,7 +103,8 @@ questions.
   architecture" below.
 - A minimal Fastify backend API: `/health` (DB connectivity), `/auth/*`
   (signup/login/logout/me), `/medications*` (CRUD + archive + reference
-  search), `/questions*` (create/list/detail),
+  search + adherence events + check-ins + timeline — see below),
+  `/questions*` (create/list/detail),
   `/pharmacist/queue`+`/pharmacist/questions/*` (queue, claim, release,
   respond, escalate), and one role-gated placeholder ping route per role.
 - **Pilot readiness & product hardening (M5.1):** corrected stale
@@ -119,24 +124,58 @@ questions.
   patients or other pharmacists. See "M5.1 — Pilot Readiness & Product
   Hardening" in the architecture doc for the full audit (auth/authz, PHI
   in logs, auditability) and its findings.
+- **Medication journey & adherence foundation (M5.2), medication-agnostic
+  throughout — no dosing logic, no clinical recommendations:**
+  - **Adherence tracking:** `POST`/`GET /medications/:id/adherence-events`
+    let a patient record a dose as `TAKEN`/`MISSED`/`SKIPPED`
+    (append-only — no edit/delete). Adherence is a bare, documented
+    percentage — `takenCount / (taken + missed + skipped) × 100`, rounded,
+    `null` (never `0%`) with zero recorded events — computed by one shared
+    function (`apps/api/src/lib/adherence.ts`) so it can never disagree
+    with itself across the patient and pharmacist views. No qualitative
+    label ("good"/"poor") is ever attached to it.
+  - **Medication check-ins:** `POST`/`GET /medications/:id/check-ins` let
+    a patient answer "How are you doing with this medication?" (`Doing
+    well` / `Having some issues` / `Having significant issues` / `I have
+    a question`) plus optional free-text notes. Storage only — a
+    concerning response surfaces a UI pathway to the existing "Ask a
+    question" flow, never an automated clinical response.
+  - **Medication timeline:** `GET /medications/:id/timeline` derives a
+    chronological, patient-friendly timeline (started, doses taken/
+    missed/skipped, check-ins, questions submitted/answered/escalated)
+    purely from existing records — no duplicated storage.
+  - **Pharmacist context:** the single-question pharmacist review
+    endpoint (`GET /pharmacist/questions/:id`) gains a bounded
+    `medicationContext` (adherence %, most recent check-in, most recent
+    *other* question about the same medication) — never the queue list,
+    never a full history, and clearly distinguished on-screen from
+    AI-generated and pharmacist-generated content.
+  - All new routes and models follow the same ownership-scoping,
+    minimum-necessary-exposure, and no-PHI-in-logs patterns as the rest
+    of the API. See "M5.2 — Medication Journey & Adherence Foundation" in
+    the architecture doc for the full design and safety rationale.
 - A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
-  `MedicationReference`, `MedicationQuestion`, and `PharmacistProfile`,
-  seeded with **synthetic demo data only** (including two synthetic
-  pharmacist accounts, each with a demo profile, so the shared queue has
-  more than one demo reviewer).
+  `MedicationReference`, `MedicationQuestion`, `PharmacistProfile`,
+  `MedicationAdherenceEvent`, and `MedicationCheckIn`, seeded with
+  **synthetic demo data only** (including two synthetic pharmacist
+  accounts, each with a demo profile, so the shared queue has more than
+  one demo reviewer, and a worked M5.2 example on the demo Semaglutide
+  medication: 91% adherence, an "having some issues" check-in, and two
+  linked questions).
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 91 auth/RBAC/medication/question/disposition/AI-education/
-  pharmacist-workflow/error-handling integration tests (one of them a
-  genuine concurrent two-pharmacist claim race) against a real
-  (disposable) test database, plus 16 standalone unit tests for the
+  including 109 auth/RBAC/medication/question/disposition/AI-education/
+  pharmacist-workflow/error-handling/medication-journey integration tests
+  (one of them a genuine concurrent two-pharmacist claim race) against a
+  real (disposable) test database, plus 16 standalone unit tests for the
   safety-rules engine, 17 for the ai-service package, and 5 for the
-  patient app's own components — 129 tests total. No test makes a real
+  patient app's own components — 147 tests total. No test makes a real
   call to any AI vendor.
 
 Not in scope yet (see the architecture doc for when these land): provider
 messaging/EHR integration, secure two-way patient/pharmacist messaging, an
 authoritative medication reference database, OCR/medication scanning,
-payments, pharmacist compensation, B2B organizations, telemedicine
+a structured dosing/reminder engine, payments, pharmacist compensation,
+B2B organizations, telemedicine
 integration, account deletion, consent tracking, drug interaction
 checking, and any comprehensive clinical decision support. Neither the
 Phase 2 rule engine nor the Phase 3 AI layer diagnoses, recommends
@@ -375,6 +414,50 @@ environment, and `.env*` files are git-ignored.
   using it flags `isSynthetic: true` so the frontend never presents it as
   clinical fact. All medication *record* fields remain free-text patient
   entry — picking a suggestion just pre-fills the form.
+
+## Medication journey & adherence data model (M5.2)
+
+Full rationale lives in `docs/doseprepped/ARCHITECTURE.md` under "M5.2 —
+Medication Journey & Adherence Foundation" — this is a summary.
+
+- **`MedicationAdherenceEvent`**: one row per patient-reported dose —
+  `scheduledAt` (the dose time, patient-supplied), `recordedAt`
+  (server-stamped, when it was logged), and `status`
+  (`TAKEN`/`MISSED`/`SKIPPED`). Append-only: no edit/delete route.
+  Recording a *new* event requires the medication to be `ACTIVE` (`409`
+  if `INACTIVE`); reading history is unaffected by archive status.
+  `POST`/`GET /medications/:id/adherence-events`.
+- **Adherence percentage**: `takenCount / (takenCount + missedCount +
+  skippedCount) × 100`, rounded to the nearest whole number, `null` (not
+  `0%`) with zero recorded events. Computed by exactly one function
+  (`apps/api/src/lib/adherence.ts`) shared by the patient endpoint and
+  the pharmacist context below, so it's always the same number everywhere
+  it's shown. Always displayed as a bare stat ("Adherence: 91%") — never
+  a qualitative label.
+- **`MedicationCheckIn`**: a structured `response`
+  (`DOING_WELL`/`HAVING_SOME_ISSUES`/`HAVING_SIGNIFICANT_ISSUES`/
+  `HAS_A_QUESTION`) plus optional free-text `notes`. Storage only — no
+  code path generates a diagnosis, treatment suggestion, or dose-change
+  recommendation from it; a concerning response only ever surfaces a UI
+  link to the existing "Ask a question" flow. `POST`/`GET
+  /medications/:id/check-ins`.
+- **Timeline**: `GET /medications/:id/timeline` derives a chronological
+  list (medication started/archived, doses taken/missed/skipped,
+  check-ins, questions submitted/answered/escalated) purely from the
+  records above and `MedicationQuestion` — no new storage, so it can
+  never drift from the data it's built from.
+- **Ownership**: every route here uses the exact same scoping as
+  `PatientMedication`/`MedicationQuestion` — `{ id, patientId:
+  request.user.id }` together, never `id` alone. A medication that exists
+  but belongs to another patient is `404`.
+- **Pharmacist context**: `GET /pharmacist/questions/:id` includes a
+  bounded `medicationContext` (medication start date, adherence summary,
+  most recent check-in, most recent *other* question about the same
+  medication) for the question the pharmacist already has authorized
+  access to — never on the queue list, never a full history. See
+  "Pharmacist context" in the architecture doc for the authorization
+  rationale (this is a deliberate, narrow widening of what a pharmacist
+  can see, documented there in full).
 
 ## Question data model
 

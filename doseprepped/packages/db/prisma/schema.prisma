@@ -1,16 +1,19 @@
-// DosePrepped database schema — through M5.1 (pilot readiness & product
-// hardening).
+// DosePrepped database schema — through M5.2 (medication journey &
+// adherence foundation).
 //
 // This covers the DB framework, the patient/pharmacist/admin role
 // structure, authentication (User + Session), a patient's manually-entered
 // medication list, medication question intake (MedicationQuestion),
 // deterministic safety/disposition routing (Phase 2), AI-assisted
 // education/summary generation gated behind that disposition (Phase 3),
-// the pharmacist queue/claim/respond/escalate workflow (M4), and a minimal
+// the pharmacist queue/claim/respond/escalate workflow (M4), a minimal
 // pharmacist profile foundation for future licensing/state scoping (M5.1,
-// storage only — no verification logic). Provider messaging, B2B
-// organizations, and payments remain out of scope — deliberately not
-// implemented here.
+// storage only — no verification logic), and a medication-agnostic
+// post-prescription journey foundation (M5.2): per-dose adherence
+// self-report (MedicationAdherenceEvent) and structured medication
+// check-ins (MedicationCheckIn). Provider messaging, B2B organizations,
+// payments, and any dosing/scheduling engine remain out of scope —
+// deliberately not implemented here.
 
 generator client {
   provider = "prisma-client"
@@ -46,6 +49,9 @@ model User {
   /// and docs/doseprepped/ARCHITECTURE.md "M5.1 — Pharmacist profile
   /// foundation" — storage/read only, no verification logic.
   pharmacistProfile   PharmacistProfile?
+  /// M5.2 — see MedicationAdherenceEvent/MedicationCheckIn below.
+  adherenceEvents     MedicationAdherenceEvent[]
+  checkIns            MedicationCheckIn[]
 
   @@map("users")
 }
@@ -132,10 +138,88 @@ model PatientMedication {
   updatedAt  DateTime         @updatedAt
   archivedAt DateTime?
 
-  questions MedicationQuestion[]
+  questions       MedicationQuestion[]
+  /// M5.2 — see MedicationAdherenceEvent/MedicationCheckIn below.
+  adherenceEvents MedicationAdherenceEvent[]
+  checkIns        MedicationCheckIn[]
 
   @@index([patientId])
   @@map("patient_medications")
+}
+
+/// Closed taxonomy for a single recorded dose event — patient self-report,
+/// never system-inferred. See docs/doseprepped/ARCHITECTURE.md "M5.2 —
+/// Medication schedule foundation".
+enum AdherenceStatus {
+  TAKEN
+  MISSED
+  SKIPPED
+}
+
+/// A patient's self-reported record of a single dose (M5.2). This is a
+/// self-report abstraction, not a generated schedule — `scheduledAt` is
+/// patient-supplied (defaulting to "now" in the UI), never derived from
+/// `PatientMedication.frequency`, which stays free text. Immutable and
+/// append-only by design: there is no update/delete route, matching the
+/// "don't rewrite history" posture used elsewhere in this schema (e.g.
+/// MedicationQuestion's disposition fields). See
+/// docs/doseprepped/ARCHITECTURE.md "M5.2 — Adherence tracking" for the
+/// exact, documented adherence-percentage formula computed from these
+/// rows.
+model MedicationAdherenceEvent {
+  id           String            @id @default(uuid())
+  patient      User              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId    String
+  medication   PatientMedication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  medicationId String
+  /// The dose time this event is about — patient-supplied, not computed.
+  scheduledAt  DateTime
+  /// Server-stamped when the event was logged (never client-supplied) —
+  /// may be later than scheduledAt if a patient logs a missed dose after
+  /// the fact.
+  recordedAt   DateTime          @default(now())
+  status       AdherenceStatus
+  createdAt    DateTime          @default(now())
+
+  @@index([patientId])
+  @@index([medicationId])
+  @@map("medication_adherence_events")
+}
+
+/// Closed taxonomy of structured medication check-in responses (M5.2).
+/// Deliberately non-clinical: a status/mood signal, not a symptom
+/// questionnaire. See docs/doseprepped/ARCHITECTURE.md "M5.2 — Medication
+/// check-ins".
+enum CheckInResponse {
+  DOING_WELL
+  HAVING_SOME_ISSUES
+  HAVING_SIGNIFICANT_ISSUES
+  HAS_A_QUESTION
+}
+
+/// A patient's structured "how are you doing with this medication?"
+/// check-in (M5.2) plus optional free-text notes. Storage only — no code
+/// path reads a check-in and generates a diagnosis, treatment suggestion,
+/// or dose-change recommendation; a concerning response only ever
+/// surfaces a UI pathway to the existing "Ask a question" flow, which is
+/// the sole place the deterministic safety/disposition/pharmacist
+/// pipeline runs. See docs/doseprepped/ARCHITECTURE.md "M5.2 — Medication
+/// check-ins".
+model MedicationCheckIn {
+  id           String            @id @default(uuid())
+  patient      User              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId    String
+  medication   PatientMedication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  medicationId String
+  response     CheckInResponse
+  /// Optional free-text note — treated exactly like question text: never
+  /// written to application logs.
+  notes        String?
+  createdAt    DateTime          @default(now())
+
+  @@index([patientId])
+  @@index([medicationId])
+  @@map("medication_check_ins")
 }
 
 /// Synthetic/demo medication reference data used only to power a basic

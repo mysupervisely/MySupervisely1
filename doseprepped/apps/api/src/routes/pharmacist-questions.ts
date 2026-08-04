@@ -10,6 +10,7 @@ import {
   type Prisma,
 } from "@doseprepped/db";
 import { requireRole } from "../lib/auth.js";
+import { computeAdherenceSummary } from "../lib/adherence.js";
 
 const ESCALATION_REASON_CATEGORIES = Object.values(EscalationReasonCategory) as [
   EscalationReasonCategory,
@@ -89,6 +90,70 @@ function serializeForPharmacist(question: MedicationQuestion) {
     escalationReasonCategory: question.escalationReasonCategory,
     escalationReason: question.escalationReason,
     resolvedAt: question.resolvedAt ? question.resolvedAt.toISOString() : null,
+  };
+}
+
+/**
+ * M5.2 — bounded, clearly-labeled medication-journey context for the
+ * single question the pharmacist is already authorized to view. See
+ * docs/doseprepped/ARCHITECTURE.md "M5.2 — Pharmacist context" for the
+ * full authorization rationale: this reads only the same patient's data
+ * for the same medication the current question is about (both already
+ * known server-side from `question`), never `patientId`/`medicationId`
+ * themselves are added to the response, and only the single most recent
+ * check-in and most recent *other* question are included — never a full
+ * history. Deliberately computed only for the single-question detail
+ * route below, not the queue list, to avoid an N+1 context computation
+ * across every queued question.
+ */
+async function buildMedicationContext(question: MedicationQuestion) {
+  const [medication, adherenceEvents, recentCheckIn, recentQuestion] = await Promise.all([
+    prisma.patientMedication.findUnique({
+      where: { id: question.medicationId },
+      select: { startDate: true },
+    }),
+    prisma.medicationAdherenceEvent.findMany({
+      where: { medicationId: question.medicationId, patientId: question.patientId },
+      select: { status: true },
+    }),
+    prisma.medicationCheckIn.findFirst({
+      where: { medicationId: question.medicationId, patientId: question.patientId },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.medicationQuestion.findFirst({
+      where: {
+        medicationId: question.medicationId,
+        patientId: question.patientId,
+        id: { not: question.id },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { category: true, questionText: true, createdAt: true, status: true },
+    }),
+  ]);
+
+  return {
+    startedAt: medication ? medication.startDate.toISOString() : null,
+    // System-calculated — see apps/api/src/lib/adherence.ts for the exact
+    // formula. Null (not 0%) when there are no recorded events yet.
+    adherence: adherenceEvents.length > 0 ? computeAdherenceSummary(adherenceEvents) : null,
+    // Patient-reported, unedited.
+    recentCheckIn: recentCheckIn
+      ? {
+          response: recentCheckIn.response,
+          notes: recentCheckIn.notes,
+          occurredAt: recentCheckIn.createdAt.toISOString(),
+        }
+      : null,
+    // Patient-reported, unedited — never this other question's
+    // pharmacistResponse, which may belong to a different pharmacist.
+    recentQuestion: recentQuestion
+      ? {
+          category: recentQuestion.category,
+          questionText: recentQuestion.questionText,
+          occurredAt: recentQuestion.createdAt.toISOString(),
+          status: recentQuestion.status,
+        }
+      : null,
   };
 }
 
@@ -182,7 +247,8 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Question not found." });
       }
 
-      return reply.send({ question: serializeForPharmacist(question) });
+      const medicationContext = await buildMedicationContext(question);
+      return reply.send({ question: { ...serializeForPharmacist(question), medicationContext } });
     },
   );
 

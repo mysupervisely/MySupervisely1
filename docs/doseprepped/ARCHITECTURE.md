@@ -2398,22 +2398,377 @@ prioritization, no independent audit-log table). M5.1 adds:
 
 ---
 
+## M5.2 — Medication Journey & Adherence Foundation (implemented)
+
+**Status: implemented.** M0–M5.1 built and hardened the pre-prescription
+question/pharmacist pipeline. M5.2 adds the **post-prescription**
+medication journey: `Prescription → Medication → Schedule → Adherence →
+Check-ins → Questions → Pharmacist → Provider escalation`. This is a
+**foundation**, not a clinical or engagement product — every capability
+below is medication-agnostic (nothing GLP-1-specific, no weight-loss or
+calorie/exercise tracking), and none of it computes, recommends, or
+implies a dosing decision.
+
+**Explicitly not in scope, per the milestone brief** (unchanged from
+M5.1's constraints plus these): GLP-1-specific functionality, weight-loss
+tracking, calorie/exercise tracking, dosing recommendations or
+dose-adjustment logic, clinical recommendations of any kind, B2B
+organization management, payments, telehealth/EHR integration, production
+deployment changes.
+
+**DosePrepped's positioning, restated (unchanged by M5.2):** medication
+support infrastructure connecting patients, medication education,
+pharmacists, and appropriate provider escalation. It is not an AI doctor,
+not an emergency service, not a replacement for the dispensing pharmacy,
+not a diagnostic tool, and not a replacement for a prescriber. Adherence
+data in M5.2 is **informational and supportive only** — the system never
+recommends a medication or dose change, never determines whether a
+patient should continue a medication, never diagnoses an adverse event
+from adherence or check-in data, and never replaces pharmacist or
+provider judgment.
+
+### Audit method
+
+Before writing any code, this milestone re-read `README.md`, this
+document in full (including the M4 and M5.1 sections above), the
+`PatientMedication` model and every `apps/api/src/routes/medications.ts`
+handler, the full question lifecycle
+(`questions.ts`/`pharmacist-questions.ts`/`packages/safety-rules`/
+`packages/ai-service`), the patient medication detail screen and the
+pharmacist review screen, and the existing 129-test suite (91 API, 17
+ai-service, 16 safety-rules, 5 patient) to understand exactly what
+already exists before adding to it.
+
+### 1. Medication schedule foundation
+
+**`PatientMedication` is not extended.** Its existing fields — `name`,
+`strength`, `dosageForm`, `directions`, `frequency`, `route`, `startDate`,
+`endDate` — already represent a medication's schedule as free-text,
+patient-reported information (e.g. `frequency: "Twice daily"`,
+`directions: "Take one tablet by mouth with food"`). M5.2 deliberately
+does **not** parse `frequency` into a structured cadence or auto-generate
+a calendar of expected dose times — doing so would require deciding what
+a "scheduled dose" is for a given frequency string, which is dosing logic
+the milestone brief explicitly excludes ("the system should represent a
+schedule, not decide what dose a patient should take"). Instead, the
+schedule a patient sees is the same medication record they already
+manage, and the *adherence* layer below is patient-initiated self-report,
+not system-generated.
+
+**New model — `MedicationAdherenceEvent`** (the "appropriate abstraction
+for future adherence events" the brief asks for):
+
+```prisma
+enum AdherenceStatus {
+  TAKEN
+  MISSED
+  SKIPPED
+}
+
+model MedicationAdherenceEvent {
+  id           String           @id @default(uuid())
+  patient      User             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId    String
+  medication   PatientMedication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  medicationId String
+  scheduledAt  DateTime
+  recordedAt   DateTime         @default(now())
+  status       AdherenceStatus
+  createdAt    DateTime         @default(now())
+
+  @@index([patientId])
+  @@index([medicationId])
+  @@map("medication_adherence_events")
+}
+```
+
+- **`scheduledAt`** is the dose time the event is *about* — supplied by
+  the patient (defaulting to "now" if they're logging a dose as they take
+  it), not computed from `frequency`. **`recordedAt`** is server-stamped
+  (`new Date()`, never client-supplied) — the moment the event was
+  logged, which may differ from `scheduledAt` if a patient logs a missed
+  dose after the fact. This mirrors the existing pattern of
+  server-authoritative timestamps elsewhere in the schema (e.g.
+  `pharmacistClaimedAt`).
+- **No unnecessary fields.** No free-text notes on the event itself (a
+  patient's qualitative "how am I doing" belongs to the separate
+  check-in below, not to a single dose record); no computed/duplicated
+  `adherencePercentage` column — percentage is always derived at read
+  time (see §2) so it can never drift from the underlying events.
+- **Immutable, append-only.** There is no `PATCH`/`DELETE` route for an
+  adherence event — matching the existing "archive, don't mutate history"
+  posture used for `PatientMedication` and the "no code path can rewrite
+  a past disposition" posture used for `MedicationQuestion`. A correction
+  is a new event, not an edit to an old one. This is a real limitation
+  (no way to fix a fat-fingered entry) accepted for a pilot-scale
+  foundation — see "Remaining limitations" below.
+- **Archived-medication behavior**: recording a *new* adherence event
+  requires the medication to be `ACTIVE` (a `409` if `INACTIVE` —
+  logging "I took a dose" of an archived/discontinued medication isn't a
+  meaningful action); reading history is unaffected by archive status,
+  matching the existing "archive doesn't hide history" principle.
+
+### 2. Adherence tracking
+
+`POST /medications/:id/adherence-events` and
+`GET /medications/:id/adherence-events` (`apps/api/src/routes/
+medication-journey.ts`), both `requireRole(PATIENT)` and scoped by the
+same `{ id, patientId: request.user.id }` ownership pattern as every
+other medication/question route — a medication that exists but belongs
+to another patient is `404`, identical to `GET /medications/:id`. There
+is no route that lists or reads adherence events across medications or
+patients.
+
+**Adherence percentage — exact, documented formula**
+(`apps/api/src/lib/adherence.ts`, `computeAdherenceSummary`):
+
+```
+takenCount / (takenCount + missedCount + skippedCount) × 100, rounded to
+the nearest whole number. `adherencePercentage` is `null` when there are
+zero recorded events (nothing to divide by) — never displayed as "0%" or
+any other misleading default.
+```
+
+This is the *only* place adherence percentage is computed — the API
+response and the pharmacist context (§5) both call this one function, so
+the number can never disagree with itself across screens. It is a plain
+ratio of patient-recorded events, nothing more: it does not weight doses
+by recency, does not treat `SKIPPED` differently from `MISSED`, and does
+not attempt any clinical interpretation. The API and UI display it as a
+bare stat — **`Adherence: 91%`** — with no qualitative label ("good,"
+"poor," "concerning") anywhere in the code, per the explicit instruction
+not to editorialize the number.
+
+### 3. Patient medication journey (timeline)
+
+No new storage. `GET /medications/:id/timeline` (same ownership scoping)
+calls `buildMedicationTimeline` (`apps/api/src/lib/timeline.ts`), a pure
+function that reads the medication record, its adherence events, its
+check-ins (§4), and its questions (with their pharmacist-response/
+escalation fields) — all already-existing queries — and merges them into
+one chronologically sorted list of typed entries:
+`MEDICATION_STARTED`, `MEDICATION_ARCHIVED`, `DOSE_TAKEN`, `DOSE_MISSED`,
+`DOSE_SKIPPED`, `CHECK_IN_COMPLETED`, `QUESTION_SUBMITTED`,
+`PHARMACIST_RESPONDED`, `QUESTION_ESCALATED`. Each entry carries only a
+patient-friendly `label` and `occurredAt`, plus the minimum linking data
+the frontend needs (e.g. a question's `id` to link to it) — never a raw
+database column name, an internal enum value the patient wouldn't
+recognize, or another patient's data. Deriving instead of duplicating
+means the timeline can never drift from the records it's built from, and
+a future field added to any source table doesn't require a migration
+here.
+
+### 4. Medication check-ins
+
+**New model — `MedicationCheckIn`**:
+
+```prisma
+enum CheckInResponse {
+  DOING_WELL
+  HAVING_SOME_ISSUES
+  HAVING_SIGNIFICANT_ISSUES
+  HAS_A_QUESTION
+}
+
+model MedicationCheckIn {
+  id           String           @id @default(uuid())
+  patient      User             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId    String
+  medication   PatientMedication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  medicationId String
+  response     CheckInResponse
+  notes        String?
+  createdAt    DateTime         @default(now())
+
+  @@index([patientId])
+  @@index([medicationId])
+  @@map("medication_check_ins")
+}
+```
+
+`POST` / `GET /medications/:id/check-ins`, same ownership pattern, same
+file. A check-in is a **stored patient-reported data point, nothing
+more** — there is no code path anywhere that reads `response` or `notes`
+and generates a diagnosis, a treatment suggestion, or a dose-change
+recommendation. When `response` is `HAVING_SIGNIFICANT_ISSUES` or
+`HAS_A_QUESTION`, the patient UI (§6) shows a CTA straight to the
+existing "Ask a question" flow (pre-filling the medication) — the
+*existing* deterministic safety/disposition/pharmacist pipeline is the
+only thing that ever acts on a patient's words; a check-in never
+auto-creates a question, never auto-notifies a pharmacist, and never
+bypasses that pipeline. This keeps check-ins strictly a structured mood/
+status signal plus a pathway to the real intake flow, never a parallel
+clinical channel.
+
+### 5. Pharmacist context
+
+`GET /pharmacist/questions/:id` gains one additional field,
+`medicationContext`, computed only for the question the pharmacist
+already has authorized access to (the existing `visibilityWhere` scoping
+from M4 is unchanged — no new question becomes visible to any
+pharmacist):
+
+```
+medicationContext: {
+  startedAt: string | null,           // PatientMedication.startDate
+  adherence: {                        // system-calculated, computeAdherenceSummary()
+    takenCount, missedCount, skippedCount, totalCount,
+    adherencePercentage: number | null,
+  } | null,                            // null if the medication has 0 recorded events
+  recentCheckIn: {                     // patient-reported, most recent only
+    response, notes, occurredAt,
+  } | null,
+  recentQuestion: {                    // patient-reported, most recent OTHER question
+    category, questionText, occurredAt, status,
+  } | null,
+}
+```
+
+- **Bounded, not a history dump.** Only the *most recent* check-in and
+  *most recent other question* about this same medication are included —
+  never a full list — directly per the instruction that "the pharmacist
+  should NOT receive an overwhelming amount of irrelevant history."
+- **Same patient, same medication only — a deliberate, bounded widening
+  of pharmacist-visible data, documented explicitly here.** `recentCheckIn`
+  and `recentQuestion` are queried by `{ patientId: question.patientId,
+  medicationId: question.medicationId }` — both values already known
+  server-side from the question the pharmacist is authorized to view, but
+  neither `patientId` nor `medicationId` is added to the pharmacist-facing
+  response (matching the existing "never expose the patient's identity"
+  rule from M4). `recentQuestion` can surface text from a question the
+  viewing pharmacist never claimed and may not be assigned to them — this
+  is new in M5.2. It is scoped as tightly as possible (same patient, same
+  medication, most recent one only, no `pharmacistResponse` from that
+  other question included) and is presented read-only as context, exactly
+  like the existing `aiPharmacistSummary` pattern. This boundary should be
+  revisited if a future milestone introduces pharmacist state/licensure
+  scoping, where "any pharmacist can see this" may need to narrow further.
+- **Clear provenance labeling, everywhere this is displayed.** The
+  pharmacist review screen renders `medicationContext` under a heading
+  distinct from the patient's current question, the existing
+  AI-generated summary card, and the pharmacist's own response card — see
+  §6. `adherence` is system-calculated (derived from patient-recorded
+  events, not a subjective judgment); `recentCheckIn`/`recentQuestion` are
+  patient-reported (the patient's own words/selections, unedited);
+  `aiPharmacistSummary` (unchanged, M4) remains labeled AI-generated;
+  `pharmacistResponse` (unchanged, M4) remains labeled as the pharmacist's
+  own words. No code path lets AI-generated or system-calculated content
+  render under a "pharmacist" or "clinician" label, or vice versa.
+- **The pharmacist queue *list*, unlike the single-question detail view,
+  is unchanged** — no `medicationContext` on `GET /pharmacist/queue` —
+  to avoid an N+1 context computation across every queued question and to
+  keep the list itself scannable, per "do not add new clinical
+  functionality" and "should not receive an overwhelming amount."
+
+### 6. Patient UX
+
+Reuses the existing medication detail screen and design system — no new
+patterns, no redesign. Added, on `/medications/:id`:
+
+- **Record a dose** — three buttons (Taken / Missed / Skipped), each a
+  single POST with `scheduledAt = now`. Loading and error states match
+  the existing `ArchiveMedicationButton` pattern. Disabled (with an
+  explanatory line) when the medication is `INACTIVE`.
+- **Adherence** — the bare `Adherence: NN%` stat plus the exact
+  denominator ("based on N recorded doses") so the number is never
+  presented without its basis; **"No adherence history yet"** when
+  `adherencePercentage` is `null`.
+- **Recent activity** — the last few adherence events, each labeled with
+  its status and when it was recorded.
+- **Check-in** — "How are you doing with this medication?" with the four
+  structured responses as buttons plus an optional free-text note.
+  Showing **"Check-in available"** vs **"Check-in completed"** (most
+  recent response + date) as the state; submitting
+  `HAVING_SIGNIFICANT_ISSUES` or `HAS_A_QUESTION` immediately surfaces an
+  "Ask a question" CTA — never a clinical response generated by the app
+  itself.
+- **Timeline** — a dedicated `/medications/:id/timeline` page (linked
+  from the detail screen, not inlined, to keep the main detail screen
+  from growing unbounded) rendering `buildMedicationTimeline`'s output
+  chronologically.
+- **States covered, explicitly**: no schedule/events yet (medication just
+  added, zero adherence events — "No adherence history yet" +
+  "Record a dose" is the only action), upcoming dose (out of scope — no
+  scheduling/reminder engine exists, so there is no "upcoming dose"
+  concept to render; see limitations), dose taken/missed/skipped
+  (rendered in Recent activity immediately after recording), check-in
+  available/completed (above), no adherence history (above),
+  error/loading (every new client component follows the existing
+  `ArchiveMedicationButton`/`PharmacistQuestionActions` loading-flag +
+  inline `role="alert"` error-message pattern already used throughout the
+  app — no new error-handling pattern introduced).
+
+### Safety constraints — how each is enforced, not just asserted
+
+- **No medication/dose-change recommendations, no clinical
+  appropriateness determination, no automatic decisions from adherence
+  data**: there is no code path anywhere in M5.2 that reads an adherence
+  percentage or a check-in response and writes to `disposition`, a
+  medication field, or any AI/pharmacist-facing recommendation. The only
+  consumers of adherence/check-in data are (a) a bare percentage/label
+  display and (b) the bounded pharmacist context in §5 — both read-only,
+  informational renderings.
+- **No adverse-event diagnosis**: a `HAVING_SIGNIFICANT_ISSUES` check-in
+  produces exactly one system action — showing a link to "Ask a
+  question" — never an automated response, triage, or assessment.
+- **Doesn't replace pharmacist/provider judgment**: the existing
+  deterministic safety/disposition engine and pharmacist workflow (M3
+  Phase 2, M4) are completely unmodified by M5.2; adherence/check-in data
+  never skips, reorders, or overrides that pipeline.
+
+### Data / privacy
+
+- **Nothing new is logged.** Check-in free-text notes follow the exact
+  same rule as question/AI/pharmacist-response text (never written to
+  application logs); Fastify's request logging continues to record only
+  method/URL/status, never bodies. No new field introduces a new logging
+  surface.
+- **Ownership isolation** for both new models mirrors
+  `PatientMedication`/`MedicationQuestion` exactly: every read and write
+  is scoped to `patientId: request.user.id` (and, for adherence/check-ins,
+  additionally to a medication already confirmed to belong to that
+  patient) — there is no route, anywhere, that accepts a `patientId` from
+  the request body or resolves one record without the authenticated
+  user's own ID in the `WHERE` clause.
+
+### Remaining limitations (pilot-scale foundation, not a finished product)
+
+- No structured dosing schedule / reminder engine — `frequency` remains
+  free text, there is no "next dose due" concept, and no push/SMS/email
+  reminder exists. This is explicitly deferred, not an oversight — the
+  brief prohibits dosing logic.
+- Adherence events are immutable and append-only — no edit/delete route,
+  so a mis-tap can only be corrected by logging a new event, not fixing
+  the old one.
+- The pharmacist-context "recent other question" widening (§5) is a new,
+  intentionally narrow authorization surface that should be reviewed
+  again once pharmacist state/licensure scoping is implemented.
+- No trend/streak visualization, no export, no caregiver/family sharing.
+- Check-ins and adherence events are per-medication only — there is no
+  cross-medication or whole-regimen adherence view yet.
+
+---
+
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
 & disposition), M3 Phase 3 (AI-assisted medication education), M4
-(pharmacist review & concierge workflow), and M5.1 (pilot readiness &
-product hardening) are implemented, tested, and merged. A question now
-flows end-to-end through deterministic safety →
-(non-emergency, non-fully-AI-answered) AI education → automatic pharmacist
-queueing → atomic claim → a human pharmacist response or a structured
-escalation, with no code path anywhere that lets AI-generated content
-become an official pharmacist response or change a deterministic
-disposition. Every patient- and pharmacist-facing screen now shows
-accurate, current copy rather than stale placeholder text, and API errors
-fail safely without leaking internal detail. Still not built: B2B
-organizations, payments, pharmacist compensation, EHR integration,
-telemedicine/provider messaging, secure two-way patient/pharmacist
-messaging, pharmacist license verification/enforcement, and the
-`AnalyticsEvent` table. Awaiting direction on M5.2.
-Awaiting direction on the next milestone.
+(pharmacist review & concierge workflow), M5.1 (pilot readiness & product
+hardening), and M5.2 (medication journey & adherence foundation) are
+implemented, tested, and merged. A question now flows end-to-end through
+deterministic safety → (non-emergency, non-fully-AI-answered) AI
+education → automatic pharmacist queueing → atomic claim → a human
+pharmacist response or a structured escalation, with no code path
+anywhere that lets AI-generated content become an official pharmacist
+response or change a deterministic disposition. Every patient- and
+pharmacist-facing screen shows accurate, current copy, and API errors
+fail safely without leaking internal detail. Patients can now also record
+per-dose adherence (taken/missed/skipped), complete a structured
+medication check-in, and view a derived medication timeline; a pharmacist
+reviewing a routed question sees bounded, clearly-labeled medication
+context (adherence %, most recent check-in, most recent other question
+about the same medication) alongside it — informational only, never a
+recommendation. Still not built: B2B organizations, payments, pharmacist
+compensation, EHR/telehealth integration, pharmacist license
+verification/enforcement, a structured dosing/reminder engine, and the
+`AnalyticsEvent` table. Awaiting direction on M5.3.

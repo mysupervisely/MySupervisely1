@@ -31,6 +31,14 @@ const ESCALATION_REASON_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+// M5.2 — see docs/doseprepped/ARCHITECTURE.md "M5.2 — Pharmacist context".
+const CHECK_IN_LABELS: Record<string, string> = {
+  DOING_WELL: "Doing well",
+  HAVING_SOME_ISSUES: "Having some issues",
+  HAVING_SIGNIFICANT_ISSUES: "Having significant issues",
+  HAS_A_QUESTION: "Had a question",
+};
+
 function formatDate(value: string): string {
   return new Date(value).toLocaleString(undefined, {
     year: "numeric",
@@ -39,6 +47,17 @@ function formatDate(value: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function formatStartedAgo(value: string): string {
+  const days = Math.floor((Date.now() - new Date(value).getTime()) / (24 * 60 * 60 * 1000));
+  if (days < 0) return "—";
+  if (days < 1) return "today";
+  if (days < 14) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 10) return `${weeks} weeks ago`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months === 1 ? "" : "s"} ago`;
 }
 
 export default async function PharmacistQuestionPage({ params }: PageProps<"/pharmacist/queue/[id]">) {
@@ -61,6 +80,56 @@ export default async function PharmacistQuestionPage({ params }: PageProps<"/pha
           {STATUS_LABELS[question.status] ?? question.status}
         </Badge>
       </div>
+
+      {question.medicationContext && (
+        <Card className="flex flex-col gap-1 divide-y divide-border p-0">
+          <h2 className="px-5 pt-3 text-sm font-semibold text-ink-muted">
+            Medication context
+          </h2>
+          <p className="px-5 pb-1 text-xs text-ink-muted">
+            Patient-reported and system-calculated — not a recommendation.
+          </p>
+          {question.medicationContext.startedAt && (
+            <div className="flex items-start justify-between gap-4 px-5 py-3">
+              <span className="text-sm text-ink-muted">Started</span>
+              <span className="max-w-[60%] text-right text-sm font-medium text-ink">
+                {formatStartedAgo(question.medicationContext.startedAt)}
+              </span>
+            </div>
+          )}
+          <div className="flex items-start justify-between gap-4 px-5 py-3">
+            <span className="text-sm text-ink-muted">Adherence (system-calculated)</span>
+            <span className="max-w-[60%] text-right text-sm font-medium text-ink">
+              {question.medicationContext.adherence?.adherencePercentage != null
+                ? `${question.medicationContext.adherence.adherencePercentage}%`
+                : "No adherence history yet"}
+            </span>
+          </div>
+          {question.medicationContext.recentCheckIn && (
+            <div className="flex items-start justify-between gap-4 px-5 py-3">
+              <span className="text-sm text-ink-muted">Recent check-in (patient-reported)</span>
+              <span className="max-w-[60%] text-right text-sm font-medium text-ink">
+                &quot;{CHECK_IN_LABELS[question.medicationContext.recentCheckIn.response] ??
+                  question.medicationContext.recentCheckIn.response}
+                &quot;
+                {question.medicationContext.recentCheckIn.notes && (
+                  <span className="block font-normal text-ink-muted">
+                    {question.medicationContext.recentCheckIn.notes}
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+          {question.medicationContext.recentQuestion && (
+            <div className="flex items-start justify-between gap-4 px-5 py-3">
+              <span className="text-sm text-ink-muted">Recent medication question (patient-reported)</span>
+              <span className="max-w-[60%] text-right text-sm font-medium text-ink">
+                &quot;{question.medicationContext.recentQuestion.questionText}&quot;
+              </span>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="flex flex-col divide-y divide-border p-0">
         <div className="flex items-start justify-between gap-4 px-5 py-3">

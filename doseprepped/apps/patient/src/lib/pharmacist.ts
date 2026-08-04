@@ -14,6 +14,32 @@ export interface PharmacistMedicationSnapshot {
   route: string;
 }
 
+// M5.2 — bounded medication-journey context shown alongside a single
+// question the pharmacist already has access to. See
+// docs/doseprepped/ARCHITECTURE.md "M5.2 — Pharmacist context". Only
+// present on the single-question detail fetch, never the queue list.
+export interface PharmacistMedicationContext {
+  startedAt: string | null;
+  adherence: {
+    takenCount: number;
+    missedCount: number;
+    skippedCount: number;
+    totalCount: number;
+    adherencePercentage: number | null;
+  } | null;
+  recentCheckIn: {
+    response: string;
+    notes: string | null;
+    occurredAt: string;
+  } | null;
+  recentQuestion: {
+    category: QuestionCategory;
+    questionText: string;
+    occurredAt: string;
+    status: string;
+  } | null;
+}
+
 export interface PharmacistQuestion {
   id: string;
   medicationSnapshot: PharmacistMedicationSnapshot;
@@ -34,6 +60,8 @@ export interface PharmacistQuestion {
   escalationReasonCategory: string | null;
   escalationReason: string | null;
   resolvedAt: string | null;
+  /** Only present on GET /pharmacist/questions/:id, not the queue list. */
+  medicationContext?: PharmacistMedicationContext;
 }
 
 export interface QueueCounts {

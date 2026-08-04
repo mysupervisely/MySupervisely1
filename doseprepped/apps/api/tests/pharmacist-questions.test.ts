@@ -547,3 +547,99 @@ describe("M4 — pharmacist queue, claim, respond, escalate", () => {
     await a.close();
   });
 });
+
+// M5.2 — see docs/doseprepped/ARCHITECTURE.md "M5.2 — Pharmacist context".
+describe("GET /pharmacist/questions/:id — medicationContext (M5.2)", () => {
+  it("includes adherence, the most recent check-in, and the most recent other question about the same medication", async () => {
+    const a = app();
+    const patient = await patientWithCookie("context-full", a);
+    const medication = await createMedicationForPatient(a, patient.cookie);
+
+    for (const status of ["TAKEN", "TAKEN", "MISSED"]) {
+      await a.inject({
+        method: "POST",
+        url: `/medications/${medication.id}/adherence-events`,
+        headers: { cookie: patient.cookie },
+        payload: { status },
+      });
+    }
+    await a.inject({
+      method: "POST",
+      url: `/medications/${medication.id}/check-ins`,
+      headers: { cookie: patient.cookie },
+      payload: { response: "HAVING_SOME_ISSUES", notes: "Some nausea." },
+    });
+
+    const olderQuestion = await createQuestionForPatient(a, patient.cookie, medication.id, {
+      questionText: "Is nausea normal with this medication?",
+    });
+    const newerQuestion = await createQuestionForPatient(a, patient.cookie, medication.id, {
+      questionText: "Should I take my dose late today?",
+    });
+
+    const pharmacist = await pharmacistWithCookie("context-full", a);
+    const response = await a.inject({
+      method: "GET",
+      url: `/pharmacist/questions/${newerQuestion.id}`,
+      headers: { cookie: pharmacist.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { medicationContext } = response.json().question;
+    expect(medicationContext.startedAt).toBeTruthy();
+    expect(medicationContext.adherence).toEqual({
+      takenCount: 2,
+      missedCount: 1,
+      skippedCount: 0,
+      totalCount: 3,
+      adherencePercentage: 67,
+    });
+    expect(medicationContext.recentCheckIn).toEqual({
+      response: "HAVING_SOME_ISSUES",
+      notes: "Some nausea.",
+      occurredAt: expect.any(String),
+    });
+    expect(medicationContext.recentQuestion.questionText).toBe(olderQuestion.questionText);
+
+    await a.close();
+  });
+
+  it("returns nulls for adherence/check-in/recent question when none exist yet — never a fabricated default", async () => {
+    const a = app();
+    const { question } = await seedQueuedQuestion(a, "context-empty");
+    const pharmacist = await pharmacistWithCookie("context-empty", a);
+
+    const response = await a.inject({
+      method: "GET",
+      url: `/pharmacist/questions/${question.id}`,
+      headers: { cookie: pharmacist.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { medicationContext } = response.json().question;
+    expect(medicationContext.adherence).toBeNull();
+    expect(medicationContext.recentCheckIn).toBeNull();
+    expect(medicationContext.recentQuestion).toBeNull();
+
+    await a.close();
+  });
+
+  it("is never present on the queue list — only the single-question detail view", async () => {
+    const a = app();
+    await seedQueuedQuestion(a, "context-not-in-list");
+    const pharmacist = await pharmacistWithCookie("context-not-in-list", a);
+
+    const response = await a.inject({
+      method: "GET",
+      url: "/pharmacist/queue",
+      headers: { cookie: pharmacist.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    for (const q of response.json().questions) {
+      expect(q).not.toHaveProperty("medicationContext");
+    }
+
+    await a.close();
+  });
+});

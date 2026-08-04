@@ -30,6 +30,8 @@ export {
   QuestionStatus,
   EscalationReasonCategory,
   PharmacistCredentialStatus,
+  AdherenceStatus,
+  CheckInResponse,
 } from "../generated/client/client.js";
 export type {
   User,
@@ -38,5 +40,7 @@ export type {
   MedicationReference,
   MedicationQuestion,
   PharmacistProfile,
+  MedicationAdherenceEvent,
+  MedicationCheckIn,
   Prisma,
 } from "../generated/client/client.js";

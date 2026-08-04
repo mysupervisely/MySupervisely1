@@ -4,7 +4,12 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { ArchiveMedicationButton } from "@/components/medications/ArchiveMedicationButton";
+import { RecordDoseButtons } from "@/components/medications/RecordDoseButtons";
+import { AdherenceSummary } from "@/components/medications/AdherenceSummary";
+import { CheckInForm } from "@/components/medications/CheckInForm";
 import { getMedication } from "@/lib/medications";
+import { getAdherence } from "@/lib/adherence";
+import { getCheckIns } from "@/lib/check-ins";
 
 export const metadata: Metadata = {
   title: "Medication details — DosePrepped",
@@ -28,6 +33,7 @@ export default async function MedicationDetailPage({ params }: PageProps<"/medic
   }
 
   const isActive = medication.status === "ACTIVE";
+  const [{ events, summary }, checkIns] = await Promise.all([getAdherence(id), getCheckIns(id)]);
 
   return (
     <>
@@ -66,6 +72,25 @@ export default async function MedicationDetailPage({ params }: PageProps<"/medic
         </Button>
         {isActive && <ArchiveMedicationButton medicationId={medication.id} />}
       </div>
+
+      <div className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold text-ink-muted">Record a dose</h2>
+        {isActive ? (
+          <RecordDoseButtons medicationId={medication.id} />
+        ) : (
+          <p className="text-sm text-ink-muted">
+            This medication is inactive, so new doses can&apos;t be recorded.
+          </p>
+        )}
+      </div>
+
+      <AdherenceSummary summary={summary} events={events} />
+
+      <CheckInForm medicationId={medication.id} latestCheckIn={checkIns[0] ?? null} />
+
+      <Button href={`/medications/${medication.id}/timeline`} variant="ghost" fullWidth>
+        View medication timeline
+      </Button>
     </>
   );
 }
