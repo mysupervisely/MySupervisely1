@@ -33,6 +33,7 @@ export type QuestionDisposition =
 export interface MedicationSnapshot {
   name: string;
   strength: string;
+  dosageForm?: string;
   directions: string;
   frequency: string;
   route: string;
@@ -57,6 +58,7 @@ export interface Question {
   clarifyingQuestion: string | null;
   status: QuestionStatus;
   pharmacistResponse: string | null;
+  pharmacistRespondedAt: string | null;
   escalatedAt: string | null;
   escalationReason: string | null;
   resolvedAt: string | null;

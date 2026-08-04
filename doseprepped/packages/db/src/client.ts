@@ -28,6 +28,7 @@ export {
   DispositionSource,
   AiResponseStatus,
   QuestionStatus,
+  EscalationReasonCategory,
 } from "../generated/client/client.js";
 export type {
   User,
@@ -35,4 +36,5 @@ export type {
   PatientMedication,
   MedicationReference,
   MedicationQuestion,
+  Prisma,
 } from "../generated/client/client.js";

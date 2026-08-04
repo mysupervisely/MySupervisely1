@@ -643,9 +643,12 @@ combined feed is genuinely needed — not preemptively.
 
 A new `MedicationQuestion` entity anchors the whole feature. Key design
 decision: it stores a **point-in-time snapshot** of the medication's
-relevant fields (name, strength, directions, frequency, route) at the
-moment the question was asked, in addition to the `medicationId` foreign
-key. If the patient later edits that medication's directions (M2's
+relevant fields (name, strength, dosage form, directions, frequency,
+route — `dosageForm` added in M4 so the pharmacist review screen can show
+it without a live lookup; every field before it was captured since Phase
+1) at the moment the question was asked, in addition to the
+`medicationId` foreign key. If the patient later edits that medication's
+directions (M2's
 `PATCH /medications/:id`), a historical question must still show what the
 patient and pharmacist actually saw and discussed — not the current,
 possibly-different values. This is the same "don't let a live record
@@ -761,52 +764,78 @@ M1 already created the `PHARMACIST` role, a role-gated placeholder route
 architecture is designed to attach real functionality to exactly those
 seams rather than requiring rework:
 
-- **Queue.** A question enters the pharmacist-visible queue when its status
-  becomes `PHARMACIST_REQUESTED` — either the patient tapped "Ask a
-  Pharmacist," or the deterministic disposition (Phase 2) is
-  `PHARMACIST_REVIEW`/`PROVIDER_EVALUATION` and the system auto-requests
-  review. **Not built yet** — Phase 2 only assigns `disposition`; the
-  status transition and actual queue are later-phase work (§19).
-- **Claim.** A pharmacist claims an unclaimed queued question
-  (`pharmacistId` set, status → `PHARMACIST_IN_PROGRESS`). Claiming is
-  exclusive — once claimed, the question drops out of other pharmacists'
-  unclaimed queue view.
-- **Respond.** The pharmacist sees the structured record — patient
-  question, medication snapshot, category, AI education (clearly labeled
-  AI-generated, never presented as the pharmacist's own judgment) — and
-  writes a response. Status → `PHARMACIST_RESOLVED`.
-- **Escalate.** Instead of responding, the pharmacist can escalate (see
-  §8) with a required reason.
-- **Request clarification.** Out of scope for M3's data model as a full
-  two-way thread (that's the "secure messaging" feature from the original
-  architecture's M4 sketch); for now, `WAITING_FOR_PATIENT` is reserved as
-  a status value but the actual back-and-forth UI is not designed here.
+- **Queue (implemented, M4).** A question enters the pharmacist-visible
+  queue automatically, at creation time, when the deterministic disposition
+  (Phase 2) is `PHARMACIST_REVIEW` or `PROVIDER_EVALUATION` — `status` is
+  set directly to `PHARMACIST_REQUESTED` in the same `POST /questions`
+  request/response cycle that assigns the disposition, with
+  `pharmacistRequestedAt` stamped at the same moment. There is no separate
+  patient-initiated "Ask a Pharmacist" request endpoint in M4 — see "Why
+  queue entry is automatic, not patient-initiated" in the M4 section below.
+  `GENERAL_EDUCATION` questions never enter the queue (AI already fully
+  answered them); `URGENT_EMERGENCY` questions never enter the queue either
+  (never handled by AI or pharmacist, per §9).
+- **Claim (implemented, M4).** A pharmacist claims an unclaimed queued
+  question (`pharmacistId` set, `pharmacistClaimedAt` stamped, status →
+  `PHARMACIST_IN_PROGRESS`) via a single atomic conditional database update
+  — see "Claim concurrency" in the M4 section below for exactly how
+  simultaneous claim attempts are resolved. Claiming is exclusive — once
+  claimed, the question drops out of other pharmacists' unclaimed queue
+  view (enforced by the ownership-scoping query itself, §10).
+- **Release (implemented, M4).** The claiming pharmacist may release a
+  question they haven't yet resolved back to the shared queue
+  (`pharmacistId`/`pharmacistClaimedAt` cleared, status →
+  `PHARMACIST_REQUESTED`) — the "reassignment" mechanism this architecture
+  anticipated: releasing simply makes the question claimable by anyone
+  again, rather than targeting a specific other pharmacist.
+- **Respond (implemented, M4).** The pharmacist sees the structured record
+  — patient question, medication snapshot, category, AI education and AI
+  pharmacist summary (clearly labeled AI-generated, never presented as the
+  pharmacist's own judgment) — and writes a response, stored in the
+  existing `pharmacistResponse` field, distinct from `aiEducationResponse`.
+  Status → `PHARMACIST_RESOLVED`, `resolvedAt` stamped.
+- **Escalate (implemented, M4).** Instead of responding, the pharmacist can
+  escalate (see §8) with a required structured reason.
+- **Request clarification.** Still out of scope — `WAITING_FOR_PATIENT`
+  remains a reserved-but-unbuilt status; the two-way patient/pharmacist
+  thread is still a future milestone, not M4.
 
-Building the pharmacist dashboard UI itself (queue screen, claim/respond
-actions) is intentionally sequenced *after* the data model and patient-side
-flow — see "Recommended implementation sequence."
+The pharmacist dashboard UI (queue screen, claim/respond/escalate actions)
+is built in M4 directly on top of the M1 placeholder pharmacist home page
+and the M0/M1 `PHARMACIST` role/route-gating seam, per "Recommended
+implementation sequence."
 
 ### 8. Provider escalation architecture
 
 Two distinct triggers, both landing on the same `ESCALATED` status:
 
-1. **Intake-time, automatic.** The deterministic disposition rule engine
-   (implemented in Phase 2 — see "Deterministic Safety & Disposition Rule
-   Engine" below) assigns `URGENT_EMERGENCY` or `PROVIDER_EVALUATION`
-   before any AI or pharmacist involvement. The patient is shown clear,
-   non-diagnostic guidance to seek appropriate care — DosePrepped does not
-   attempt to triage or manage the situation itself, matching the original
-   architecture's "Safety/Escalation" section. No professionally-reviewed
-   triage protocol exists yet; this document does not invent one, and the
-   rule set stays intentionally small and conservative until clinically
-   reviewed rules are available. **Phase 2 stops at assigning the
-   disposition and showing guidance copy** — it does not transition
-   `status` to `ESCALATED`, notify anyone, or create any queue entry; that
-   remains later-phase work.
-2. **Pharmacist-initiated.** During review, a pharmacist determines the
-   question is beyond general medication guidance (needs a dose change,
-   a new/worsening symptom needs clinical evaluation, etc.) and escalates
-   with a required `escalationReason`.
+1. **Intake-time, automatic (`URGENT_EMERGENCY` only).** The deterministic
+   disposition rule engine (Phase 2) assigns `URGENT_EMERGENCY` before any
+   AI or pharmacist involvement, and the patient is shown clear,
+   non-diagnostic guidance to seek appropriate care immediately —
+   DosePrepped does not attempt to triage or manage the situation itself.
+   This never transitions `status` to `ESCALATED` and never creates a
+   pharmacist queue entry — `URGENT_EMERGENCY` questions are deliberately
+   never handled by AI or pharmacist (§9), full stop, not escalated *from*
+   pharmacist review. `PROVIDER_EVALUATION` is **not** an automatic
+   `ESCALATED` transition — as of M4, it's a disposition that queues the
+   question for pharmacist review like `PHARMACIST_REVIEW`, and it's the
+   pharmacist, not the intake step, who decides whether the situation
+   truly needs `ESCALATED` handling (trigger 2 below). No
+   professionally-reviewed triage protocol exists yet; this document does
+   not invent one, and the rule set stays intentionally small and
+   conservative until clinically reviewed rules are available.
+2. **Pharmacist-initiated (implemented, M4).** During review (from
+   `PHARMACIST_IN_PROGRESS`, after claiming), a pharmacist determines the
+   question is beyond general medication guidance (needs a dose change, a
+   new/worsening symptom needs clinical evaluation, etc.) and escalates
+   with a required structured reason — `escalationReasonCategory` (a
+   closed enum, see "Database changes" in the M4 section below) plus the
+   existing free-text `escalationReason` field for the pharmacist's own
+   explanation. Status → `ESCALATED`, `escalatedAt` stamped. The escalating
+   pharmacist is always the question's `pharmacistId` — escalation is only
+   reachable from a question the pharmacist has already claimed, so there
+   is no separate "who escalated" field to add.
 
 **What escalation is *not*, in this architecture:** an automated referral,
 an EHR integration, or a message sent to a named provider on the patient's
@@ -1039,7 +1068,10 @@ every possible medical emergency or concerning symptom. Known limitations:
 
 Extends the ownership pattern M2 already established
 (`{ id, patientId: request.user.id }` scoped queries, 404-not-403 on
-mismatch) with a second axis for the pharmacist role:
+mismatch) with a second axis for the pharmacist role. **Implemented as
+written, M4** — `apps/api/src/routes/pharmacist-questions.ts` enforces
+every rule below directly in its Prisma `where` clauses, never in
+application-level post-filtering:
 
 - **Patient access:** unchanged pattern — a question is only ever
   readable/writable by `patientId === request.user.id`.
@@ -1053,7 +1085,10 @@ mismatch) with a second axis for the pharmacist role:
   nice-to-have. If a pharmacist genuinely needs broader context on a
   specific request (e.g. the patient's full active medication list, not
   just the snapshot), that should be a deliberate, logged "view full
-  profile" action scoped to that request — not ambient access.
+  profile" action scoped to that request — not ambient access; M4 does not
+  add one. A question outside a pharmacist's authorized scope returns
+  `404`, identical to the patient-side pattern — a pharmacist can never
+  distinguish "claimed by someone else" from "doesn't exist."
 - **Admin access:** no new admin capability is being designed here. Any
   future admin access to question content should be audit-logged the same
   way pharmacist access is.
@@ -1146,11 +1181,17 @@ deliberately:
 
 ### 15. Database changes
 
-Schema sketch. **`QuestionCategory`, `MedicationQuestion`'s core fields,
-and (as of Phase 2) `QuestionDisposition`/`DispositionSource`/the
-disposition audit fields are applied to `packages/db/prisma/
-schema.prisma`.** Everything under "not yet implemented" below (AI,
-pharmacist, escalation fields on the model) remains illustrative only.
+Schema sketch, kept for historical continuity. **As of M4, every field
+shown below is implemented and populated by real code paths** —
+`QuestionCategory`/`QuestionDisposition`/`DispositionSource` (Phase 2), the
+AI education fields (Phase 3, see "Database changes (Phase 3 additions)"
+below for the fields added after this sketch was written), and every
+pharmacist/escalation field on the model (M4, see "Database changes (M4
+additions)" further below for `EscalationReasonCategory` and
+`escalationReasonCategory`, the only genuinely new field M4 added — every
+other pharmacist/escalation field below was already reserved since Phase
+1 and is populated for the first time in M4). `AnalyticsEvent` remains the
+one model in this sketch that is still purely illustrative — not created.
 
 ```
 enum QuestionCategory {
@@ -1202,7 +1243,7 @@ model MedicationQuestion {
   patientId                   String
   medication                  PatientMedication
   medicationId                String
-  medicationSnapshot          Json                 -- {name, strength, directions, frequency, route} at creation time
+  medicationSnapshot          Json                 -- {name, strength, dosageForm, directions, frequency, route} at creation time (dosageForm added M4)
   otherMedicationsSnapshot    Json?                -- [{name, strength}], only for DRUG_INTERACTION / SIDE_EFFECT
   category                    QuestionCategory     -- patient-selected
   aiSuggestedCategory         QuestionCategory?
@@ -1216,16 +1257,17 @@ model MedicationQuestion {
   aiEducationResponse         String?
   aiEducationGeneratedAt      DateTime?
   aiModelVersion              String?              -- audit: which model/prompt version produced the response
-  status                      QuestionStatus
-  pharmacist                  User?
-  pharmacistId                String?
-  pharmacistRequestedAt       DateTime?
-  pharmacistClaimedAt         DateTime?
-  pharmacistResponse          String?
-  pharmacistRespondedAt       DateTime?
-  escalatedAt                 DateTime?
-  escalationReason            String?
-  resolvedAt                  DateTime?
+  status                      QuestionStatus       -- PHARMACIST_REQUESTED/_IN_PROGRESS/_RESOLVED/ESCALATED implemented (M4)
+  pharmacist                  User?                -- implemented (M4) — the claiming/responding/escalating pharmacist
+  pharmacistId                String?              -- implemented (M4)
+  pharmacistRequestedAt       DateTime?            -- implemented (M4) — stamped when status becomes PHARMACIST_REQUESTED
+  pharmacistClaimedAt         DateTime?            -- implemented (M4)
+  pharmacistResponse          String?              -- implemented (M4) — pharmacist's own words; never AI-written
+  pharmacistRespondedAt       DateTime?            -- implemented (M4)
+  escalatedAt                 DateTime?            -- implemented (M4) — pharmacist-initiated only, see §8
+  escalationReason            String?              -- implemented (M4) — pharmacist's free-text explanation
+  escalationReasonCategory    EscalationReasonCategory? -- new in M4, see "Database changes (M4 additions)" below
+  resolvedAt                  DateTime?            -- implemented (M4)
   createdAt                   DateTime
   updatedAt                   DateTime
 
@@ -1255,31 +1297,36 @@ column's value).
 
 ### 16. API changes
 
-Illustrative endpoint sketch — **no routes added yet.** Follows the same
-ownership-scoping, Zod validation, and `requireRole` patterns already
-established in `apps/api/src/routes/medications.ts`.
+Follows the same ownership-scoping, Zod validation, and `requireRole`
+patterns already established in `apps/api/src/routes/medications.ts`.
 
 ```
-POST   /questions                     create (medicationId, category, questionText)
-GET    /questions                     patient's own list
-GET    /questions/:id                 detail (ownership-scoped, patient)
-POST   /questions/:id/clarify         submit answer to the one AI clarifying question
-POST   /questions/:id/request-pharmacist    → status PHARMACIST_REQUESTED
+POST   /questions                     create (medicationId, category, questionText) — implemented
+GET    /questions                     patient's own list — implemented
+GET    /questions/:id                 detail (ownership-scoped, patient) — implemented
 
-# Pharmacist-side (built in a later phase — see §19)
-GET    /pharmacist/queue              unclaimed + own claimed requests
-POST   /questions/:id/claim
-POST   /questions/:id/respond
-POST   /questions/:id/escalate
-POST   /questions/:id/resolve
+# Pharmacist-side (implemented, M4) — apps/api/src/routes/pharmacist-questions.ts
+GET    /pharmacist/queue              unclaimed (shared) + own claimed/resolved/escalated, with counts
+GET    /pharmacist/questions/:id      detail (ownership-scoped per §10, pharmacist)
+POST   /pharmacist/questions/:id/claim      atomic conditional update — see M4 section
+POST   /pharmacist/questions/:id/release    only the claiming pharmacist; only from PHARMACIST_IN_PROGRESS
+POST   /pharmacist/questions/:id/respond    only the claiming pharmacist; only from PHARMACIST_IN_PROGRESS
+POST   /pharmacist/questions/:id/escalate   only the claiming pharmacist; only from PHARMACIST_IN_PROGRESS; requires escalationReasonCategory + escalationReason
 ```
 
 `POST /questions` is where the structuring pipeline (§5) runs: it always
-executes Layer 1 (deterministic — implemented, includes disposition
-assignment) and, once AI is wired up, Layer 2 in sequence within the same
-request/response cycle for `GENERAL_EDUCATION`-disposition questions — no
-polling or background job is required for M3's scope, since each AI call
-is a single bounded operation, not a long-running task.
+executes Layer 1 (deterministic disposition assignment, Phase 2) and Layer
+2 (AI education, Phase 3) in sequence within the same request/response
+cycle — no polling or background job, since each AI call is a single
+bounded operation. As of M4, this same request also sets `status` to
+`PHARMACIST_REQUESTED` (with `pharmacistRequestedAt`) when the disposition
+is `PHARMACIST_REVIEW` or `PROVIDER_EVALUATION` — see "Why queue entry is
+automatic" in the M4 section below. There is no separate
+`POST /questions/:id/clarify` or `POST /questions/:id/request-pharmacist`
+endpoint — the illustrative sketch from earlier drafts of this document
+was superseded by Phase 3's single-call design (clarifying question is a
+non-blocking field of that one call, not a second request) and M4's
+automatic-queueing design (no manual "request pharmacist" step needed).
 
 ### 17. UI changes
 
@@ -1287,20 +1334,27 @@ is a single bounded operation, not a long-running task.
   — implemented in Phase 1.
 - **Ask a Question flow (implemented, replacing the M0/M1 placeholder):**
   medication picker (skipped if pre-selected) → category selector →
-  question text → review → submit → confirmation screen. As of Phase 2,
-  confirmation shows disposition-appropriate routing copy (§ patient
-  experience below) — **no AI clarifying question and no AI education
-  response exist yet**; those remain Phase 3.
+  question text → review → submit → confirmation screen. As of Phase 3,
+  the confirmation screen shows the same structured AI/routing content as
+  the question detail screen (below) — the AI call is synchronous within
+  the same create request, so the confirmation response already carries it.
 - **My Questions (implemented, parallel to "My Medications"):** list with
-  status badges. As of Phase 1 every item shows `Received`; disposition
-  itself isn't surfaced as a separate list-level badge yet (it's visible
-  on the detail screen).
+  status badges. As of M4, `PHARMACIST_REQUESTED`/`PHARMACIST_IN_PROGRESS`/
+  `PHARMACIST_RESOLVED`/`ESCALATED` are all reachable statuses shown in
+  that list, not just `RECEIVED`/`AI_ANSWERED`.
 - **Question detail (implemented):** structured record — question,
-  medication snapshot, category — plus, as of Phase 2, the
-  disposition-appropriate routing message. AI education and pharmacist
-  response sections remain future work.
-- **Pharmacist home (M1 placeholder):** still a placeholder — becomes the
-  entry to the queue in a later phase (§19), not part of M3 Phase 1 or 2.
+  medication snapshot, category — plus the disposition-appropriate routing
+  message (Phase 2), AI-generated general education or supplementary
+  context with an explicit AI disclosure (Phase 3), and, as of M4, a
+  clearly-separated pharmacist response section when one exists (never
+  merged with or presented as AI content — see "Patient/pharmacist
+  response separation" in the M4 section below).
+- **Pharmacist home → dashboard (implemented, M4):** replaces the M1
+  placeholder entirely. Shows New/In Review/Completed/Escalated counts (all
+  scoped to the authenticated pharmacist per §10) followed by a
+  prioritized queue list; selecting a queue item opens the pharmacist
+  review screen (claim, respond, escalate) described in the M4 section
+  below.
 
 **Patient-facing disposition messaging (Phase 2, implemented).** Shown on
 the confirmation screen after submitting and on the question detail
@@ -1358,19 +1412,27 @@ independently demonstrable:
    work. See "Deterministic Safety & Disposition Rule Engine" below for
    the implementation. Explicitly does not touch `status`, the pharmacist
    queue, or provider messaging — only `disposition` and its audit fields.
-3. **Not started — AI Service Layer integration.** `suggestCategory`,
-   `generateClarifyingQuestion`, `generateEducation`, and the optional
-   `refineDisposition` pass, all layered *on top of* the Phase 2
-   deterministic disposition (which stands unchanged if AI is unavailable
-   — see "AI-independent operation" below). Ships general education
-   end-to-end, gated to `GENERAL_EDUCATION`-disposition questions only.
-4. **Pharmacist request + queue.** `POST /questions/:id/request-pharmacist`,
-   `summarizeForPharmacist`, the real pharmacist queue/claim/respond flow
-   replacing the M1 placeholder pharmacist home.
-5. **Provider escalation + analytics.** Pharmacist-initiated escalation,
-   the `AnalyticsEvent` table and event emission from every phase above
-   (retrofit event emission into phases 1–4 as they ship, rather than
-   bolting it on at the end).
+3. **✅ Implemented — AI Service Layer integration (M3 Phase 3).**
+   `packages/ai-service`'s single typed `generateEducation` call
+   (structuring/`suggestedCategory`, at most one clarifying question,
+   education/context text, pharmacist summary), layered on top of the
+   Phase 2 deterministic disposition, which it can never change. Ships
+   general education end-to-end for `GENERAL_EDUCATION`, plus brief
+   context + a pharmacist summary for `PHARMACIST_REVIEW`/
+   `PROVIDER_EVALUATION`; never invoked for `URGENT_EMERGENCY`. The
+   optional `refineDisposition` pass (§6) remains not implemented.
+4. **✅ Implemented — Pharmacist queue + claim/respond/escalate (M4).**
+   Automatic queue entry at intake time (no separate "request pharmacist"
+   endpoint — superseded, see §16), atomic claim, respond (stored
+   separately from AI content), and pharmacist-initiated escalation with a
+   required structured reason, replacing the M1 placeholder pharmacist
+   home with a real dashboard. See the M4 section below for the full
+   design.
+5. **Not started — Analytics + AnalyticsEvent table.** Event emission
+   (§11) has not been retrofitted into phases 1–4 yet; M4's pharmacist
+   time metrics (claim/response/escalation latency) are computed on read
+   from existing timestamp fields rather than persisted as discrete
+   events — see "Pharmacist time metrics" in the M4 section below.
 
 Explicitly **not** part of this sequence: two-way secure messaging threads
 (`WAITING_FOR_PATIENT` stays a reserved-but-unbuilt status), adherence
@@ -1705,8 +1767,8 @@ aiProvider           String?          -- "mock" | "anthropic"
 aiPromptVersion      String?          -- packages/ai-service PROMPT_VERSION at call time
 aiResponseStatus     AiResponseStatus?
 aiUsage              Json?            -- {inputTokens, outputTokens}
-aiPharmacistSummary  Json?            -- {summaryText, isAiGenerated: true}; stored for a
-                                       -- future pharmacist queue, not surfaced anywhere yet
+aiPharmacistSummary  Json?            -- {summaryText, isAiGenerated: true}; stored in Phase 3,
+                                       -- surfaced to the pharmacist review screen as of M4
 ```
 
 The previously-reserved `aiEducationResponse`, `aiEducationGeneratedAt`,
@@ -1717,16 +1779,346 @@ for the first time in Phase 3. `clarifyingExchange` stores
 future two-way flow but is never written to in Phase 3 (§ "Why the
 clarifying question doesn't block").
 
+## M4 — Pharmacist Review & Concierge Workflow (implemented)
+
+**Status: implemented.** This is the human layer §7/§8/§10 described but
+deferred: a real pharmacist queue, atomic claim, a response stored
+separately from AI content, and pharmacist-initiated escalation. Explicitly
+**not** in M4: B2B organization management, payments, pharmacist
+compensation, EHR integration, telemedicine integration, provider
+messaging, or automated provider routing — those remain future milestones.
+
+### Why queue entry is automatic, not patient-initiated
+
+Earlier drafts of this document (§16) sketched a
+`POST /questions/:id/request-pharmacist` endpoint alongside automatic
+queueing. M4 implements only the automatic path: at question creation,
+immediately after the Phase 2 disposition and Phase 3 AI call, `POST
+/questions` sets `status = PHARMACIST_REQUESTED` and stamps
+`pharmacistRequestedAt` whenever `disposition` is `PHARMACIST_REVIEW` or
+`PROVIDER_EVALUATION` — in the same request/response cycle, no separate
+patient action required. Reasoning:
+
+- The deterministic disposition (Phase 2) already *is* the judgment that
+  this question needs a pharmacist — routing it to the queue automatically
+  is the direct, load-bearing consequence of that judgment, not a
+  separate feature. Requiring the patient to additionally tap "request
+  pharmacist review" would just be an extra step between "the system
+  determined this needs review" and "a pharmacist can see it."
+- `GENERAL_EDUCATION` questions are never queued — Phase 3's AI already
+  fully answered them (`status = AI_ANSWERED`); a manual "ask a
+  pharmacist anyway" path is explicitly out of M4's scope (the existing
+  `/ask-a-pharmacist` page stays a placeholder for that future
+  patient-initiated flow — see "Patient experience" below).
+- `URGENT_EMERGENCY` questions are never queued, automatically or
+  manually — per §9, that disposition is never handled by AI or
+  pharmacist at all; the patient is shown emergency guidance and nothing
+  else.
+
+This does change one Phase 3 behavior: previously `PHARMACIST_REVIEW`/
+`PROVIDER_EVALUATION` questions stayed at `status = RECEIVED` after AI ran
+(Phase 3 explicitly deferred any status transition, since no queue existed
+yet). As of M4 they immediately move to `PHARMACIST_REQUESTED` instead —
+this is exactly the deferred piece Phase 3's own documentation named, not
+a contradiction of it.
+
+### Pharmacist queue architecture
+
+`GET /pharmacist/queue` and `GET /pharmacist/questions/:id`
+(`apps/api/src/routes/pharmacist-questions.ts`) implement §10's
+ownership-scoping rule directly in the Prisma `where` clause — never as an
+application-level filter after a broader fetch:
+
+```
+where: {
+  OR: [
+    { status: "PHARMACIST_REQUESTED", pharmacistId: null },   // shared, unclaimed
+    { pharmacistId: request.user.id },                         // own, any status
+  ],
+}
+```
+
+The same query powers both the list endpoint and the dashboard's four
+counts (New = unclaimed `PHARMACIST_REQUESTED`; In Review = own
+`PHARMACIST_IN_PROGRESS`; Completed = own `PHARMACIST_RESOLVED`; Escalated
+= own `ESCALATED`) — the counts are simply that query's results grouped by
+status, so there is no risk of the dashboard and the queue list
+disagreeing about what's visible. A pharmacist can never see another
+pharmacist's claimed-but-not-yet-resolved question, and can never see any
+question outside this set — `GET /pharmacist/questions/:id` applies the
+identical `where` clause with `id` added, returning `404` (not `403`) for
+anything outside it, matching the patient-side convention exactly.
+
+**Prioritization (transparent, not automatic clinical triage).** The
+queue is sorted, not filtered: `PROVIDER_EVALUATION` before
+`PHARMACIST_REVIEW`, then oldest `createdAt` first within each group. This
+is presentation-layer ordering only — it does not change which questions
+are visible, does not assign risk scores, and does not introduce any new
+clinical judgment beyond the disposition that already exists. The
+dashboard UI labels this ordering explicitly (see "Pharmacist dashboard"
+below) so it's never a hidden behavior.
+
+### Claim concurrency
+
+`POST /pharmacist/questions/:id/claim` is a single, atomic, conditional
+database update — no read-then-write race window, no application-level
+locking, and no explicit multi-statement transaction needed, because one
+`UPDATE ... WHERE ...` statement *is* atomic at the database level:
+
+```typescript
+const result = await prisma.medicationQuestion.updateMany({
+  where: { id, status: "PHARMACIST_REQUESTED", pharmacistId: null },
+  data: { pharmacistId: request.user.id, pharmacistClaimedAt: new Date(), status: "PHARMACIST_IN_PROGRESS" },
+});
+if (result.count === 0) {
+  return reply.code(409).send({ error: "This question is no longer available to claim." });
+}
+```
+
+PostgreSQL evaluates the `WHERE` clause and applies the `SET` in one
+row-locked operation; if two pharmacists' claim requests race, the
+database serializes them, exactly one `UPDATE` matches a row (because the
+first one to commit changes `pharmacistId` away from `null`, so the
+second one's `WHERE pharmacistId: null` no longer matches), and
+`result.count` tells the two requests apart — the winner gets `count: 1`
+and a `200`, the loser gets `count: 0` and a `409 Conflict`. This is
+verified directly by a test that fires two claim requests concurrently
+(`Promise.all`) against the same question and asserts exactly one
+succeeds (see "Testing" below) — not just reasoned about.
+
+**Release.** `POST /pharmacist/questions/:id/release` is the same pattern
+in reverse: `updateMany({ where: { id, pharmacistId: request.user.id,
+status: "PHARMACIST_IN_PROGRESS" }, data: { pharmacistId: null,
+pharmacistClaimedAt: null, status: "PHARMACIST_REQUESTED" } })` — only the
+claiming pharmacist can release, and only before responding/escalating.
+
+### Pharmacist question view
+
+`GET /pharmacist/questions/:id` returns exactly: patient question text,
+category (patient-selected) and `aiSuggestedCategory`, medication
+snapshot (name/strength/dosage form/directions/frequency/route — the
+point-in-time snapshot, not a live medication lookup), the
+`otherMedicationsSnapshot` when the category captured one,
+`disposition`/`safetyRuleSetVersion`/`dispositionRuleIds`, the AI-generated
+`aiPharmacistSummary` (labeled AI-generated), submission/claim timestamps,
+and current status. It deliberately does **not** return: the patient's
+name, email, date of birth, other medications outside the captured
+snapshot, or any other question the patient has asked — the pharmacist's
+view is scoped to exactly the one question record, matching §10's
+minimum-necessary-access principle. (The patient's identity is
+intentionally never exposed to the pharmacist in M4 — there is no
+patient-facing pharmacist-messaging feature yet, so there is no
+legitimate need for the pharmacist to see who's asking.)
+
+### Patient/pharmacist response separation
+
+`pharmacistResponse` (written only by `POST
+/pharmacist/questions/:id/respond`, only by the claiming pharmacist, only
+from `PHARMACIST_IN_PROGRESS`) is a distinct database column from
+`aiEducationResponse` (written only by the Phase 3 AI pipeline at question
+creation) — there is no code path that copies one into the other, and no
+endpoint that lets AI-generated content become `pharmacistResponse`.
+`POST /pharmacist/questions/:id/respond` requires a non-empty
+`responseText` from the authenticated pharmacist and writes it verbatim;
+it has no AI/LLM call in its handler at all. The patient-facing UI (see
+"Patient experience" below) renders the two under visually distinct
+headings — "General information from DosePrepped" (AI, with its
+disclosure) vs. "Response from your pharmacist" (human) — and never
+merges or relabels one as the other.
+
+### Escalation behavior
+
+`POST /pharmacist/questions/:id/escalate` requires both
+`escalationReasonCategory` (a closed enum — see "Database changes (M4
+additions)" below) and a non-empty `escalationReason` (free text), only
+from the claiming pharmacist, only from `PHARMACIST_IN_PROGRESS`. On
+success: `status → ESCALATED`, `escalatedAt` stamped. The original
+question, its AI content, and (if any partial notes existed) the
+pharmacist's context are all preserved unchanged — escalating never
+deletes or overwrites anything, it only adds the escalation record. Per
+§8, this **does not** send any message to a provider or create any
+provider-facing record — DosePrepped has no provider accounts or
+messaging in M4; the patient is told to contact their own healthcare
+provider (see "Patient experience" below), and the provider destination
+remains an integration placeholder for a future telemedicine milestone,
+exactly as this document has said since §8 was first written.
+
+### Pharmacist authorization
+
+Every rule the prompt requires is enforced server-side, in
+`apps/api/src/routes/pharmacist-questions.ts`, never trusted from the
+client:
+
+- **Cannot view arbitrary patient records or another pharmacist's private
+  (claimed) records:** the `where` clause in "Pharmacist queue
+  architecture" above is the only way any pharmacist route reads a
+  question — there is no route that accepts a bare `id` without that
+  scoping.
+- **Cannot modify patient medications:** no pharmacist route touches
+  `PatientMedication` at all; `apps/api/src/routes/medications.ts` remains
+  gated to `requireRole(Role.PATIENT)` with patient-ownership scoping,
+  unchanged.
+- **Cannot modify the deterministic disposition or AI safety
+  classification:** no pharmacist route's Zod input schema or Prisma
+  `data` object includes `disposition`, `dispositionSource`,
+  `dispositionRuleIds`, or `safetyRuleSetVersion` — those columns are
+  write-once, set only by `POST /questions` (patient-side), and no M4
+  route can reach them even if a malicious client tried to smuggle those
+  fields into a request body (Zod strips unknown keys).
+- **Cannot impersonate another pharmacist:** every write uses
+  `request.user.id` from the authenticated session, never a
+  client-supplied pharmacist ID — there is no field in any pharmacist
+  route's request body that names a pharmacist.
+- **May only access questions within their authorized workflow:** the
+  claim/release/respond/escalate mutations additionally require
+  `pharmacistId === request.user.id` in their `WHERE` clause (not just
+  `GET`), so even a pharmacist who somehow knew another question's ID
+  cannot respond to or escalate a question they haven't claimed.
+
+### AI's role in the pharmacist workflow
+
+The Phase 3 `aiPharmacistSummary` (already generated and stored at
+question-creation time for `PHARMACIST_REVIEW`/`PROVIDER_EVALUATION`
+questions) is surfaced read-only on the pharmacist review screen as an
+assistive starting point — never editable in place, never the response
+itself. No new AI model or operation is introduced in M4. The
+`POST /pharmacist/questions/:id/respond` handler has no AI/LLM call
+anywhere in it — there is no mechanism, automatic or otherwise, by which
+AI-generated text could become `pharmacistResponse`; only an authenticated
+pharmacist's own request body can. The pharmacist remains professionally
+responsible for whatever they submit as their response — the AI summary
+is a tool, not a co-author of record.
+
+### Pharmacist time metrics
+
+Computed on read from existing timestamp fields, not persisted as
+separate events (the `AnalyticsEvent` table remains not-yet-built, §19
+step 5):
+
+```
+submission → claim:      pharmacistClaimedAt   - createdAt
+claim → response:         pharmacistRespondedAt - pharmacistClaimedAt
+submission → response:      pharmacistRespondedAt - createdAt
+submission → escalation:      escalatedAt - createdAt
+```
+
+These are simple deltas of fields already written by the claim/respond/
+escalate mutations — no new columns were needed for this. Nothing in M4
+computes billing, compensation, or any per-pharmacist aggregate; the raw
+timestamps are the deliverable, aggregation is future unit-economics work
+the prompt explicitly says not to build yet.
+
+### Patient experience
+
+- **Awaiting pharmacist review** (`status = PHARMACIST_REQUESTED` or
+  `PHARMACIST_IN_PROGRESS`): "Your question has been sent for pharmacist
+  review." No response-time promise — there is no configured SLA in this
+  system, so none is claimed.
+- **Pharmacist responded** (`status = PHARMACIST_RESOLVED`): a
+  "Pharmacist Response" section, visually and textually distinct from any
+  AI content, showing `pharmacistResponse` and `pharmacistRespondedAt`.
+  Per the privacy design in "Pharmacist question view" above (the
+  pharmacist never sees the patient's identity), the reverse is also kept
+  minimal: the patient sees that a licensed DosePrepped pharmacist
+  responded, not an individually-identifying pharmacist profile — there
+  is no pharmacist-facing public profile/bio feature in this codebase to
+  link to.
+- **Escalated** (`status = ESCALATED`): "Your question has been escalated
+  to your healthcare provider." — phrased as a routing outcome, not a
+  claim that a provider has reviewed anything, matching the same
+  discipline as every other disposition message in this document.
+
+### Pharmacist dashboard
+
+Real dashboard (`apps/patient/src/app/pharmacist/`) replacing the M1
+placeholder: four counts (New/In Review/Completed/Escalated, from the
+query in "Pharmacist queue architecture") above a queue list sorted per
+"Prioritization" above, each item linking to the claim/respond/escalate
+review screen. Mobile-friendly, matching the same design system as the
+patient app (shared `styles.css`/design tokens) rather than a separate
+visual language.
+
+### Concurrency testing
+
+Required and implemented as a dedicated test: two simulated pharmacists
+issue `POST /pharmacist/questions/:id/claim` for the same question via
+`Promise.all` (genuinely concurrent from the test's perspective, both
+requests in flight before either resolves); the test asserts exactly one
+response is `200` (with that pharmacist's ID as `pharmacistId` on the
+resulting record) and the other is `409`, and that a follow-up fetch of
+the question shows only the winning pharmacist's ID, never both, never
+neither, and never a corrupted mixed state. See "Testing" in the
+completion report for the full list.
+
+### Database changes (M4 additions)
+
+Exactly one new enum and one new field — every other pharmacist/
+escalation column M4 populates was already reserved on
+`MedicationQuestion` since Phase 1 (see the updated §15 sketch above):
+
+```
+enum EscalationReasonCategory {
+  WORSENING_OR_SEVERE_SYMPTOM
+  POSSIBLE_ADVERSE_REACTION
+  MEDICATION_ERROR
+  BEYOND_PHARMACIST_SCOPE
+  PATIENT_REQUESTED_PROVIDER
+  OTHER
+}
+```
+
+```
+escalationReasonCategory  EscalationReasonCategory?   -- required by the API on escalate; nullable in
+                                                        -- the schema only because it's null for every
+                                                        -- question that hasn't been escalated
+```
+
+The existing `escalationReason` field (String, reserved since Phase 1)
+continues to hold the pharmacist's free-text explanation; together the two
+fields satisfy "a structured escalation reason" — a closed, auditable
+category plus a human-readable explanation, rather than either alone.
+
+### Limitations — requires clinical, legal, and operational review before production use
+
+- **Synthetic pharmacist accounts only.** No real pharmacist licensure
+  verification, no real pharmacist accounts, exactly as required.
+- **No SLA enforcement.** "Awaiting pharmacist review" has no timer, no
+  escalation-on-timeout, and no staffing/capacity model — if the queue
+  grows faster than pharmacists can claim from it, nothing in this system
+  currently surfaces that as an operational alert. That's a real gap for
+  an actual pilot, flagged here rather than silently assumed away.
+- **No secure two-way messaging.** If a pharmacist needs clarification
+  from the patient before responding, there is no mechanism for that in
+  M4 (`WAITING_FOR_PATIENT` remains reserved-but-unbuilt) — the
+  pharmacist must either respond with what they have or escalate.
+  Documented as a known workflow gap, not solved here.
+- **No pharmacist licensure/state-scoping logic.** Any authenticated
+  `PHARMACIST`-role account can claim any queued question regardless of
+  the patient's state — the original architecture's §13 pharmacist
+  licensure risk is unresolved, not addressed by M4.
+- **Prioritization is presentation-only**, as stated above — it is not a
+  clinical triage system and must not be represented as one to real
+  pharmacists in a pilot.
+- **No audit-log table.** Who-claimed/who-responded/who-escalated is
+  fully reconstructable from `MedicationQuestion`'s own columns (single
+  actor per question, per "Auditability" above), but there is no
+  append-only audit log independent of the mutable row itself — a gap
+  flagged by the original architecture's `audit_log` table (§5, §8) that
+  M4 does not close.
+
 ---
 
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
-& disposition), and M3 Phase 3 (AI-assisted medication education) are
-implemented, tested, and merged. Every `GENERAL_EDUCATION`/
-`PHARMACIST_REVIEW`/`PROVIDER_EVALUATION` question now attempts a single,
-typed, validated AI education call via `packages/ai-service` after the
-Phase 2 deterministic disposition is assigned; `URGENT_EMERGENCY`
-questions never invoke AI. No pharmacist queue, no provider messaging, no
-multi-turn conversation exists anywhere in this codebase. Awaiting
-direction on the next milestone (§19 step 4: pharmacist request + queue).
+& disposition), M3 Phase 3 (AI-assisted medication education), and M4
+(pharmacist review & concierge workflow) are implemented, tested, and
+merged. A question now flows end-to-end through deterministic safety →
+(non-emergency, non-fully-AI-answered) AI education → automatic pharmacist
+queueing → atomic claim → a human pharmacist response or a structured
+escalation, with no code path anywhere that lets AI-generated content
+become an official pharmacist response or change a deterministic
+disposition. Still not built: B2B organizations, payments, pharmacist
+compensation, EHR integration, telemedicine/provider messaging, secure
+two-way patient/pharmacist messaging, and the `AnalyticsEvent` table.
+Awaiting direction on the next milestone.

@@ -39,6 +39,7 @@ const listQuerySchema = z.object({
 interface MedicationSnapshot {
   name: string;
   strength: string;
+  dosageForm: string;
   directions: string;
   frequency: string;
   route: string;
@@ -100,6 +101,9 @@ function serializeQuestion(question: MedicationQuestion) {
     clarifyingQuestion: clarifyingExchange?.question ?? null,
     status: question.status,
     pharmacistResponse: question.pharmacistResponse,
+    pharmacistRespondedAt: question.pharmacistRespondedAt
+      ? question.pharmacistRespondedAt.toISOString()
+      : null,
     escalatedAt: question.escalatedAt ? question.escalatedAt.toISOString() : null,
     escalationReason: question.escalationReason,
     resolvedAt: question.resolvedAt ? question.resolvedAt.toISOString() : null,
@@ -160,6 +164,7 @@ export async function questionRoutes(app: FastifyInstance, opts: QuestionRoutesO
       const medicationSnapshot: MedicationSnapshot = {
         name: medication.name,
         strength: medication.strength,
+        dosageForm: medication.dosageForm,
         directions: medication.directions,
         frequency: medication.frequency,
         route: medication.route,
@@ -244,6 +249,20 @@ export async function questionRoutes(app: FastifyInstance, opts: QuestionRoutesO
             ? AiResponseStatus.FAILED
             : AiResponseStatus.SKIPPED;
 
+      // M4 — automatic pharmacist queueing. A question whose deterministic
+      // disposition needs human review enters the shared pharmacist queue
+      // immediately, in this same request, regardless of whether the AI
+      // step above succeeded or failed — the pharmacist still needs to see
+      // it either way. See docs/doseprepped/ARCHITECTURE.md "Why queue
+      // entry is automatic, not patient-initiated". GENERAL_EDUCATION
+      // (already fully AI-answered) and URGENT_EMERGENCY (never handled by
+      // AI or pharmacist) are never queued.
+      let pharmacistRequestedAt: Date | undefined;
+      if (disposition === "PHARMACIST_REVIEW" || disposition === "PROVIDER_EVALUATION") {
+        status = QuestionStatus.PHARMACIST_REQUESTED;
+        pharmacistRequestedAt = new Date();
+      }
+
       const question = await prisma.medicationQuestion.create({
         data: {
           patientId: request.user!.id,
@@ -268,6 +287,7 @@ export async function questionRoutes(app: FastifyInstance, opts: QuestionRoutesO
           aiPharmacistSummary,
           aiResponseStatus,
           status,
+          pharmacistRequestedAt,
         },
       });
 

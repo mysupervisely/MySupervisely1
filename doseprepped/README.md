@@ -1,33 +1,33 @@
-# DosePrepped — M0–M2 + M3 Phase 1–3 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education)
+# DosePrepped — M0–M4 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow)
 
 DosePrepped is a digital medication-support layer: it helps patients
-understand their medications and, eventually, connect with licensed
-pharmacists (and their own provider when appropriate) when they have
-medication-related questions.
+understand their medications and connect with licensed pharmacists (and
+their own provider when appropriate) when they have medication-related
+questions.
 
-> **Status: through M3 Phase 3 (AI-Assisted Medication Education).** Real
+> **Status: through M4 (Pharmacist Review & Concierge Workflow).** Real
 > accounts, login/logout, password hashing, sessions, server-enforced
 > role-based access control (patient / pharmacist / admin), a full patient
 > medication list, structured medication-question intake, a deterministic
-> AI-independent safety/disposition routing layer, and a single, typed,
-> validated AI education call gated behind that disposition are
-> implemented. Every submitted question is first routed to one of four
-> dispositions by explicit, versioned, non-AI rules; for three of the four
-> (everything except an urgent/emergency routing), a bounded AI call may
-> then generate general educational content or brief supplementary
-> context — **the AI can never see or change the disposition it was given,
-> and is never called at all for urgent/emergency questions.** DosePrepped
-> is not a chatbot: there is no chat history, no multi-turn conversation,
-> and at most one AI call per question, ever. No pharmacist reviews
-> questions yet, and there is still no authoritative medication database,
-> no OCR, no pharmacist messaging, no provider escalation workflow, no
-> payments, and no comprehensive clinical decision support. See
+> AI-independent safety/disposition routing layer, a single typed AI
+> education call gated behind that disposition, and a real pharmacist
+> queue/claim/respond/escalate workflow are all implemented. A question
+> that needs human judgment (`PHARMACIST_REVIEW`/`PROVIDER_EVALUATION`
+> disposition) is automatically queued for pharmacist review; a pharmacist
+> claims it via a concurrency-safe atomic operation, writes their own
+> response (stored completely separately from any AI content — the AI can
+> never become "the pharmacist's answer"), or escalates it with a required
+> structured reason. DosePrepped is still not a chatbot: no chat history,
+> no multi-turn AI conversation, and no automated pharmacist response —
+> only an authenticated pharmacist can create one. There is still no
+> authoritative medication database, no OCR, no provider messaging/EHR
+> integration, no B2B organizations, no payments, and no comprehensive
+> clinical decision support. See
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
-> for the full product spec, the M3 "digital medication-support layer"
-> architecture, and the milestone plan. Ask a Pharmacist and the pharmacist
-> /admin dashboards remain explicit placeholders.
+> for the full product spec, architecture, and milestone plan. The admin
+> dashboard remains an explicit placeholder.
 
-## What's in M0–M2 + M3 Phase 1–3
+## What's in M0–M4
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -73,29 +73,46 @@ medication-related questions.
   or invalid output fails safe to the existing routing message, never a
   fabricated answer. See "AI-assisted medication education architecture"
   below.
+- **Pharmacist review & concierge workflow (M4):** a question whose
+  disposition is `PHARMACIST_REVIEW` or `PROVIDER_EVALUATION` is
+  automatically queued (`status = PHARMACIST_REQUESTED`) the moment it's
+  created — no separate "request a pharmacist" step. A pharmacist claims
+  it via a single atomic, race-safe database update (two pharmacists
+  racing for the same question: exactly one gets it, the other gets a
+  clean `409`), sees a minimum-necessary view (never the patient's
+  identity), writes their own response (stored in a column entirely
+  separate from any AI content — there is no code path by which AI output
+  can become a pharmacist response), or escalates with a required
+  structured reason. See "Pharmacist review & concierge workflow
+  architecture" below.
 - A minimal Fastify backend API: `/health` (DB connectivity), `/auth/*`
   (signup/login/logout/me), `/medications*` (CRUD + archive + reference
-  search), `/questions*` (create/list/detail), and one role-gated
-  placeholder ping route per role (`/patient/ping`, `/pharmacist/ping`,
-  `/admin/ping`).
+  search), `/questions*` (create/list/detail),
+  `/pharmacist/queue`+`/pharmacist/questions/*` (queue, claim, release,
+  respond, escalate), and one role-gated placeholder ping route per role.
 - A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
   `MedicationReference`, and `MedicationQuestion`, seeded with **synthetic
-  demo data only**.
+  demo data only** (including two synthetic pharmacist accounts so the
+  shared queue has more than one demo reviewer).
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 68 auth/RBAC/medication/question/disposition/AI-education
-  integration tests against a real (disposable) test database, plus 16
-  standalone unit tests for the safety-rules engine and 17 for the
-  ai-service package (validation + mock provider) — 106 tests total. No
-  test makes a real call to any AI vendor.
+  including 86 auth/RBAC/medication/question/disposition/AI-education/
+  pharmacist-workflow integration tests (one of them a genuine concurrent
+  two-pharmacist claim race) against a real (disposable) test database,
+  plus 16 standalone unit tests for the safety-rules engine and 17 for the
+  ai-service package — 124 tests total. No test makes a real call to any
+  AI vendor.
 
-Not in scope yet (see the architecture doc for when these land): a
-pharmacist queue/dashboard/messaging, provider messaging/EHR integration,
-an authoritative medication reference database, OCR/medication scanning,
-payments, account deletion, consent tracking, drug interaction checking,
-and any comprehensive clinical decision support. Neither the Phase 2 rule
-engine nor the Phase 3 AI layer diagnoses, recommends treatment, or
-evaluates whether a medication is "safe" for a given patient — both are
-routing/education aids, not clinical decision-makers.
+Not in scope yet (see the architecture doc for when these land): provider
+messaging/EHR integration, secure two-way patient/pharmacist messaging, an
+authoritative medication reference database, OCR/medication scanning,
+payments, pharmacist compensation, B2B organizations, telemedicine
+integration, account deletion, consent tracking, drug interaction
+checking, and any comprehensive clinical decision support. Neither the
+Phase 2 rule engine nor the Phase 3 AI layer diagnoses, recommends
+treatment, or evaluates whether a medication is "safe" for a given
+patient — both are routing/education aids, and the M4 pharmacist workflow
+is where real clinical judgment enters the system, by a licensed human,
+never automated.
 
 ## Project structure
 
@@ -163,7 +180,7 @@ pnpm db:migrate      # apply migrations to doseprepped_dev locally
 pnpm db:seed          # load synthetic demo accounts
 ```
 
-The seed creates four synthetic accounts, all with the password
+The seed creates five synthetic accounts, all with the password
 **`DosepreppedDemo!1`** (a publicly-documented local-dev-only demo
 password — not a secret, never use it for anything real):
 
@@ -172,6 +189,7 @@ password — not a secret, never use it for anything real):
 | `patient-a@demo.doseprepped.dev` | Patient (Lisinopril + Metformin) |
 | `patient-b@demo.doseprepped.dev` | Patient (Semaglutide + Ondansetron) |
 | `pharmacist@demo.doseprepped.dev` | Pharmacist |
+| `pharmacist-b@demo.doseprepped.dev` | Pharmacist (a second reviewer, so the shared queue has more than one) |
 | `admin@demo.doseprepped.dev` | Admin |
 
 None of this is real patient data. Public sign-up (via the UI or
@@ -330,16 +348,16 @@ environment, and `.env*` files are git-ignored.
 ## Question data model
 
 Implements `MedicationQuestion` per `docs/doseprepped/ARCHITECTURE.md` "M3
-— The Digital Medication-Support Layer" §2/§15. M3 Phase 1–2 only ever
-write a subset of its fields — the rest exist now so later phases (AI
-education, pharmacist review, provider escalation) don't require a schema
-change:
+— The Digital Medication-Support Layer" §2/§15. As of M4, essentially
+every field on this model is populated by a real code path — see each
+bullet below for which milestone wired it up:
 
 - **Ownership**: `patientId` (owner) and `medicationId` (the medication
   it's about), both FKs, both enforced server-side exactly like
   `PatientMedication`.
 - **Medication snapshot** (`medicationSnapshot`, JSON): `{name, strength,
-  directions, frequency, route}` captured from the live `PatientMedication`
+  dosageForm, directions, frequency, route}` (`dosageForm` added in M4 for
+  the pharmacist review screen) captured from the live `PatientMedication`
   row **at the moment the question is created**, and never re-derived on
   read. If the patient later edits that medication (M2
   `PATCH /medications/:id`), this question's snapshot — and therefore its
@@ -352,16 +370,17 @@ change:
   `null`, per the minimum-necessary-data principle.
 - **Category** (`category`): patient-selected, one of `GENERAL_INFO`,
   `ADMINISTRATION`, `MISSED_DOSE`, `SIDE_EFFECT`, `DRUG_INTERACTION`,
-  `STORAGE`, `ADHERENCE`, `COST_ACCESS`, `OTHER`. `aiSuggestedCategory`
-  exists for a later phase and is always `null` today.
+  `STORAGE`, `ADHERENCE`, `COST_ACCESS`, `OTHER`. `aiSuggestedCategory` is
+  populated by `packages/ai-service` (Phase 3) and is always advisory,
+  never overriding the patient's own selection.
 - **Question text** (`questionText`): the patient's own words, required,
   length-capped.
-- **Status** (`status`): defaults to `RECEIVED` on creation and is never
-  transitioned further by any code path in Phase 1. Every other status
-  value (`AI_PROCESSING`, `AI_ANSWERED`, `PHARMACIST_REQUESTED`,
-  `PHARMACIST_IN_PROGRESS`, `WAITING_FOR_PATIENT`, `PHARMACIST_RESOLVED`,
-  `ESCALATED`, `CLOSED`) is defined in the schema but unreachable until a
-  later phase implements the code path that sets it.
+- **Status** (`status`): defaults to `RECEIVED` on creation.
+  `AI_ANSWERED` (Phase 3, `GENERAL_EDUCATION` only) and
+  `PHARMACIST_REQUESTED`/`PHARMACIST_IN_PROGRESS`/`PHARMACIST_RESOLVED`/
+  `ESCALATED` (M4) are all reachable as of this milestone.
+  `WAITING_FOR_PATIENT` and `CLOSED` remain reserved — no two-way
+  patient/pharmacist thread UI exists yet.
 - **Disposition** (`disposition`, `dispositionSource`,
   `dispositionRuleIds`, `safetyRuleSetVersion`, `dispositionAssignedAt`):
   assigned deterministically at creation time by `packages/safety-rules`
@@ -372,23 +391,29 @@ change:
   rule(s), if any, fired; empty means the category baseline applied.
   `safetyRuleSetVersion` pins the exact rule set that produced the
   disposition, so a later rule change never silently reinterprets a past
-  question.
+  question. **No pharmacist route can write to any of these fields** —
+  see "Pharmacist authorization" below.
 - **AI education fields** (`aiEducationResponse`, `aiEducationGeneratedAt`,
   `aiModelVersion`, `aiProvider`, `aiPromptVersion`, `aiResponseStatus`,
   `aiUsage`, `aiPharmacistSummary`, `clarifyingExchange`,
   `aiSuggestedCategory`): populated by `packages/ai-service` as of M3
-  Phase 3, gated by disposition (see below). `aiProvider`,
-  `aiPromptVersion`, `aiModelVersion`, and `aiUsage` are audit-only and
-  never returned by `GET /questions`/`GET /questions/:id` — only
-  `aiEducationResponse`, `aiEducationGeneratedAt`, `aiResponseStatus`, and
-  a derived `clarifyingQuestion` string reach the patient-facing API
-  response.
-- **Pharmacist/escalation fields** (`pharmacistId`, `pharmacistResponse`,
-  `escalatedAt`, `escalationReason`, etc.): present in the schema and in
-  every API response (always `null`), but nothing in this codebase writes
-  to them yet — no pharmacist queue exists. This is intentional: it's the
-  "clean integration point" for the next phase, not a placeholder answer
-  that could be mistaken for real guidance.
+  Phase 3, gated by disposition. `aiProvider`, `aiPromptVersion`,
+  `aiModelVersion`, and `aiUsage` are audit-only and never returned by
+  `GET /questions`/`GET /questions/:id` — only `aiEducationResponse`,
+  `aiEducationGeneratedAt`, `aiResponseStatus`, and a derived
+  `clarifyingQuestion` string reach the patient-facing API response.
+  `aiPharmacistSummary` is likewise withheld from the patient but *is*
+  surfaced (read-only, assistive) on the pharmacist review screen as of
+  M4.
+- **Pharmacist/escalation fields** (`pharmacistId`, `pharmacistRequestedAt`,
+  `pharmacistClaimedAt`, `pharmacistResponse`, `pharmacistRespondedAt`,
+  `escalatedAt`, `escalationReason`, `escalationReasonCategory`,
+  `resolvedAt`): populated by the M4 pharmacist workflow —
+  `pharmacistRequestedAt`/`status=PHARMACIST_REQUESTED` at question
+  creation (automatic, see below), the rest by
+  `/pharmacist/questions/:id/claim`, `/respond`, and `/escalate`. Only
+  `escalationReasonCategory` is new in M4 — every other field here was
+  reserved on the schema since Phase 1.
 
 ## Deterministic safety & disposition architecture
 
@@ -513,6 +538,84 @@ Full rationale lives in `docs/doseprepped/ARCHITECTURE.md` under "Phase 3
   caching is explicitly not implemented. No BAA exists with any AI vendor
   here — this remains synthetic-data-only.
 
+## Pharmacist review & concierge workflow architecture
+
+Full rationale lives in `docs/doseprepped/ARCHITECTURE.md` under "M4 —
+Pharmacist Review & Concierge Workflow" — this is a summary.
+
+- **Automatic queueing, not patient-initiated.** `POST /questions` sets
+  `status = PHARMACIST_REQUESTED` (and stamps `pharmacistRequestedAt`)
+  directly whenever the Phase 2 disposition is `PHARMACIST_REVIEW` or
+  `PROVIDER_EVALUATION` — in the same request that creates the question.
+  There is no separate "request pharmacist review" endpoint.
+  `GENERAL_EDUCATION` questions are never queued (AI already fully
+  answered them); `URGENT_EMERGENCY` questions are never queued either
+  (never handled by AI or pharmacist, full stop).
+- **Queue visibility (`apps/api/src/routes/pharmacist-questions.ts`)**: a
+  pharmacist sees exactly the union of the shared unclaimed pool
+  (`status = PHARMACIST_REQUESTED`, `pharmacistId = null`) and their own
+  claimed questions (`pharmacistId = request.user.id`, any status) — this
+  `where` clause is the *only* way any pharmacist route reads a question,
+  enforced identically for the list endpoint, the detail endpoint, and
+  every mutation. A question outside that scope returns `404`, matching
+  the patient-side ownership pattern exactly. The four dashboard counts
+  (New/In Review/Completed/Escalated) are grouped from that same query, so
+  the dashboard and the queue list can never disagree.
+- **Claim concurrency — genuinely tested, not just reasoned about.**
+  `POST /pharmacist/questions/:id/claim` is a single atomic
+  `updateMany({ where: { id, status: "PHARMACIST_REQUESTED",
+  pharmacistId: null }, data: {...} })`. PostgreSQL evaluates the `WHERE`
+  and applies the `SET` as one row-locked operation, so when two
+  pharmacists race for the same question, exactly one `UPDATE` matches;
+  the winner gets `200`, the loser gets a clean `409 Conflict`. A
+  dedicated test fires two claim requests concurrently via `Promise.all`
+  against the same question and asserts exactly one succeeds — verified
+  behavior, not just an atomic-looking query.
+- **Patient/pharmacist response separation.** `pharmacistResponse` is a
+  distinct database column, written only by
+  `POST /pharmacist/questions/:id/respond` (only by the claiming
+  pharmacist, only while `PHARMACIST_IN_PROGRESS`), with **no AI/LLM call
+  anywhere in that handler** — there is no code path by which the Phase 3
+  `aiEducationResponse`/`aiPharmacistSummary` content could become the
+  official pharmacist response. The patient-facing UI renders the two
+  under visually and textually distinct headings ("General information
+  from DosePrepped" vs. "Pharmacist Response") and never merges them.
+- **Escalation.** `POST /pharmacist/questions/:id/escalate` requires both
+  a closed-taxonomy `escalationReasonCategory` (see `EscalationReasonCategory`
+  in the schema) and a non-empty free-text `escalationReason` — a
+  "structured reason" is a category plus a human explanation, not either
+  alone. Only reachable from a question the pharmacist has already
+  claimed. Sets `status = ESCALATED`; does not send any message to a
+  provider (DosePrepped has no provider accounts/messaging yet) — the
+  patient is told to contact their own healthcare provider.
+- **Authorization**, all enforced server-side: a pharmacist can never view
+  a question outside the scope above, can never touch
+  `PatientMedication` at all, can never write to `disposition`/
+  `dispositionSource`/`dispositionRuleIds`/`safetyRuleSetVersion` (no
+  pharmacist route's Zod schema or Prisma `data` object includes them —
+  Zod strips any smuggled extra field), can never act as another
+  pharmacist (every write uses `request.user.id` from the session, never a
+  client-supplied ID), and can only claim/respond/escalate/release a
+  question that is unclaimed or already theirs.
+- **AI's role stays assistive.** The Phase 3 `aiPharmacistSummary` is
+  shown read-only on the pharmacist review screen as a starting point — no
+  new AI model or operation is introduced in M4, and nothing lets AI
+  content flow into `pharmacistResponse` automatically.
+- **Time metrics computed on read**, not stored as separate events:
+  submission→claim, claim→response, submission→response, and
+  submission→escalation are all simple deltas of the timestamp fields
+  above (`createdAt`, `pharmacistClaimedAt`, `pharmacistRespondedAt`,
+  `escalatedAt`). No billing/compensation calculation — explicitly out of
+  scope for M4.
+- **Current limitations.** Synthetic pharmacist accounts only, no real
+  licensure verification; no SLA enforcement or queue-depth alerting; no
+  secure two-way patient/pharmacist messaging (`WAITING_FOR_PATIENT`
+  remains reserved-but-unbuilt); no pharmacist state/licensure scoping
+  (any pharmacist can claim any queued question); queue prioritization
+  (provider-evaluation before pharmacist-review, then oldest-first) is
+  presentation-only, not a clinical triage system; no independent
+  append-only audit log beyond `MedicationQuestion`'s own columns.
+
 ## Security notes for this milestone
 
 - No real patient data anywhere in this repo or its seed data — synthetic
@@ -528,15 +631,22 @@ Full rationale lives in `docs/doseprepped/ARCHITECTURE.md` under "Phase 3
   names or question content); Fastify's request logging records
   method/URL/status only, never request bodies, so medication details and
   question text are never written to logs.
-- No pharmacist queue exists and no simulated pharmacist response is ever
-  generated — every pharmacist-related field stays `null` until a later
-  phase implements that processing. Disposition assignment (M3 Phase 2)
-  and AI education (M3 Phase 3) are both real, implemented computations,
-  but neither is clinical guidance: disposition is a deterministic,
-  non-AI routing decision, and AI content is schema/guardrail-validated,
-  fails safe on any doubt, and is always labeled AI-generated with an
-  explicit "not a diagnosis or personalized medical advice" disclosure —
-  see "AI-assisted medication education architecture" above.
+- Disposition assignment (M3 Phase 2), AI education (M3 Phase 3), and the
+  pharmacist workflow (M4) are all real, implemented computations, but
+  only one of them is clinical judgment: disposition is a deterministic,
+  non-AI routing decision; AI content is schema/guardrail-validated, fails
+  safe on any doubt, and is always labeled AI-generated with an explicit
+  "not a diagnosis or personalized medical advice" disclosure; and any
+  actual patient-specific counseling comes from a real, authenticated,
+  licensed (in the demo/synthetic sense) pharmacist writing their own
+  response — never generated or auto-sent by the application. See
+  "AI-assisted medication education architecture" and "Pharmacist review &
+  concierge workflow architecture" above.
+- Pharmacist and patient question/response content is never written to
+  application logs, consistent with the existing "don't log medication
+  content" precedent — the pharmacist claim/respond/escalate handlers log
+  nothing beyond what Fastify's standard method/URL/status request logging
+  already captures.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

@@ -92,8 +92,10 @@ describe("M3 Phase 3 — AI-assisted medication education", () => {
     expect(question.disposition).toBe("PHARMACIST_REVIEW");
     expect(question.aiResponseStatus).toBe("SUCCESS");
     // status must NOT become AI_ANSWERED for a non-GENERAL_EDUCATION
-    // disposition — AI supplements, never resolves, this tier.
-    expect(question.status).toBe("RECEIVED");
+    // disposition — AI supplements, never resolves, this tier. As of M4,
+    // PHARMACIST_REVIEW/PROVIDER_EVALUATION questions are automatically
+    // queued for pharmacist review instead.
+    expect(question.status).toBe("PHARMACIST_REQUESTED");
 
     await app.close();
   });
@@ -115,7 +117,7 @@ describe("M3 Phase 3 — AI-assisted medication education", () => {
     const { question } = response.json();
     expect(question.disposition).toBe("PROVIDER_EVALUATION");
     expect(question.aiResponseStatus).toBe("SUCCESS");
-    expect(question.status).toBe("RECEIVED");
+    expect(question.status).toBe("PHARMACIST_REQUESTED");
 
     await app.close();
   });

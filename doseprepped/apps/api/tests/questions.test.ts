@@ -40,7 +40,9 @@ describe("POST /questions", () => {
     const body = response.json();
     expect(body.question.medicationId).toBe(medication.id);
     expect(body.question.category).toBe("MISSED_DOSE");
-    expect(body.question.status).toBe("RECEIVED");
+    // MISSED_DOSE's baseline disposition is PHARMACIST_REVIEW, which as
+    // of M4 is automatically queued for pharmacist review.
+    expect(body.question.status).toBe("PHARMACIST_REQUESTED");
 
     await app.close();
   });
@@ -207,6 +209,7 @@ describe("Medication snapshot behavior", () => {
     expect(snapshot).toEqual({
       name: "Atorvastatin",
       strength: "20 mg",
+      dosageForm: "Tablet",
       directions: "Take one tablet at bedtime.",
       frequency: "Once daily",
       route: "Oral",

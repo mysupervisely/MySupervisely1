@@ -60,3 +60,22 @@ export async function createMedicationForPatient(
   });
   return response.json().medication;
 }
+
+export async function createQuestionForPatient(
+  app: ReturnType<typeof buildApp>,
+  cookie: string,
+  medicationId: string,
+  overrides: { category?: string; questionText?: string } = {},
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: "/questions",
+    headers: { cookie },
+    payload: {
+      medicationId,
+      category: overrides.category ?? "MISSED_DOSE",
+      questionText: overrides.questionText ?? "I forgot my dose this morning, what should I do?",
+    },
+  });
+  return response.json().question;
+}

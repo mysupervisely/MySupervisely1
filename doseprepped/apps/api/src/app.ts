@@ -7,6 +7,7 @@ import { authRoutes } from "./routes/auth.js";
 import { protectedRoutes } from "./routes/protected.js";
 import { medicationRoutes } from "./routes/medications.js";
 import { questionRoutes } from "./routes/questions.js";
+import { pharmacistQuestionRoutes } from "./routes/pharmacist-questions.js";
 import { env } from "./config/env.js";
 
 export interface BuildAppOptions {
@@ -39,6 +40,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(protectedRoutes);
   app.register(medicationRoutes);
   app.register(questionRoutes, { aiProvider, aiTimeoutMs });
+  app.register(pharmacistQuestionRoutes);
 
   return app;
 }

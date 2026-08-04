@@ -95,6 +95,20 @@ async function main() {
     },
   });
 
+  // A second pharmacist account so the shared queue (M4) has more than one
+  // demo reviewer to claim from — synthetic only, no real licensure.
+  const pharmacistB = await prisma.user.upsert({
+    where: { email: "pharmacist-b@demo.doseprepped.dev" },
+    update: {},
+    create: {
+      email: "pharmacist-b@demo.doseprepped.dev",
+      firstName: "Demo",
+      lastName: "Pharmacist B",
+      passwordHash,
+      role: Role.PHARMACIST,
+    },
+  });
+
   const admin = await prisma.user.upsert({
     where: { email: "admin@demo.doseprepped.dev" },
     update: {},
@@ -132,6 +146,7 @@ async function main() {
     patientA: patientA.email,
     patientB: patientB.email,
     pharmacist: pharmacist.email,
+    pharmacistB: pharmacistB.email,
     admin: admin.email,
   });
 }

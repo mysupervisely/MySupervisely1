@@ -274,7 +274,9 @@ describe("M3 Phase 2 — deterministic safety/disposition assignment", () => {
       headers: { cookie },
     });
     expect(detail.statusCode).toBe(200);
-    expect(detail.json().question.status).toBe("RECEIVED");
+    // OTHER's baseline disposition is PHARMACIST_REVIEW, which as of M4
+    // is automatically queued for pharmacist review.
+    expect(detail.json().question.status).toBe("PHARMACIST_REQUESTED");
 
     await app.close();
   });

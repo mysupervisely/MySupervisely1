@@ -1,15 +1,14 @@
-// DosePrepped database schema — through M3 Phase 3 (AI-assisted
-// medication education).
+// DosePrepped database schema — through M4 (pharmacist review &
+// concierge workflow).
 //
 // This covers the DB framework, the patient/pharmacist/admin role
 // structure, authentication (User + Session), a patient's manually-entered
 // medication list, medication question intake (MedicationQuestion),
-// deterministic safety/disposition routing (Phase 2), and AI-assisted
-// education/summary generation gated behind that disposition (Phase 3).
-// Pharmacist review, and provider escalation messaging remain modeled as
-// fields/statuses per docs/doseprepped/ARCHITECTURE.md ("M3 — The Digital
-// Medication-Support Layer") but are not populated by any code path yet —
-// that's later-phase work, deliberately not implemented here.
+// deterministic safety/disposition routing (Phase 2), AI-assisted
+// education/summary generation gated behind that disposition (Phase 3),
+// and the pharmacist queue/claim/respond/escalate workflow (M4). Provider
+// messaging, B2B organizations, and payments remain out of scope —
+// deliberately not implemented here.
 
 generator client {
   provider = "prisma-client"
@@ -174,11 +173,14 @@ enum AiResponseStatus {
   SKIPPED
 }
 
-/// Question lifecycle. Phase 1 only ever sets RECEIVED (on creation) and
-/// never transitions it further — every status past RECEIVED belongs to a
-/// later phase (AI processing/answering, pharmacist request/review,
-/// escalation, closure) and exists here only so those phases don't require
-/// a schema change to add.
+/// Question lifecycle. RECEIVED and AI_ANSWERED are set by POST /questions
+/// (Phase 1/3). As of M4, PHARMACIST_REQUESTED is also set by POST
+/// /questions (automatically, when disposition is PHARMACIST_REVIEW or
+/// PROVIDER_EVALUATION — see docs/doseprepped/ARCHITECTURE.md "Why queue
+/// entry is automatic"), and PHARMACIST_IN_PROGRESS / PHARMACIST_RESOLVED
+/// / ESCALATED are set by the pharmacist claim/respond/escalate routes.
+/// WAITING_FOR_PATIENT and CLOSED remain reserved — no two-way thread UI
+/// exists yet.
 enum QuestionStatus {
   RECEIVED
   AI_PROCESSING
@@ -189,6 +191,20 @@ enum QuestionStatus {
   PHARMACIST_RESOLVED
   ESCALATED
   CLOSED
+}
+
+/// Closed taxonomy for why a pharmacist escalated a question to provider
+/// evaluation (M4). Paired with the free-text escalationReason field on
+/// MedicationQuestion to satisfy "a structured escalation reason" — a
+/// category plus a human explanation, not either alone. See
+/// docs/doseprepped/ARCHITECTURE.md "Escalation behavior".
+enum EscalationReasonCategory {
+  WORSENING_OR_SEVERE_SYMPTOM
+  POSSIBLE_ADVERSE_REACTION
+  MEDICATION_ERROR
+  BEYOND_PHARMACIST_SCOPE
+  PATIENT_REQUESTED_PROVIDER
+  OTHER
 }
 
 /// A patient's question about one of their own medications — the core
@@ -280,22 +296,43 @@ model MedicationQuestion {
   /// aggregated later (by day/disposition/category) without a separate
   /// cost-tracking table.
   aiUsage                Json?
-  /// {summaryText, isAiGenerated: true} — prepared for a future pharmacist
-  /// queue when disposition is PHARMACIST_REVIEW or PROVIDER_EVALUATION.
-  /// Not surfaced to any pharmacist-facing UI/endpoint yet (none exists).
+  /// {summaryText, isAiGenerated: true} — generated in Phase 3 when
+  /// disposition is PHARMACIST_REVIEW or PROVIDER_EVALUATION, surfaced
+  /// read-only on the pharmacist review screen as of M4 (an assistive
+  /// starting point, never the response itself).
   aiPharmacistSummary    Json?
 
+  /// PHARMACIST_REQUESTED/_IN_PROGRESS/_RESOLVED/ESCALATED are all
+  /// implemented (M4) — see the QuestionStatus doc comment above.
   status QuestionStatus @default(RECEIVED)
 
+  /// The one pharmacist who claimed this question — set exclusively by
+  /// POST /pharmacist/questions/:id/claim via an atomic conditional
+  /// update (see docs/doseprepped/ARCHITECTURE.md "Claim concurrency").
+  /// The same pharmacist is the only one who may respond, escalate, or
+  /// release it.
   pharmacist            User?     @relation("PharmacistQuestions", fields: [pharmacistId], references: [id])
   pharmacistId          String?
+  /// Stamped when status becomes PHARMACIST_REQUESTED — at question
+  /// creation (M4's automatic queueing), not at claim time.
   pharmacistRequestedAt DateTime?
   pharmacistClaimedAt   DateTime?
+  /// The pharmacist's own words — written only by POST
+  /// /pharmacist/questions/:id/respond, never by any AI/LLM call, and
+  /// stored in a column entirely separate from aiEducationResponse.
   pharmacistResponse    String?
   pharmacistRespondedAt DateTime?
 
+  /// Pharmacist-initiated only (see docs/doseprepped/ARCHITECTURE.md §8)
+  /// — the automatic URGENT_EMERGENCY intake-time routing never sets
+  /// this; only POST /pharmacist/questions/:id/escalate does.
   escalatedAt      DateTime?
+  /// The escalating pharmacist's free-text explanation, required
+  /// alongside escalationReasonCategory below.
   escalationReason String?
+  /// Closed-taxonomy escalation reason, required by the API on escalate.
+  /// See the EscalationReasonCategory doc comment above.
+  escalationReasonCategory EscalationReasonCategory?
 
   resolvedAt DateTime?
   createdAt  DateTime  @default(now())
