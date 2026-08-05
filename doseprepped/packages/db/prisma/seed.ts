@@ -11,6 +11,8 @@ import {
   DispositionSource,
   QuestionStatus,
   OrganizationRole,
+  EscalationReasonCategory,
+  AiResponseStatus,
 } from "../generated/client/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -571,6 +573,215 @@ async function main() {
     },
   });
 
+  // M6.0 demo data — a dedicated, isolated "Demo Mode" organization and
+  // fixtures for the sales-demonstration feature. See
+  // docs/doseprepped/ARCHITECTURE.md "M6.0 — Demo Mode". Deliberately NOT
+  // Meridian or Northstar, and NOT patientA/patientB/pharmacist/admin —
+  // Demo Mode gets its own fully separate organization and accounts so
+  // an anonymous demo visitor's automated (server-side-only) session can
+  // never reach Meridian's, Northstar's, or any real pilot account's
+  // data even in principle: M5.4 tenant isolation means a member of this
+  // organization structurally cannot see another organization's rows,
+  // regardless of what Demo Mode's own frontend code does or doesn't do.
+  const demoOrg = await prisma.organization.upsert({
+    where: { slug: "doseprepped-demo-mode" },
+    update: {},
+    create: { name: "DosePrepped Demo Mode", slug: "doseprepped-demo-mode" },
+  });
+
+  const demoAdmin = await prisma.user.upsert({
+    where: { email: "demo-mode-admin@demo.doseprepped.dev" },
+    update: {},
+    create: {
+      email: "demo-mode-admin@demo.doseprepped.dev",
+      firstName: "Demo Mode",
+      lastName: "Admin",
+      passwordHash,
+      role: Role.PATIENT,
+    },
+  });
+  const demoPharmacist = await prisma.user.upsert({
+    where: { email: "demo-mode-pharmacist@demo.doseprepped.dev" },
+    update: {},
+    create: {
+      email: "demo-mode-pharmacist@demo.doseprepped.dev",
+      firstName: "Demo Mode",
+      lastName: "Pharmacist",
+      passwordHash,
+      role: Role.PHARMACIST,
+    },
+  });
+  const demoPatient = await prisma.user.upsert({
+    where: { email: "demo-mode-patient@demo.doseprepped.dev" },
+    update: {},
+    include: { medications: true },
+    create: {
+      email: "demo-mode-patient@demo.doseprepped.dev",
+      firstName: "Demo Mode",
+      lastName: "Patient",
+      passwordHash,
+      role: Role.PATIENT,
+      medications: {
+        create: [
+          {
+            name: "Semaglutide",
+            strength: "0.25 mg",
+            dosageForm: "Injection",
+            directions: "Inject subcutaneously once weekly.",
+            frequency: "Once weekly",
+            route: "Subcutaneous",
+            startDate: DEMO_START_DATE,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: demoOrg.id, userId: demoAdmin.id } },
+    update: {},
+    create: { organizationId: demoOrg.id, userId: demoAdmin.id, role: OrganizationRole.ORG_ADMIN },
+  });
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: demoOrg.id, userId: demoPharmacist.id } },
+    update: {},
+    create: { organizationId: demoOrg.id, userId: demoPharmacist.id, role: OrganizationRole.ORG_PHARMACIST },
+  });
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: demoOrg.id, userId: demoPatient.id } },
+    update: {},
+    create: { organizationId: demoOrg.id, userId: demoPatient.id, role: OrganizationRole.ORG_PATIENT },
+  });
+
+  await prisma.pharmacistProfile.upsert({
+    where: { pharmacistId: demoPharmacist.id },
+    update: {},
+    create: {
+      pharmacistId: demoPharmacist.id,
+      licenseState: "CA",
+      licenseNumber: "DEMO-PH-9001",
+      credentialStatus: PharmacistCredentialStatus.UNVERIFIED,
+    },
+  });
+
+  const demoSemaglutide = demoPatient.medications.find((m) => m.name === "Semaglutide")!;
+
+  // A little adherence/check-in history, same shape as the M5.2 worked
+  // example above, so the Demo Mode patient/admin screens have real,
+  // non-zero numbers to render.
+  await prisma.medicationAdherenceEvent.deleteMany({ where: { patientId: demoPatient.id } });
+  await prisma.medicationCheckIn.deleteMany({ where: { patientId: demoPatient.id } });
+  await prisma.medicationAdherenceEvent.createMany({
+    data: Array.from({ length: 6 }, (_, i) => {
+      const scheduledAt = new Date(DEMO_START_DATE.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      return {
+        patientId: demoPatient.id,
+        medicationId: demoSemaglutide.id,
+        scheduledAt,
+        recordedAt: scheduledAt,
+        status: i === 4 ? AdherenceStatus.MISSED : AdherenceStatus.TAKEN,
+      };
+    }),
+  });
+  await prisma.medicationCheckIn.create({
+    data: {
+      patientId: demoPatient.id,
+      medicationId: demoSemaglutide.id,
+      response: CheckInResponse.HAVING_SOME_ISSUES,
+      notes: "Some nausea after my last couple of doses.",
+    },
+  });
+
+  const demoSemaglutideSnapshot = {
+    name: demoSemaglutide.name,
+    strength: demoSemaglutide.strength,
+    dosageForm: demoSemaglutide.dosageForm,
+    directions: demoSemaglutide.directions,
+    frequency: demoSemaglutide.frequency,
+    route: demoSemaglutide.route,
+  };
+
+  // Two fully-resolved, deterministic "canned" scenarios that Demo Mode's
+  // read-only screens narrate — never mutated by any demo visitor. Both
+  // are cleared and recreated on every seed run so the guided demo is
+  // byte-for-byte reproducible. See docs/doseprepped/ARCHITECTURE.md
+  // "M6.0 — Demo Mode" for exactly which screens read which fields.
+  await prisma.medicationQuestion.deleteMany({ where: { patientId: demoPatient.id } });
+
+  // Scenario 1 — "nausea" (SIDE_EFFECT -> PHARMACIST_REVIEW baseline, no
+  // escalation pattern matches): patient asks, pharmacist reviews and
+  // responds. Matches the M6.0 brief's recommended scenario text exactly.
+  const demoNauseaResolvedAt = new Date(DEMO_START_DATE.getTime() + 3 * 24 * 60 * 60 * 1000);
+  const demoNauseaQuestion = await prisma.medicationQuestion.create({
+    data: {
+      patientId: demoPatient.id,
+      medicationId: demoSemaglutide.id,
+      medicationSnapshot: demoSemaglutideSnapshot,
+      category: QuestionCategory.SIDE_EFFECT,
+      questionText: "I've been feeling nauseous since starting my medication. Is this normal?",
+      disposition: QuestionDisposition.PHARMACIST_REVIEW,
+      dispositionSource: DispositionSource.DETERMINISTIC,
+      dispositionRuleIds: [],
+      safetyRuleSetVersion: "seed-synthetic",
+      dispositionAssignedAt: demoNauseaResolvedAt,
+      aiEducationResponse:
+        "Nausea is a common side effect when starting or increasing a GLP-1 medication like Semaglutide, and often eases within a few weeks as your body adjusts. This is general education, not personalized medical advice — a pharmacist will follow up on your specific question.",
+      aiEducationGeneratedAt: demoNauseaResolvedAt,
+      aiModelVersion: "seed-synthetic",
+      aiProvider: "mock",
+      aiPromptVersion: "seed-synthetic",
+      aiResponseStatus: AiResponseStatus.SUCCESS,
+      aiPharmacistSummary: {
+        summaryText:
+          "Patient reports nausea since starting Semaglutide. Common, dose-related GLP-1 side effect — no red-flag language present.",
+        isAiGenerated: true,
+      },
+      status: QuestionStatus.PHARMACIST_RESOLVED,
+      pharmacistId: demoPharmacist.id,
+      pharmacistRequestedAt: demoNauseaResolvedAt,
+      pharmacistClaimedAt: demoNauseaResolvedAt,
+      pharmacistResponse:
+        "Mild nausea is common when starting or increasing a GLP-1 medication and usually improves over a few weeks. Taking your dose with food, eating smaller meals, and staying hydrated can help. Let us know if it becomes severe or you can't keep fluids down — we're here between your visits.",
+      pharmacistRespondedAt: demoNauseaResolvedAt,
+      resolvedAt: demoNauseaResolvedAt,
+      createdAt: demoNauseaResolvedAt,
+    },
+  });
+
+  // Scenario 2 — "escalation": text matches the severe/rapidly-worsening
+  // safety rule (see packages/safety-rules/src/rules.ts
+  // "severe-or-rapidly-worsening-symptom", pattern /getting worse/i) so
+  // it is automatically routed to PROVIDER_EVALUATION at creation, then a
+  // pharmacist reviews it and formally escalates with a structured
+  // reason — demonstrating both the automatic and pharmacist-initiated
+  // escalation paths in one record.
+  const demoEscalatedAt = new Date(DEMO_START_DATE.getTime() + 5 * 24 * 60 * 60 * 1000);
+  const demoEscalationQuestion = await prisma.medicationQuestion.create({
+    data: {
+      patientId: demoPatient.id,
+      medicationId: demoSemaglutide.id,
+      medicationSnapshot: demoSemaglutideSnapshot,
+      category: QuestionCategory.SIDE_EFFECT,
+      questionText: "The redness at my injection site seems to be getting worse over the last two days.",
+      disposition: QuestionDisposition.PROVIDER_EVALUATION,
+      dispositionSource: DispositionSource.DETERMINISTIC,
+      dispositionRuleIds: ["severe-or-rapidly-worsening-symptom"],
+      safetyRuleSetVersion: "seed-synthetic",
+      dispositionAssignedAt: demoEscalatedAt,
+      status: QuestionStatus.ESCALATED,
+      pharmacistId: demoPharmacist.id,
+      pharmacistRequestedAt: demoEscalatedAt,
+      pharmacistClaimedAt: demoEscalatedAt,
+      escalationReasonCategory: EscalationReasonCategory.WORSENING_OR_SEVERE_SYMPTOM,
+      escalationReason:
+        "Worsening injection-site reaction over multiple days — recommending the patient's telehealth provider evaluate in case of local infection or an evolving reaction.",
+      escalatedAt: demoEscalatedAt,
+      createdAt: demoEscalatedAt,
+    },
+  });
+  void demoNauseaQuestion;
+  void demoEscalationQuestion;
+
   // Synthetic medication reference catalog powering the "Add Medication"
   // name autocomplete only — not an authoritative medication database. Kept
   // idempotent by clearing and re-inserting the synthetic set each seed run.
@@ -600,6 +811,12 @@ async function main() {
     admin: admin.email,
     orgA: { name: orgA.name, admin: orgAAdmin.email, pharmacist: orgAPharmacist.email, patient: orgAPatient.email },
     orgB: { name: orgB.name, admin: orgBAdmin.email, pharmacist: orgBPharmacist.email, patient: orgBPatient.email },
+    demoOrg: {
+      name: demoOrg.name,
+      admin: demoAdmin.email,
+      pharmacist: demoPharmacist.email,
+      patient: demoPatient.email,
+    },
   });
 }
 

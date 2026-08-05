@@ -1,12 +1,11 @@
-# DosePrepped — M0–M5.5 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening, Medication Journey & Adherence Foundation, Pilot Analytics & ROI Instrumentation, Organization/Tenant Infrastructure, Organization Admin & Organization-Scoped Analytics)
+# DosePrepped — M0–M6.0 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening, Medication Journey & Adherence Foundation, Pilot Analytics & ROI Instrumentation, Organization/Tenant Infrastructure, Organization Admin & Organization-Scoped Analytics, Demo Mode)
 
 DosePrepped is a digital medication-support layer: it helps patients
 understand their medications and connect with licensed pharmacists (and
 their own provider when appropriate) when they have medication-related
 questions.
 
-> **Status: through M5.5 (Organization Admin & Organization-Scoped
-> Analytics).** Real
+> **Status: through M6.0 (Demo Mode).** Real
 > accounts, login/logout, password hashing, sessions, server-enforced
 > role-based access control (patient / pharmacist / admin), a full patient
 > medication list, structured medication-question intake, a deterministic
@@ -54,18 +53,25 @@ questions.
 > same M5.3/M5.4 analytics report scoped to their organization only, with
 > simple date-range controls — never another organization's data,
 > verified by an extensive cross-tenant test suite. See "Organization
-> admin experience (M5.5)" below. There is still no payments/billing, no
-> invitation/email system, no organization branding/white-labeling/custom
-> domains, no telemedicine/EHR integration, no real patient onboarding, no
-> pharmacist compensation, no authoritative medication database, no OCR,
-> no dosing/reminder engine, and no real financial ROI calculation.
+> admin experience (M5.5)" below. **M6.0 adds a Demo Mode** (`/demo`) so
+> DosePrepped can be demonstrated to prospective telehealth customers
+> without a real account: a public landing page offers patient,
+> pharmacist, and telehealth-admin perspectives plus a guided "Full
+> Journey," all backed by three dedicated, isolated demo accounts that
+> authenticate through the real, unmodified login flow — never real
+> pilot credentials, never Meridian's or Northstar's data. See "Demo Mode
+> (M6.0)" below. There is still no payments/billing, no invitation/email
+> system, no organization branding/white-labeling/custom domains, no
+> telemedicine/EHR integration, no real patient onboarding, no pharmacist
+> compensation, no authoritative medication database, no OCR, no
+> dosing/reminder engine, and no real financial ROI calculation.
 > DosePrepped is medication support infrastructure connecting patients,
 > medication education, pharmacists, and appropriate provider escalation —
 > it is not an AI doctor, an emergency service, a replacement for the
 > dispensing pharmacy, a diagnostic tool, or a replacement for a
 > prescriber.
 
-## What's in M0–M5.5
+## What's in M0–M6.0
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -225,6 +231,18 @@ questions.
   read-only). See "Organization admin experience (M5.5)" below for the
   full summary and "M5.5 — Organization Admin & Organization-Scoped
   Analytics" in the architecture doc for the complete design.
+- **Demo Mode (M6.0):** a public `/demo` route — no account required —
+  for demonstrating DosePrepped to prospective telehealth customers.
+  Landing page with patient/pharmacist/telehealth-admin perspectives and
+  a guided "Full Journey," backed by three dedicated, isolated demo
+  accounts (their own organization, never Meridian's or Northstar's
+  data) that authenticate through the real, unmodified login flow —
+  never a new auth system, never real pilot credentials exposed to the
+  visitor. Two deterministic, read-only "canned" scenarios (a resolved
+  nausea question, an escalated one) plus one live, disposable "try it
+  yourself" question flow. See "Demo Mode (M6.0)" below for the full
+  summary and "M6.0 — Demo Mode" in the architecture doc for the
+  complete design, including the authentication rationale.
 - A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
   `MedicationReference`, `MedicationQuestion`, `PharmacistProfile`,
   `MedicationAdherenceEvent`, `MedicationCheckIn`, `AnalyticsEvent`,
@@ -351,6 +369,14 @@ password — not a secret, never use it for anything real):
 | `orgb-admin@demo.doseprepped.dev` | Patient (platform role — inert) | Northstar Digital Pharmacy (Demo), `ORG_ADMIN` |
 | `orgb-pharmacist@demo.doseprepped.dev` | Pharmacist | Northstar Digital Pharmacy (Demo), `ORG_PHARMACIST` |
 | `orgb-patient@demo.doseprepped.dev` | Patient (Levothyroxine) | Northstar Digital Pharmacy (Demo), `ORG_PATIENT` |
+| `demo-mode-admin@demo.doseprepped.dev` | Patient (platform role — inert) | DosePrepped Demo Mode, `ORG_ADMIN` |
+| `demo-mode-pharmacist@demo.doseprepped.dev` | Pharmacist | DosePrepped Demo Mode, `ORG_PHARMACIST` |
+| `demo-mode-patient@demo.doseprepped.dev` | Patient (Semaglutide) | DosePrepped Demo Mode, `ORG_PATIENT` |
+
+The three `demo-mode-*` accounts exist solely to power `/demo` (M6.0) —
+see "Demo Mode (M6.0)" below. They're never used to auto-log-in a
+visitor's own browser; a demo visitor never sees or needs this password
+at all, even though it's the same one every other seed account uses.
 
 None of this is real patient data — organization names are obviously
 synthetic and generic, never a real company. Public sign-up (via the UI
@@ -1044,6 +1070,70 @@ foundation — no new authorization logic, no schema changes.**
   any pharmacist-facing organization UI (the pharmacist dashboard is
   completely unchanged).
 
+## Demo Mode (M6.0)
+
+Full rationale lives in `docs/doseprepped/ARCHITECTURE.md` under "M6.0 —
+Demo Mode" — this is a summary. **A presentation/sales-demonstration
+milestone, not a new clinical feature** — it reuses the full M0–M5.5
+product; nothing in `apps/api`, the Prisma schema, or any authorization
+helper was changed to build it.
+
+- **Purpose**: a public `/demo` route so DosePrepped can be shown to
+  Wasefhealth and other prospective telehealth customers without a real
+  account or a public deployment. Central message throughout:
+  "DosePrepped extends your telehealth care model between visits — it
+  does not replace it." Never markets DosePrepped as replacing
+  physicians, diagnosing, prescribing, or providing autonomous medical
+  care.
+- **Landing page** (`/demo`): headline, subheadline, three perspective
+  cards (Patient / Pharmacist / Telehealth Admin) and a "Run Full
+  Journey" guided walkthrough.
+- **Authentication approach**: three dedicated, isolated
+  `demo-mode-*@demo.doseprepped.dev` accounts (never the pilot's
+  existing published accounts), member of their own standalone
+  "DosePrepped Demo Mode" organization — never Meridian Telehealth,
+  Northstar Digital Pharmacy, or any real pilot account.
+  `apps/patient/src/lib/demo-auth.ts` authenticates as one of them
+  through the real, completely unmodified `POST /auth/login` — not a
+  new/parallel auth system, not an impersonation mechanism, and it does
+  not bypass or weaken any authorization check; every subsequent call is
+  independently re-authorized by the API exactly as any other request.
+  The resulting session is used **only** server-to-server (Next.js
+  server → API) and is **never** set on any visitor's browser — an
+  anonymous demo visitor never receives, sees, or can reuse it.
+- **Isolation**: the three demo accounts hold no platform role beyond an
+  ordinary patient/pharmacist and belong to exactly one organization —
+  their own — so the existing M5.4 tenant-isolation mechanism
+  *structurally* guarantees they can never reach Meridian's, Northstar's,
+  or any other organization's data. No Demo-Mode-specific isolation code
+  was written or needed.
+- **Mostly read-only**: two seeded "canned" scenarios (a nausea question
+  resolved by a pharmacist; an escalated one recommending provider
+  evaluation) are created already fully resolved and are never mutated
+  by any Demo Mode page. The one live piece — a "Try it yourself"
+  question form on the Patient Experience page — always creates a
+  fresh, disposable record via a Server Action authenticated as the demo
+  patient; it can never touch the canned scenarios. Re-running `pnpm
+  db:seed` resets everything to the deterministic baseline.
+- **Works offline**: Demo Mode runs entirely on the existing mock AI
+  provider — no `ANTHROPIC_API_KEY` required, same as the rest of this
+  codebase.
+- **Launching it locally**:
+  ```bash
+  pnpm db:seed        # ensure the demo-mode-* accounts/scenarios exist
+  pnpm dev:api         # terminal 1 — http://localhost:4000
+  pnpm dev             # terminal 2 — http://localhost:3000
+  ```
+  Then open **http://localhost:3000/demo** — no login required.
+- **Known limitations**: the demo session cache is process-local
+  in-memory (a server restart just re-authenticates on the next
+  request); the live "Try it yourself" question is fixed to one category
+  and medication by design (a reliable, always-`PHARMACIST_REVIEW`
+  disposition for a predictable demo moment, not a general-purpose
+  composer); no automated cleanup job for disposable live questions
+  (`pnpm db:seed` is the reset mechanism); no public URL (local-only by
+  explicit instruction for this milestone).
+
 ## Security notes for this milestone
 
 - No real patient data anywhere in this repo or its seed data — synthetic
@@ -1121,6 +1211,18 @@ foundation — no new authorization logic, no schema changes.**
   parameters, custom headers, and request body fields, plus the full
   11-scenario cross-tenant checklist from the milestone brief
   (`apps/api/tests/organizations-admin.test.ts`).
+- **M6.0 additions:** Demo Mode introduces zero new API routes,
+  authorization helpers, or schema changes — it only introduces a new
+  *caller* of the existing, unmodified login endpoint. The three
+  `demo-mode-*` accounts are isolated to their own dedicated
+  organization (never Meridian's or Northstar's data, by the same M5.4
+  tenant-isolation mechanism already covered above) and hold no
+  platform-level role beyond an ordinary patient/pharmacist. Their
+  session is used only for server-to-server API calls and is never set
+  on any visitor's browser, so an anonymous demo visitor never receives
+  or can reuse it. The two seeded "canned" scenarios are never mutated
+  by any Demo Mode code path; the one live action always creates a new,
+  disposable record.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

@@ -3961,6 +3961,195 @@ run), and still entirely synthetic.
 
 ---
 
+## M6.0 — Demo Mode (implemented)
+
+**Status: implemented.** M6.0 is a presentation/sales-demonstration
+milestone, not a clinical feature — it exists so DosePrepped can be
+demonstrated to Wasefhealth and other prospective telehealth customers
+without a public deployment. It reuses the M0–M5.5 product end to end:
+the same safety-rules engine, the same mock AI provider, the same
+pharmacist workflow, the same organization/tenant model, the same
+analytics reporting service. **Nothing in `apps/api`, the Prisma schema,
+or any existing authorization helper was modified for this milestone.**
+
+### Business framing
+
+The demo's single sales message, repeated throughout: **"DosePrepped
+extends your telehealth care model between visits — it does not replace
+it."** The telehealth organization keeps the patient relationship, the
+provider relationship, medical evaluation, prescribing, and clinical
+care; DosePrepped provides the medication-support infrastructure around
+that: patient education, structured medication questions, a pharmacist
+workflow, adherence/check-in tools, provider escalation, and operational
+analytics. The demo never claims DosePrepped diagnoses, prescribes,
+independently changes a prescription, or replaces a physician.
+
+### 1. Demo Mode authentication — the central design decision
+
+An anonymous demo visitor has no DosePrepped account, so every
+patient/pharmacist/org-admin screen they need to see is normally behind
+`requireRole`/`requireOrganizationAdmin`, which forward the *visitor's
+own* session cookie to the API. Three constraints had to be reconciled:
+no new/parallel auth system, no impersonation mechanism, no weakened
+authorization, and the visitor still needs to see real, working,
+authenticated screens.
+
+**The resolution**: three dedicated, isolated Demo Mode accounts
+(`demo-mode-admin@demo.doseprepped.dev`, `demo-mode-pharmacist@…`,
+`demo-mode-patient@…`, seeded by `packages/db/prisma/seed.ts`), member
+of their own standalone **"DosePrepped Demo Mode"** organization —
+**never** Meridian Telehealth, Northstar Digital Pharmacy, or any real
+pilot account (`patient-a`, `patient-b`, `pharmacist@`, `orga-admin@`,
+etc.). `apps/patient/src/lib/demo-auth.ts` authenticates as one of these
+personas via the real, completely unmodified `POST /auth/login` — this
+is not a new auth system, not an impersonation mechanism, and does not
+bypass or weaken any authorization check; every subsequent Demo Mode API
+call is independently re-authorized by the API exactly as any other
+request. The resulting session cookie is used **only** for
+server-to-server calls made by `apps/patient/src/lib/demo.ts`'s
+functions (Next.js server → API) — it is **never** set on any visitor's
+own browser response. An anonymous demo visitor never receives, sees, or
+can reuse this credential; there is no code path in Demo Mode that
+forwards it to the client. The login endpoint's rate limit (10/min/IP,
+unchanged) is respected by caching each persona's session in a
+process-local, in-memory map for up to an hour, so normal demo browsing
+(and screenshot QA) doesn't approach that limit.
+
+**Why this satisfies "isolated / minimum necessary permissions":**
+- The three accounts hold no platform-level role beyond an ordinary
+  patient/pharmacist (`demo-mode-admin`'s platform `Role` is `PATIENT`,
+  inert — identical convention to every other org admin since M5.4;
+  none of the three ever holds platform `Role.ADMIN`).
+- They belong to exactly one organization — their own — so M5.4's
+  existing tenant isolation *structurally* guarantees they can never
+  read Meridian's, Northstar's, or any other organization's data,
+  regardless of anything Demo Mode's frontend code does or doesn't do.
+  This was verified, not assumed — see "Isolation" below.
+- The shared demo password is the same one every other seed account
+  already uses (documented in the README as non-secret,
+  local-dev-only) — Demo Mode doesn't introduce a new secret to manage,
+  but it is used here purely as a server-side implementation detail and
+  is never surfaced through the Demo Mode UI or any API response.
+
+### 2. What stays read-only vs. what's live
+
+Two seeded **"canned" scenarios** are created already fully resolved and
+are **never mutated by any Demo Mode page or action**:
+
+1. **Nausea / Semaglutide** — `"I've been feeling nauseous since
+   starting my medication. Is this normal?"` — `SIDE_EFFECT` category,
+   no escalation-pattern text, so it lands on the `PHARMACIST_REVIEW`
+   baseline per `packages/safety-rules`. Seeded already claimed and
+   answered by `demo-mode-pharmacist`.
+2. **Escalation** — `"The redness at my injection site seems to be
+   getting worse over the last two days."` — matches the
+   `severe-or-rapidly-worsening-symptom` rule (`/getting worse/i`), so
+   it's automatically `PROVIDER_EVALUATION` at creation; seeded already
+   claimed and escalated (`ESCALATED`, `WORSENING_OR_SEVERE_SYMPTOM`) by
+   `demo-mode-pharmacist`. This wording is the exact phrase already
+   proven throughout the existing test suite (`analytics.test.ts`,
+   `questions-disposition.test.ts`) to trigger `PROVIDER_EVALUATION` —
+   chosen specifically so the demo can't silently drift onto the wrong
+   disposition if the safety rules ever change wording elsewhere.
+
+Both are cleared and recreated on every `pnpm db:seed` run — 100%
+reproducible, and re-running the seed is the reset mechanism if a demo
+session leaves the environment in an unexpected state (see below).
+
+**The one live, interactive piece**: the Patient Experience page embeds
+a real "Try it yourself" form. Submitting it calls the real `POST
+/questions` as `demo-mode-patient` (via a Next.js Server Action,
+`apps/patient/src/app/demo/actions.ts`) — the medication is always
+resolved server-side from the demo patient's own single seeded
+Semaglutide record, never trusted from the submitted form. This always
+creates a **brand-new, disposable** question row; it can never touch
+either canned record. The Pharmacist Experience page can then claim/
+respond to that same live question (also via Server Actions,
+authenticated as `demo-mode-pharmacist`) — giving a genuine "watch the
+whole loop work" moment without ever mutating the deterministic
+narrative. Escalation is deliberately not wired as a live action here
+(section 4 of the brief) — the canned escalation scenario already
+demonstrates it fully; re-running `pnpm db:seed` clears any disposable
+live questions and restores a clean baseline.
+
+### 3. Isolation from production — verified, not assumed
+
+- **Zero new backend routes, zero schema changes, zero authorization
+  changes.** Every Demo Mode read/write goes through an existing,
+  unmodified API route: `POST /auth/login`, `GET/POST /questions`, `GET
+  /pharmacist/queue`, `GET /pharmacist/questions/:id`, `POST
+  .../claim`, `POST .../respond`, `GET /organizations/me`, `GET
+  /organizations/:id`, `GET /organizations/:id/memberships`, `GET
+  /organizations/:id/analytics/report`.
+- **Tenant isolation (M5.4) already does the isolating.** Because
+  `demo-mode-pharmacist`/`demo-mode-admin` belong only to the
+  "DosePrepped Demo Mode" organization, the exact same nested
+  relation-filter mechanism that keeps Meridian and Northstar apart
+  (§5/§9 of the M5.4 section above) keeps Demo Mode apart from both of
+  them — no Demo-Mode-specific isolation code was written or needed.
+- **Concurrent demo visitors can't collide.** Every live submission
+  creates its own new row; nothing shared is mutated by a read.
+- **The real production login/authentication system is completely
+  unchanged** — Demo Mode is a new *caller* of it, not a modification
+  to it.
+
+### 4. Routes and components added
+
+```
+apps/patient/src/app/demo/
+  layout.tsx        — public shell (no requireRole/requireOrganizationAdmin
+                       guard — see §1 for why that's safe), nav, DemoBanner
+  page.tsx           — landing: headline, 3 perspective cards, "Run Full Journey"
+  patient/page.tsx    — canned nausea walkthrough + live "Try it yourself" form
+  pharmacist/page.tsx — canned nausea + escalation detail, live claimable queue
+  admin/page.tsx      — Demo Mode org's real analytics + ROI/value cards
+  journey/page.tsx    — guided 9-step narrative (client stepper, read-only)
+  actions.ts          — the only mutating code: submitDemoQuestion,
+                        claimDemoQuestion, respondToDemoQuestion (Server Actions)
+
+apps/patient/src/components/demo/
+  DemoBanner.tsx, WorkflowTimeline.tsx, PerspectiveCard.tsx, ROICards.tsx,
+  JourneyStepper.tsx, PharmacistQuestionDetail.tsx
+
+apps/patient/src/lib/
+  demo-auth.ts — session bootstrap (§1)
+  demo.ts      — read-only data access, thin wrappers around the same API
+                 routes lib/questions.ts / lib/pharmacist.ts /
+                 lib/organizations.ts / lib/analytics.ts already call for
+                 the real app, reusing their exported TypeScript types
+```
+
+The patient-facing `AiEducationSection` component (M3/M4, unchanged) is
+reused directly on the Demo Mode patient page — the same AI-education-
+vs-pharmacist-response visual separation the real app already has, not a
+reimplementation.
+
+### 5. Seed data
+
+`packages/db/prisma/seed.ts` — additive, idempotent (verified by running
+`pnpm db:seed` twice): one new `Organization` ("DosePrepped Demo Mode"),
+three new `User` rows, one `PharmacistProfile`, a small adherence/
+check-in history for the demo patient's Semaglutide (same shape as the
+existing M5.2 worked examples), and the two canned `MedicationQuestion`
+records described in §2. No existing seed data was modified.
+
+### 6. Known limitations
+
+- Demo Mode's session cache is process-local and in-memory — restarting
+  the Next.js server clears it (harmless; it just re-authenticates on
+  the next request).
+- The "Try it yourself" live question always uses a fixed category
+  (`SIDE_EFFECT`) and the demo patient's single medication — this is
+  deliberate (a predictable, always-`PHARMACIST_REVIEW`-baseline
+  disposition for a reliable sales-demo moment), not a general-purpose
+  question composer.
+- No automated cleanup job for disposable live questions — `pnpm
+  db:seed` is the reset mechanism.
+- No public URL — this milestone is local-only by explicit instruction
+  (no tunnel, no ngrok/cloudflared, no deployment attempt).
+
+---
+
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
@@ -3968,8 +4157,9 @@ M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
 (pharmacist review & concierge workflow), M5.1 (pilot readiness & product
 hardening), M5.2 (medication journey & adherence foundation), M5.3 (pilot
 analytics & ROI instrumentation), M5.4 (organization/tenant
-infrastructure), and M5.5 (organization admin & organization-scoped
-analytics) are implemented, tested, and merged. A question now flows
+infrastructure), M5.5 (organization admin & organization-scoped
+analytics), and M6.0 (Demo Mode) are implemented, tested, and merged. A
+question now flows
 end-to-end through deterministic safety → (non-emergency,
 non-fully-AI-answered) AI education → automatic pharmacist queueing →
 atomic claim → a human pharmacist response or a structured escalation,
@@ -4001,5 +4191,13 @@ pharmacist dashboard are both completely unchanged. Still not built: B2B
 billing/subscriptions/pricing, invitation/email flows, organization
 branding/subdomain routing, pharmacist license verification/enforcement,
 EHR/telehealth integration, a structured dosing/reminder engine,
-multi-organization admin UI, and any real cost/ROI calculation. Awaiting
-direction on M5.6.
+multi-organization admin UI, and any real cost/ROI calculation. **As of
+M6.0, all of the above can be shown to a prospective customer without a
+live account**: a public `/demo` route walks a visitor through the
+patient, pharmacist, and telehealth-admin perspectives — and a guided
+Full Journey — using three dedicated, isolated Demo Mode accounts that
+authenticate through the real, unmodified login flow (never a new auth
+system, never real pilot credentials, never Meridian's or Northstar's
+data) and a small amount of read-only seeded/synthetic activity. No
+production route, schema, or authorization rule was touched to build it.
+Awaiting direction on M6.1.
