@@ -462,13 +462,63 @@ async function main() {
     },
   });
 
+  const orgAAtorvastatin = orgAPatient.medications.find((m) => m.name === "Atorvastatin")!;
+  const orgBLevothyroxine = orgBPatient.medications.find((m) => m.name === "Levothyroxine")!;
+
+  // M5.5 demo data — a small amount of adherence/check-in activity per
+  // org patient (same shape as the M5.2 patientA/patientB worked example
+  // above) so the M5.5 organization dashboard/analytics screens have
+  // real, non-zero "Adherence events"/"Check-ins" numbers to render, not
+  // just the bare single-question minimum M5.4 seeded. Idempotent via
+  // delete+recreate, same pattern as the M5.2 block above.
+  await prisma.medicationAdherenceEvent.deleteMany({
+    where: { patientId: { in: [orgAPatient.id, orgBPatient.id] } },
+  });
+  await prisma.medicationCheckIn.deleteMany({
+    where: { patientId: { in: [orgAPatient.id, orgBPatient.id] } },
+  });
+
+  await prisma.medicationAdherenceEvent.createMany({
+    data: Array.from({ length: 5 }, (_, i) => {
+      const scheduledAt = new Date(DEMO_START_DATE.getTime() + i * 24 * 60 * 60 * 1000);
+      return {
+        patientId: orgAPatient.id,
+        medicationId: orgAAtorvastatin.id,
+        scheduledAt,
+        recordedAt: scheduledAt,
+        status: i === 2 ? AdherenceStatus.MISSED : AdherenceStatus.TAKEN,
+      };
+    }),
+  });
+  await prisma.medicationCheckIn.create({
+    data: { patientId: orgAPatient.id, medicationId: orgAAtorvastatin.id, response: CheckInResponse.DOING_WELL },
+  });
+
+  await prisma.medicationAdherenceEvent.createMany({
+    data: Array.from({ length: 5 }, (_, i) => {
+      const scheduledAt = new Date(DEMO_START_DATE.getTime() + i * 24 * 60 * 60 * 1000);
+      return {
+        patientId: orgBPatient.id,
+        medicationId: orgBLevothyroxine.id,
+        scheduledAt,
+        recordedAt: scheduledAt,
+        status: AdherenceStatus.TAKEN,
+      };
+    }),
+  });
+  await prisma.medicationCheckIn.create({
+    data: {
+      patientId: orgBPatient.id,
+      medicationId: orgBLevothyroxine.id,
+      response: CheckInResponse.HAVING_SOME_ISSUES,
+      notes: "Occasionally forget my morning dose.",
+    },
+  });
+
   // One unclaimed pharmacist-review question per org patient, so the
   // tenant-isolated pharmacist queue and org-scoped analytics report both
   // have real, distinguishable per-organization data to show. Idempotent
   // via delete+recreate, matching the M5.2 pattern above.
-  const orgAAtorvastatin = orgAPatient.medications.find((m) => m.name === "Atorvastatin")!;
-  const orgBLevothyroxine = orgBPatient.medications.find((m) => m.name === "Levothyroxine")!;
-
   await prisma.medicationQuestion.deleteMany({
     where: { patientId: { in: [orgAPatient.id, orgBPatient.id] } },
   });

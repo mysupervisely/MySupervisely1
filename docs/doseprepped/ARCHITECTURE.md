@@ -3629,14 +3629,347 @@ M0–M5.3 authentication/authorization/ownership/pharmacist/analytics test.
 
 ---
 
+## M5.5 — Organization Admin & Organization-Scoped Analytics (implemented)
+
+**Status: implemented.** M5.5 turns the M5.4 authorization/API foundation
+into a usable organization-admin experience: a real dashboard, a real
+members screen, a real settings screen, and the M5.3/M5.4 analytics report
+rendered for an organization administrator — nothing here is a new
+capability at the authorization layer, it's the first UI built on top of
+one that already existed and was already fully tested.
+
+### Audit method
+
+Before writing code, this milestone re-read `README.md`, this document's
+M5.3 and M5.4 sections in full, `apps/api/src/lib/organization-auth.ts`,
+`apps/api/src/routes/organizations.ts`, `apps/api/src/lib/analytics-report.ts`,
+the existing admin analytics page (`apps/patient/src/app/admin/page.tsx`),
+the existing pharmacist dashboard (`apps/patient/src/app/pharmacist/`),
+the patient-facing server-data-fetching pattern (`apps/patient/src/lib/
+analytics.ts`, `pharmacist.ts`, `session.ts`, `require-role.ts`,
+`medications.ts`), the existing client-mutation pattern
+(`ArchiveMedicationButton.tsx`, `CheckInForm.tsx` — `"use client"` +
+direct `fetch` to the API with `credentials: "include"` + `router.refresh()`,
+no Server Actions anywhere in this codebase), the full M5.4
+`organizations.test.ts` suite, and the Meridian/Northstar seed fixtures.
+
+**One concrete defect found in the M5.4 API surface**, not a design flaw
+but a usability gap that blocks the very UI this milestone requires:
+`POST /organizations/:organizationId/memberships` took a raw `userId`.
+An organization admin using a real UI has no way to know another user's
+internal DosePrepped database id — they know a colleague's *email
+address*. Per the milestone's own allowance ("do not rewrite completed
+architecture unless M5.5 exposes a concrete defect"), this one endpoint's
+input contract was changed from `{userId, role}` to `{email, role}` —
+the authorization model, the "target must already have an account" rule,
+the 404-for-unknown-user behavior, and the 409-for-duplicate-membership
+behavior are all otherwise unchanged. Every M5.4 test exercising this
+endpoint was updated to match (still 37 tests, same assertions, only the
+payload shape changed) — see `apps/api/tests/organizations.test.ts`.
+
+No other completed M5.4 code was touched. No schema change was needed
+anywhere in M5.5 — `Organization` and `OrganizationMembership` (M5.4) and
+`buildAnalyticsReport()` (M5.3) already carried everything this milestone
+needed.
+
+### 1. API additions
+
+Three small additions to `apps/api/src/routes/organizations.ts`, all
+reusing the exact same `requireOrganizationAdmin` (or platform-admin
+override) authorization helper as every other management route in that
+file — no new authorization helper was needed:
+
+```
+PATCH  /organizations/:organizationId                       requireOrganizationAdmin
+PATCH  /organizations/:organizationId/memberships/:id        requireOrganizationAdmin
+POST   /organizations/:organizationId/memberships             requireOrganizationAdmin   (body shape changed: email, not userId — see above)
+```
+
+- **`PATCH /organizations/:organizationId`** — the organization settings
+  screen's one mutation: rename. Body `{name}` only. `slug` is
+  deliberately never writable through this or any other route — it stays
+  exactly what M5.4 said it was, "reserved for a future routing/branding
+  layer," and the settings screen renders it read-only.
+- **`PATCH /organizations/:organizationId/memberships/:membershipId`** —
+  changes an existing member's `role` in place (e.g. promote an
+  `ORG_PATIENT` to `ORG_PHARMACIST`) without a remove-then-re-add round
+  trip. Body `{role}` only — `role` is a Zod `z.enum(OrganizationRole)`,
+  and `OrganizationRole` has exactly three values
+  (`ORG_ADMIN`/`ORG_PHARMACIST`/`ORG_PATIENT`), none of which is a
+  platform role. **This is why "an organization admin cannot promote a
+  user to platform admin" is structurally true, not just enforced at
+  runtime**: there is no value this endpoint's schema could even accept
+  that would mean "platform admin." Verified by a dedicated test that
+  posts an out-of-enum role string and asserts `400`, plus a positive
+  test that a legitimate role change never touches the target user's
+  platform `Role` column.
+- No `GET /organizations/:organizationId/overview` (or similar
+  aggregate-counts endpoint) was added. The Organization Overview screen
+  (§3) computes its counts entirely by composing three already-existing
+  responses — `GET /organizations/:organizationId` (name),
+  `GET /organizations/:organizationId/memberships` (member/pharmacist/
+  patient headcounts, counted client-side from the returned role field),
+  and `GET /organizations/:organizationId/analytics/report` (question/
+  pharmacist-review/provider-escalation counts) — per the brief's "use
+  existing source-of-truth data where possible, do not invent metrics."
+  Adding a fourth endpoint that recomputed the same numbers a different
+  way would risk the dashboard and the analytics page disagreeing with
+  each other; composing the same three calls the other two screens
+  already make guarantees they can't.
+
+### 2. Frontend architecture
+
+**`apps/patient/src/lib/require-org-admin.ts`** — a new route guard,
+deliberately separate from the existing `requireRole` (`lib/require-role.ts`),
+because organization administration is not a platform `Role` at all (an
+org admin's platform role is `PATIENT`, inert — see M5.4 §2). It:
+
+1. Resolves the session user via the existing `getServerSessionUser()`
+   (`lib/session.ts`) — redirects to `/login` if unauthenticated, exactly
+   like `requireRole`.
+2. Calls `GET /organizations/me` (M5.4, unchanged) and looks for a
+   membership with `role === "ORG_ADMIN"`. If a user holds more than one
+   such membership (schema-legal since M5.4 §2, not built/tested), the
+   first one found is used — multi-org admin UI remains explicitly out of
+   scope, documented as a limitation below, not silently mishandled.
+3. If no `ORG_ADMIN` membership exists, redirects to that user's own
+   platform-role home (`/home`/`/pharmacist`/`/admin`) via the same
+   `ROLE_HOME` map `requireRole` uses — a patient, pharmacist, or platform
+   admin visiting `/org-admin/*` without an `ORG_ADMIN` membership is
+   redirected, never shown a 403 page or, worse, another organization's
+   data.
+4. Returns `{ user, organizationId, organizationName }` for the calling
+   layout/page to render.
+
+This is UX-only enforcement, identical in spirit to `requireRole`: the API
+independently re-verifies organization-admin membership on every single
+request via `requireOrganizationAdmin` (M5.4), which is what actually
+protects the data. A user who somehow reached `/org-admin/*` without this
+guard (e.g. a stale client bundle) would still get `404`s from every API
+call the moment they tried to fetch or mutate anything.
+
+**`apps/patient/src/lib/organizations.ts`** — server-only data-fetching
+functions, following the exact `cookies()`-forwarding pattern already used
+by `lib/analytics.ts`/`lib/pharmacist.ts`/`lib/medications.ts`
+(`apiFetch(path)` forwards the incoming request's cookies, `cache:
+"no-store"`, returns `null`/an empty array on a non-OK response rather
+than throwing): `getMyOrgAdminMembership()`, `getOrganization(id)`,
+`getOrganizationMemberships(id)`, `getOrganizationAnalyticsReport(id,
+{from, to})` (reuses the exact same `AnalyticsReport` TypeScript interface
+already defined in `lib/analytics.ts` — imported, not redefined, so the
+two dashboards can never drift into different shapes for the same report
+type).
+
+**Mutations are client components**, matching the only mutation pattern
+that exists anywhere in this codebase today (`ArchiveMedicationButton`,
+`CheckInForm`) — `"use client"` + `fetch(...API_URL, {credentials:
+"include"})` + `router.refresh()` on success. No Server Actions were
+introduced; this milestone did not invent a second mutation paradigm
+alongside the one the patient app already uses.
+
+### 3. UI screens (`apps/patient/src/app/org-admin/`)
+
+A new route group, parallel to the existing `/admin` and `/pharmacist`
+route groups, guarded by `requireOrganizationAdmin()` in its `layout.tsx`:
+
+- **`layout.tsx`** — header showing the organization's name prominently
+  (e.g. "Meridian Telehealth") next to the DosePrepped logo, plus the
+  signed-in user's name and a logout button (mirrors the existing
+  `PharmacistLayout` structure) and a small nav (Overview / Analytics /
+  Members / Settings). The organization name in the header is the one
+  place tenant context is made "obvious," per the brief — no other
+  organization's name is ever fetched or rendered anywhere in this
+  screen tree, because every data call is scoped to the one
+  `organizationId` the guard resolved.
+- **`page.tsx` (Overview)** — organization name (repeated as a page
+  heading) plus six source-of-truth counts: Patients (`memberships`
+  filtered to `ORG_PATIENT`), Pharmacists (`memberships` filtered to
+  `ORG_PHARMACIST`), Organization members (`memberships.length`,
+  all roles), Medication questions
+  (`report.questionFunnel.totalQuestions`), Pharmacist reviews
+  (`report.pharmacist.claimed` — a claimed question is one a pharmacist
+  has actually reviewed, as distinct from merely having entered the
+  queue), and Provider escalations
+  (`report.providerEscalation.totalEscalatedToProvider`). Every number is
+  read directly off an existing response field — none is computed by new
+  application logic beyond a `.filter(...).length` over the memberships
+  list already fetched for the Members screen.
+- **`analytics/page.tsx`** — the same report sections as the existing
+  `/admin` page (Patient engagement, Question funnel, AI, Pharmacist
+  workflow, Provider escalation, Adherence & check-ins, Operational
+  metrics), built from the same `Stat`/`Section` presentational pattern,
+  but fetching `GET /organizations/:id/analytics/report` instead of `GET
+  /admin/analytics/report`. Date range is a plain GET form with three
+  preset links (Last 7/30/90 days, computed as `now - Nd` in the server
+  component and passed as `?from=&to=` query params — the exact query
+  params `GET .../analytics/report` already accepted since M5.3/M5.4) and
+  two native `<input type="date">` fields for a custom range — no client
+  JS, no new date-picker dependency, reusing 100% of the already-existing
+  API date-range capability.
+- **`members/page.tsx`** — a table of every member (name, email, role,
+  joined date) with, per row, a role `<select>` + "Save" (calls the new
+  `PATCH .../memberships/:id`) and a "Remove" button (`DELETE`, existing
+  M5.4 route) — both client components using the mutation pattern above.
+  An "Add member" form takes an email address and a role `<select>`
+  (`POST .../memberships`, new email-based body). No invitation/email is
+  sent — exactly like M5.4, the target must already have a DosePrepped
+  account, and the form surfaces the API's own 404 ("User not found")
+  inline if they don't.
+- **`settings/page.tsx`** — a single "Organization name" text field +
+  Save button (`PATCH /organizations/:id`), and the slug shown as
+  read-only plain text with a short caption explaining it's reserved for
+  future use. No logo upload, no color pickers, no custom domain field —
+  none of those exist in the schema, so none appear in the UI.
+
+### 4. Member management design
+
+- **Email, not invitation.** An org admin adds someone by typing an email
+  address the target user already registered with (self-service patient
+  sign-up, or a pharmacist/admin account created by seeding/platform-admin
+  action). There is no email actually *sent* by DosePrepped — this
+  remains true to M5.4's "no invitation/email flow" — the email field is
+  purely a lookup key the org admin already knows, resolved server-side
+  to the matching `User` row (or a `404` if none exists).
+- **Role change, not membership re-creation.** `PATCH .../memberships/:id`
+  lets an admin correct or promote a role without the delete-then-add
+  round trip M5.4 would have required, while remaining exactly as
+  scoped/authorized as every other membership route.
+- **No self-lockout protection, and no "last admin" guard.** An org admin
+  can demote or remove themselves, potentially leaving the organization
+  with zero `ORG_ADMIN` members. This is a known, accepted limitation
+  (see below) — the platform-admin override (M5.4 §6/§7) is always
+  available as a recovery path (a platform admin can re-add an org admin
+  membership via the same API), so this was judged not worth the extra
+  validation logic for a first admin-UI milestone.
+- **Cannot create platform admins — structurally, not just by
+  convention.** Covered in §1 above: `OrganizationRole` has no
+  platform-admin value.
+- **Cannot manage another organization's members.** Unchanged from M5.4:
+  `requireOrganizationAdmin` re-derives and re-validates `organizationId`
+  from the URL path against the database on every request; an org admin
+  hitting another organization's membership URL gets `404`, identical to
+  M5.4's existing behavior — no new code path was needed here, it already
+  worked, and is re-verified by this milestone's tests.
+
+### 5. Analytics — what's reused vs. what's new
+
+**Nothing new was added to `buildAnalyticsReport()` or the M5.3/M5.4
+analytics architecture.** M5.5 is a consumer, not a design change: the
+organization dashboard and analytics page call the exact same
+`GET /organizations/:organizationId/analytics/report` route M5.4 already
+built and tested, with the exact same `from`/`to` query parameters
+`buildAnalyticsReport` has accepted since M5.3. The only M5.5-side work
+was building a UI that renders that already-correct, already-isolated
+response — and reusing the M5.3 `Stat`/`Section` presentational
+components/labels verbatim (same "Operational metrics (not a savings
+estimate)" heading, same provider-escalation disclaimer text) so the
+organization-scoped page makes exactly the same careful claims the
+platform-wide page already makes, word for word — no new copy was
+written that could accidentally overstate what a metric means.
+
+### 6. Authorization model (unchanged, re-verified)
+
+Every organization-admin-facing route in this milestone establishes, in
+this order, exactly as the M5.4 brief originally required and as M5.4's
+`requireOrganizationAdmin` already enforces: (1) authenticated user, (2)
+organization context derived from the URL path, (3)
+`OrganizationMembership` role verified against the database, (4) — for
+membership-id-scoped routes (`PATCH`/`DELETE .../memberships/:id`) —
+resource ownership re-checked (`{id, organizationId}` together, never `id`
+alone). M5.5 added zero new authorization logic; it added zero new routes
+that don't already go through `requireOrganizationAdmin`. The one new
+authorization-adjacent thing is the *frontend* guard
+(`require-org-admin.ts`, §2), which is UX-only and changes nothing about
+what the API will or won't return.
+
+**The client never supplies organization context that is trusted.**
+`organizationId` in every fetch from `lib/organizations.ts` comes from the
+value `require-org-admin.ts` resolved server-side from the session's own
+`GET /organizations/me` call — never from a URL parameter typed by the
+user, a hidden form field, or anything else that originated in the
+browser. Even if it did, the API-side `requireOrganizationAdmin` would
+still independently re-derive and re-check it from the URL path against
+the database, exactly as it did in M5.4 — this is defense in depth, not
+the only thing standing between a user and another organization's data.
+
+### 7. Privacy findings
+
+The organization dashboard is aggregate-only, by construction — it is a
+thin rendering layer over `buildAnalyticsReport()`, which has never
+returned one patient's individual activity to anyone (M5.3 §2 — computed
+via `count`/aggregate queries, not row-level projections of PHI fields).
+No route added in M5.5 exposes `questionText`, `pharmacistResponse`,
+`aiEducationResponse`, or `notes` (check-in free text) — the members
+screen shows only `{name/email, role, membership metadata}` (identical
+fields M5.4's `GET .../memberships` already returned), and the analytics
+screen shows only the same aggregate `AnalyticsReport` shape the platform
+admin page already renders. An organization admin gains no clinical/
+patient-chart capability whatsoever — that access boundary (pharmacist
+question review) is completely untouched by this milestone.
+
+### 8. Pharmacist and patient experience (unchanged, re-verified)
+
+Neither the pharmacist dashboard nor the patient app has a single line
+changed in M5.5. The pharmacist queue tenant isolation from M5.4 (§5) is
+re-verified by regression tests, not re-implemented. An organization
+admin's new "Pharmacist reviews"/"Provider escalations" overview counts
+are aggregate numbers derived from `buildAnalyticsReport()` — they never
+grant the org admin any ability to open a specific question, see a
+specific patient's medication list, or claim/respond/escalate anything;
+that remains exclusively the pharmacist workflow's own authorization
+boundary (`requireRole(Role.PHARMACIST)` + `requireOrganizationPharmacist`
+for the org-scoped queue route), untouched.
+
+### 9. Seed data
+
+No new seed users were required — Meridian Telehealth and Northstar
+Digital Pharmacy (M5.4) already have exactly one `ORG_ADMIN`, one
+`ORG_PHARMACIST`, and one `ORG_PATIENT` each, with a queued question. To
+give the M5.5 analytics screens something visibly non-zero to render
+beyond the bare single-question minimum M5.4 seeded, `seed.ts` now also
+records a couple of adherence events and a check-in for each
+organization's patient (same pattern already used for the M5.2
+`patientA`/`patientB` worked examples, just applied to `orga-patient`/
+`orgb-patient`) — additive, idempotent (delete-then-recreate on every seed
+run), and still entirely synthetic.
+
+### Remaining limitations / what is intentionally deferred
+
+- **No multi-organization admin UI.** If a user held `ORG_ADMIN`
+  memberships in two organizations (schema-legal, not built anywhere),
+  `require-org-admin.ts` picks the first one found and there is no
+  organization switcher. Documented, not silently broken — this exact
+  scenario isn't seeded or tested because M5.4 never built the tooling to
+  create it in the first place.
+- **No "last admin" / self-lockout protection** on role change or member
+  removal (§4) — recoverable only via the platform-admin override.
+- **No invitation/email system** — unchanged from M5.4; the target user
+  must already have an account.
+- **No organization branding/logo/custom domain/white-labeling** — the
+  settings screen has exactly one editable field (name); `slug` remains
+  reserved and read-only, per M5.4.
+- **No billing/subscription/pricing UI** — nothing to show; none of that
+  is modeled anywhere in the schema.
+- **No organization deletion/archival UI** — the API doesn't have this
+  route either (M5.4 §8, unchanged).
+- **No pharmacist-facing organization UI** — a pharmacist still only ever
+  sees the existing pharmacist dashboard/queue; this milestone did not add
+  any organization-context UI to the pharmacist experience, per the
+  brief's "do not redesign the pharmacist dashboard."
+- **Analytics is still a live, synchronous query per request** — no
+  caching, no pre-aggregation, unchanged from M5.3/M5.4.
+
+---
+
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
 & disposition), M3 Phase 3 (AI-assisted medication education), M4
 (pharmacist review & concierge workflow), M5.1 (pilot readiness & product
 hardening), M5.2 (medication journey & adherence foundation), M5.3 (pilot
-analytics & ROI instrumentation), and M5.4 (organization/tenant
-infrastructure) are implemented, tested, and merged. A question now flows
+analytics & ROI instrumentation), M5.4 (organization/tenant
+infrastructure), and M5.5 (organization admin & organization-scoped
+analytics) are implemented, tested, and merged. A question now flows
 end-to-end through deterministic safety → (non-emergency,
 non-fully-AI-answered) AI education → automatic pharmacist queueing →
 atomic claim → a human pharmacist response or a structured escalation,
@@ -3649,7 +3982,7 @@ context alongside it. Every meaningful patient/pharmacist action emits a
 versioned, non-PHI analytics event, and an admin-only aggregate report
 answers patient engagement, question funnel, AI, pharmacist,
 provider-escalation, and adherence/check-in questions over a date range.
-DosePrepped now has a minimum viable multi-tenant/B2B foundation:
+DosePrepped has a minimum viable multi-tenant/B2B foundation:
 `Organization`/`OrganizationMembership` (patient-owned data stays
 patient-owned — organization visibility is derived live through the
 membership graph, never a stamped column), a tenant-isolated pharmacist
@@ -3657,10 +3990,16 @@ queue/claim (an organization's pharmacist can never see or claim another
 organization's patient question), organization-scoped analytics
 (`GET /organizations/:id/analytics/report`, isolated from both the global
 platform report and every other organization), and a clear platform-admin
-vs. organization-admin authorization split. The patient application is
-completely unchanged — no organization UI, no branding, no
-white-labeling. Still not built: B2B billing/subscriptions/pricing,
-organization-admin UI, invitation/email flows, organization
+vs. organization-admin authorization split. **As of M5.5, that foundation
+has a real organization-admin experience**: an org admin logs in, sees
+their own organization's name/counts on a dashboard, manages their own
+members (add by email, change role, remove), edits their organization's
+name, and views the same M5.3/M5.4 analytics report rendered for their
+organization only — never another organization's, verified by an
+extensive cross-tenant test suite. The patient application and the
+pharmacist dashboard are both completely unchanged. Still not built: B2B
+billing/subscriptions/pricing, invitation/email flows, organization
 branding/subdomain routing, pharmacist license verification/enforcement,
-EHR/telehealth integration, a structured dosing/reminder engine, and any
-real cost/ROI calculation. Awaiting direction on M5.5.
+EHR/telehealth integration, a structured dosing/reminder engine,
+multi-organization admin UI, and any real cost/ROI calculation. Awaiting
+direction on M5.6.

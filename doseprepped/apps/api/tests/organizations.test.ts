@@ -12,6 +12,7 @@ import {
   createQuestionForPatient,
   createUserDirectly,
   loginAndGetCookie,
+  uniqueEmail,
   uniqueSlug,
 } from "./helpers.js";
 
@@ -170,7 +171,7 @@ describe("Organization membership — creation, roles, isolation", () => {
       method: "POST",
       url: `/organizations/${organization.id}/memberships`,
       headers: { cookie: admin.cookie },
-      payload: { userId: newUser.id, role: "ORG_PATIENT" },
+      payload: { email: newUser.email, role: "ORG_PATIENT" },
     });
     expect(add.statusCode).toBe(201);
     expect(add.json().membership.userId).toBe(newUser.id);
@@ -187,7 +188,7 @@ describe("Organization membership — creation, roles, isolation", () => {
       method: "POST",
       url: `/organizations/${organization.id}/memberships`,
       headers: { cookie: admin.cookie },
-      payload: { userId: patient.user.id, role: "ORG_PATIENT" },
+      payload: { email: patient.user.email, role: "ORG_PATIENT" },
     });
     expect(response.statusCode).toBe(409);
 
@@ -202,7 +203,7 @@ describe("Organization membership — creation, roles, isolation", () => {
       method: "POST",
       url: `/organizations/${organization.id}/memberships`,
       headers: { cookie: admin.cookie },
-      payload: { userId: "00000000-0000-0000-0000-000000000000", role: "ORG_PATIENT" },
+      payload: { email: uniqueEmail("membership-nouser-target"), role: "ORG_PATIENT" },
     });
     expect(response.statusCode).toBe(404);
 
@@ -265,7 +266,7 @@ describe("Organization membership — creation, roles, isolation", () => {
       method: "POST",
       url: `/organizations/${orgB.organization.id}/memberships`,
       headers: { cookie: orgA.admin.cookie },
-      payload: { userId: orgA.patient.user.id, role: "ORG_PATIENT" },
+      payload: { email: orgA.patient.user.email, role: "ORG_PATIENT" },
     });
     const bMembership = await prisma.organizationMembership.findUniqueOrThrow({
       where: { organizationId_userId: { organizationId: orgB.organization.id, userId: orgB.pharmacist.user.id } },
@@ -303,7 +304,7 @@ describe("Organization membership — creation, roles, isolation", () => {
       method: "POST",
       url: `/organizations/${orgA.organization.id}/memberships`,
       headers: { cookie: orgA.admin.cookie },
-      payload: { userId: target.id, role: "ORG_PATIENT", organizationId: orgB.organization.id },
+      payload: { email: target.email, role: "ORG_PATIENT", organizationId: orgB.organization.id },
     });
 
     expect(response.statusCode).toBe(201);

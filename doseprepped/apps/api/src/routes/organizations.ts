@@ -26,10 +26,41 @@ const createOrganizationSchema = z.object({
   slug: slugSchema,
 });
 
+const orgNameSchema = z.string().trim().min(1, "Name is required.").max(200);
+
+// M5.5 — organization settings: name only. Slug is deliberately never
+// writable here (read-only, reserved for a future routing/branding
+// layer — see docs/doseprepped/ARCHITECTURE.md "M5.4 — Organization
+// model"); there is no org deletion/archival either.
+const updateOrganizationSchema = z.object({
+  name: orgNameSchema,
+});
+
 const ORG_ROLES = Object.values(OrganizationRole) as [OrganizationRole, ...OrganizationRole[]];
 
+// M5.5 — a client-supplied *email*, not an internal userId: the M5.4
+// version of this endpoint took a raw userId, which no organization
+// admin could ever plausibly know — an org admin knows a colleague's
+// email address, never their DosePrepped database id. This is the one
+// "clearly documented dependency fix" M5.5 makes to completed M5.4 code
+// (see docs/doseprepped/ARCHITECTURE.md "M5.5"), not a redesign: the
+// authorization model, the 404-for-unknown-user behavior, and the
+// 409-for-duplicate-membership behavior are all unchanged, only the
+// input field changed shape.
+const emailSchema = z.string().trim().toLowerCase().email().max(255);
+
 const addMembershipSchema = z.object({
-  userId: z.string().trim().min(1, "userId is required."),
+  email: emailSchema,
+  role: z.enum(ORG_ROLES),
+});
+
+// M5.5 — changing an existing member's role. Deliberately role-only
+// (never re-parents a membership to a different organization or user);
+// `role` is restricted to OrganizationRole by the enum itself, which has
+// no "platform admin" value — there is structurally no way for this
+// endpoint to grant platform administration, not merely a runtime check
+// that happens to forbid it.
+const updateMembershipSchema = z.object({
   role: z.enum(ORG_ROLES),
 });
 
@@ -144,6 +175,26 @@ export async function organizationRoutes(app: FastifyInstance) {
     },
   );
 
+  // M5.5 — the organization settings screen's one mutation: rename.
+  // Org-admin (or platform-admin override), same as every other
+  // management route — never a bare member.
+  app.patch(
+    "/organizations/:organizationId",
+    { preHandler: requireOrganizationAdmin() },
+    async (request, reply) => {
+      const parsed = updateOrganizationSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Invalid input.", details: parsed.error.flatten() });
+      }
+
+      const organization = await prisma.organization.update({
+        where: { id: request.organizationId! },
+        data: { name: parsed.data.name },
+      });
+      return reply.send({ organization: serializeOrganization(organization) });
+    },
+  );
+
   app.get(
     "/organizations/:organizationId/memberships",
     { preHandler: requireOrganizationAdmin() },
@@ -168,25 +219,61 @@ export async function organizationRoutes(app: FastifyInstance) {
 
       const organizationId = request.organizationId!;
       // The target user must already be a registered DosePrepped account
-      // — no invitation/email flow (deliberately out of scope for M5.4).
-      const user = await prisma.user.findUnique({ where: { id: parsed.data.userId } });
+      // — no invitation/email flow (deliberately out of scope for
+      // M5.4/M5.5). Looked up by email (see addMembershipSchema doc
+      // comment) — never by an internal id the client couldn't
+      // plausibly know.
+      const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
       if (!user) {
         return reply.code(404).send({ error: "User not found." });
       }
 
       const existing = await prisma.organizationMembership.findUnique({
-        where: { organizationId_userId: { organizationId, userId: parsed.data.userId } },
+        where: { organizationId_userId: { organizationId, userId: user.id } },
       });
       if (existing) {
         return reply.code(409).send({ error: "This user is already a member of this organization." });
       }
 
       const membership = await prisma.organizationMembership.create({
-        data: { organizationId, userId: parsed.data.userId, role: parsed.data.role },
+        data: { organizationId, userId: user.id, role: parsed.data.role },
         include: { user: MEMBER_SELECT },
       });
 
       return reply.code(201).send({ membership: serializeMembership(membership) });
+    },
+  );
+
+  // M5.5 — change an existing member's role in place (e.g. promote an
+  // ORG_PATIENT to ORG_PHARMACIST, or hand off ORG_ADMIN to a colleague)
+  // without a remove-then-re-add round trip. Same organizationId scoping
+  // as DELETE below — a membership id belonging to a different
+  // organization is 404, identical to one that doesn't exist.
+  app.patch(
+    "/organizations/:organizationId/memberships/:membershipId",
+    { preHandler: requireOrganizationAdmin() },
+    async (request, reply) => {
+      const { membershipId } = request.params as { membershipId: string };
+      const organizationId = request.organizationId!;
+
+      const parsed = updateMembershipSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Invalid input.", details: parsed.error.flatten() });
+      }
+
+      const existing = await prisma.organizationMembership.findFirst({
+        where: { id: membershipId, organizationId },
+      });
+      if (!existing) {
+        return reply.code(404).send({ error: "Membership not found." });
+      }
+
+      const membership = await prisma.organizationMembership.update({
+        where: { id: existing.id },
+        data: { role: parsed.data.role },
+        include: { user: MEMBER_SELECT },
+      });
+      return reply.send({ membership: serializeMembership(membership) });
     },
   );
 
