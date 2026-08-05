@@ -15,6 +15,18 @@ vi.mock("../../../lib/api", async () => {
   return { ...actual, apiFetch: (...args: unknown[]) => apiFetchMock(...args) };
 });
 
+const completedProfile: PatientProfile = {
+  id: "profile-1",
+  firstName: "Sam",
+  lastName: "Rivera",
+  state: "CA",
+  whatBringsYouToNoor: "LOOKING_FOR_THERAPIST",
+  careType: "INDIVIDUAL_THERAPY",
+  careFormatPreference: "VIDEO",
+  onboardingCompletedAt: "2026-08-05T00:00:00.000Z",
+  completionPercent: 100,
+};
+
 // Home dashboard access (#home dashboard access): every case below is a
 // client-side UX convenience — the API is what actually enforces
 // authorization (see docs/noor/M1-IMPLEMENTATION.md "Known limitations").
@@ -25,7 +37,7 @@ describe("HomePage", () => {
     vi.clearAllMocks();
   });
 
-  it("redirects to /login when unauthenticated", async () => {
+  it("redirects to /login when unauthenticated (#unauthenticated user cannot access Home)", async () => {
     apiFetchMock.mockRejectedValueOnce(new ApiError(401, "Authentication required."));
     const { default: HomePage } = await import("../page");
     render(<HomePage />);
@@ -35,11 +47,8 @@ describe("HomePage", () => {
   it("redirects to /onboarding when onboarding is incomplete", async () => {
     apiFetchMock.mockResolvedValueOnce({ email: "sam@example.test", roles: ["PATIENT"] });
     apiFetchMock.mockResolvedValueOnce({
-      id: "profile-1",
-      firstName: null,
-      lastName: null,
-      state: null,
-      reasonForSeekingCare: null,
+      ...completedProfile,
+      whatBringsYouToNoor: null,
       careType: null,
       careFormatPreference: null,
       onboardingCompletedAt: null,
@@ -50,54 +59,45 @@ describe("HomePage", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/onboarding"));
   });
 
-  it("renders the greeting, profile status, and honest future-state placeholders once onboarding is complete", async () => {
+  it("authenticated patient with completed onboarding can access Home (#authenticated patient can access Home)", async () => {
     apiFetchMock.mockResolvedValueOnce({ email: "sam@example.test", roles: ["PATIENT"] });
-    apiFetchMock.mockResolvedValueOnce({
-      id: "profile-1",
-      firstName: "Sam",
-      lastName: "Rivera",
-      state: "CA",
-      reasonForSeekingCare: "work stress",
-      careType: "INDIVIDUAL_THERAPY",
-      careFormatPreference: "VIDEO",
-      onboardingCompletedAt: "2026-08-05T00:00:00.000Z",
-      completionPercent: 100,
-    } satisfies PatientProfile);
+    apiFetchMock.mockResolvedValueOnce(completedProfile);
+    const { default: HomePage } = await import("../page");
+    render(<HomePage />);
+    expect(await screen.findByText(/Sam\./)).toBeInTheDocument();
+  });
+
+  it("renders the greeting, tagline, and honest future-state sections — no Async product branding, no fabricated data", async () => {
+    apiFetchMock.mockResolvedValueOnce({ email: "sam@example.test", roles: ["PATIENT"] });
+    apiFetchMock.mockResolvedValueOnce(completedProfile);
     const { default: HomePage } = await import("../page");
     render(<HomePage />);
 
     expect(await screen.findByText(/Sam\./)).toBeInTheDocument();
-    expect(screen.getByText("Complete")).toBeInTheDocument();
-    expect(screen.getByText("Find a therapist")).toBeInTheDocument();
-    expect(screen.getByText("Noor Async")).toBeInTheDocument();
+    expect(screen.getByText("A brighter path forward.")).toBeInTheDocument();
+    expect(screen.getByText("No provider yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Find a Therapist" })).toBeInTheDocument();
     expect(screen.getByText(/No upcoming appointments yet/)).toBeInTheDocument();
-    expect(screen.getByText(/Your first check-in will appear here/)).toBeInTheDocument();
-    expect(screen.getByText("No active subscription.")).toBeInTheDocument();
+    expect(screen.getByText("Your care continues between sessions.")).toBeInTheDocument();
+    expect(screen.getByText("Therapy")).toBeInTheDocument();
+    expect(screen.getByText("Psychiatry")).toBeInTheDocument();
+    expect(screen.getByText("Resources")).toBeInTheDocument();
+
+    // Product direction: no standalone Async product is named/priced here
+    // (docs/noor/M2-IMPLEMENTATION.md "Product direction: Async").
+    expect(screen.queryByText(/Noor Async/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$\d/)).not.toBeInTheDocument();
+
     // Never a fake appointment time, mood score, or similar fabricated
-    // clinical/scheduling data (M2 brief: "Do not create fake clinical
-    // data").
+    // clinical/scheduling data.
     expect(screen.queryByText(/\d{1,2}:\d{2}\s?(AM|PM)/i)).not.toBeInTheDocument();
   });
 
-  it("shows a partial-completion badge instead of 'Complete' when the profile isn't fully filled in", async () => {
+  it("shows a partial-completion prompt when the profile isn't fully filled in", async () => {
     apiFetchMock.mockResolvedValueOnce({ email: "sam@example.test", roles: ["PATIENT"] });
-    apiFetchMock.mockResolvedValueOnce({
-      id: "profile-1",
-      firstName: "Sam",
-      lastName: null,
-      state: null,
-      reasonForSeekingCare: null,
-      careType: null,
-      careFormatPreference: null,
-      // Onboarding "complete" per the flag, but completionPercent can
-      // still be represented honestly if it were ever < 100 for another
-      // reason — this test just checks the badge renders the number
-      // rather than always claiming "Complete".
-      onboardingCompletedAt: "2026-08-05T00:00:00.000Z",
-      completionPercent: 40,
-    } satisfies PatientProfile);
+    apiFetchMock.mockResolvedValueOnce({ ...completedProfile, completionPercent: 40 });
     const { default: HomePage } = await import("../page");
     render(<HomePage />);
-    expect(await screen.findByText("40%")).toBeInTheDocument();
+    expect(await screen.findByText(/A few profile details are still missing/)).toBeInTheDocument();
   });
 });

@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  NOOR_INTERESTS,
+  NOOR_INTEREST_LABELS,
   CARE_TYPES,
   CARE_TYPE_LABELS,
   CARE_FORMATS,
   CARE_FORMAT_LABELS,
   US_STATES,
+  type NoorInterest,
   type CareType,
   type CareFormatPreference,
 } from "@noor/types";
@@ -20,7 +23,7 @@ interface FormState {
   firstName: string;
   lastName: string;
   state: string;
-  reasonForSeekingCare: string;
+  whatBringsYouToNoor: NoorInterest | "";
   careType: CareType | "";
   careFormatPreference: CareFormatPreference | "";
 }
@@ -29,7 +32,12 @@ interface FormState {
 // (docs/noor/M2-IMPLEMENTATION.md) — this is the "patient profile" surface
 // named explicitly in the M2 product objective (onboarding -> patient
 // profile -> Noor Home), available any time after onboarding, not just
-// during it.
+// during it. Only first name, last name, state, and care preferences are
+// editable here — there is no field for user ID, role, audit info, care
+// relationship identifiers, or system timestamps; those simply aren't
+// part of this form or the API schema it submits to (see
+// packages/types/src/onboarding.ts's patientProfileUpdateSchema), so
+// there's no protected field a patient could even attempt to change.
 export default function ProfilePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -53,7 +61,7 @@ export default function ProfilePage() {
           firstName: profile.firstName ?? "",
           lastName: profile.lastName ?? "",
           state: profile.state ?? "",
-          reasonForSeekingCare: profile.reasonForSeekingCare ?? "",
+          whatBringsYouToNoor: profile.whatBringsYouToNoor ?? "",
           careType: profile.careType ?? "",
           careFormatPreference: profile.careFormatPreference ?? "",
         });
@@ -92,7 +100,9 @@ export default function ProfilePage() {
   if (error) {
     return (
       <main className="noor-shell noor-center">
-        <p className="noor-error">{error}</p>
+        <p className="noor-error" role="alert">
+          {error}
+        </p>
       </main>
     );
   }
@@ -115,9 +125,13 @@ export default function ProfilePage() {
         <h1 className="noor-section">Your profile</h1>
         <div className="noor-card">
           <form onSubmit={onSave}>
-            {saveError && <p className="noor-error">{saveError}</p>}
+            {saveError && (
+              <p className="noor-error" role="alert">
+                {saveError}
+              </p>
+            )}
             {saved && (
-              <p className="noor-badge" style={{ marginBottom: "1rem" }}>
+              <p className="noor-badge" role="status" style={{ marginBottom: "1rem" }}>
                 Saved
               </p>
             )}
@@ -127,6 +141,7 @@ export default function ProfilePage() {
                 id="firstName"
                 value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                autoComplete="given-name"
               />
             </div>
             <div className="noor-field">
@@ -135,11 +150,17 @@ export default function ProfilePage() {
                 id="lastName"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                autoComplete="family-name"
               />
             </div>
             <div className="noor-field">
               <label htmlFor="state">State</label>
-              <select id="state" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })}>
+              <select
+                id="state"
+                value={form.state}
+                onChange={(e) => setForm({ ...form, state: e.target.value })}
+                autoComplete="address-level1"
+              >
                 {US_STATES.map(([code, name]) => (
                   <option key={code} value={code}>
                     {name}
@@ -148,12 +169,18 @@ export default function ProfilePage() {
               </select>
             </div>
             <div className="noor-field">
-              <label htmlFor="reason">What brings you to Noor?</label>
-              <textarea
-                id="reason"
-                value={form.reasonForSeekingCare}
-                onChange={(e) => setForm({ ...form, reasonForSeekingCare: e.target.value })}
-              />
+              <label htmlFor="whatBringsYouToNoor">What brings you to Noor?</label>
+              <select
+                id="whatBringsYouToNoor"
+                value={form.whatBringsYouToNoor}
+                onChange={(e) => setForm({ ...form, whatBringsYouToNoor: e.target.value as NoorInterest })}
+              >
+                {NOOR_INTERESTS.map((option) => (
+                  <option key={option} value={option}>
+                    {NOOR_INTEREST_LABELS[option]}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="noor-field">
               <label htmlFor="careType">Care type</label>

@@ -2,6 +2,9 @@ export { ROLES, roleSchema } from "./role";
 export type { Role } from "./role";
 export { Permission, ROLE_PERMISSIONS, roleHasPermission, anyRoleHasPermission } from "./permissions";
 export {
+  NOOR_INTERESTS,
+  noorInterestSchema,
+  NOOR_INTEREST_LABELS,
   CARE_TYPES,
   careTypeSchema,
   CARE_TYPE_LABELS,
@@ -11,10 +14,9 @@ export {
   US_STATES,
   US_STATE_CODES,
   usStateSchema,
-  reasonForSeekingCareSchema,
   nameSchema,
   onboardingSchema,
   patientProfileUpdateSchema,
   REQUIRED_ONBOARDING_FIELDS,
 } from "./onboarding";
-export type { CareType, CareFormatPreference, PatientProfileUpdateInput } from "./onboarding";
+export type { NoorInterest, CareType, CareFormatPreference, PatientProfileUpdateInput } from "./onboarding";

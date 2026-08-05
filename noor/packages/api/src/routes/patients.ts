@@ -28,7 +28,7 @@ function serializeProfile(profile: PatientProfile) {
     firstName: profile.firstName,
     lastName: profile.lastName,
     state: profile.state,
-    reasonForSeekingCare: profile.reasonForSeekingCare,
+    whatBringsYouToNoor: profile.whatBringsYouToNoor,
     careType: profile.careType,
     careFormatPreference: profile.careFormatPreference,
     onboardingCompletedAt: profile.onboardingCompletedAt,
@@ -83,11 +83,12 @@ export async function patientRoutes(app: FastifyInstance) {
       data: parsed.data,
     });
 
-    // Audit WHICH fields changed, never the values themselves — the
-    // audit-service metadata guard would reject some of these key names
-    // anyway (e.g. a raw "reasonForSeekingCare" VALUE), but the discipline
-    // here is to never even attempt to pass clinical/free-text content
-    // into an audit row. See docs/noor/ARCHITECTURE.md §F.
+    // Audit WHICH fields changed, never the values themselves. Every
+    // onboarding field is a fixed-choice enum now (see
+    // packages/types/src/onboarding.ts), so there's no free text to leak
+    // here even in principle — but the discipline of only ever logging
+    // field names, never values, is kept regardless. See
+    // docs/noor/ARCHITECTURE.md §F.
     await recordAuditEvent({
       request,
       action: AuditAction.PATIENT_PROFILE_SELF_UPDATE,

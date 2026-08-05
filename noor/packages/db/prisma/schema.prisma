@@ -150,30 +150,51 @@ model Patient {
   @@map("patients")
 }
 
+/// "What brings you to Noor?" — a fixed, non-diagnostic set of
+/// self-reported reasons for arriving at Noor, replaced from a free-text
+/// field in an early M2 iteration once the product brief specified fixed
+/// options instead (see docs/noor/M2-IMPLEMENTATION.md "Revision" note).
+/// A closed enum is also a stronger PHI-minimization property than free
+/// text: there is no way for a patient to type clinical history into this
+/// field even by accident.
+enum NoorInterest {
+  LOOKING_FOR_THERAPIST
+  ONGOING_SUPPORT
+  ASYNC_SUPPORT_INTEREST
+  EXPLORING_OPTIONS
+  NOT_SURE
+}
+
 enum CareType {
   INDIVIDUAL_THERAPY
   COUPLES_THERAPY
   FAMILY_THERAPY
+  PSYCHIATRY
+  ASYNC_SUPPORT
   NOT_SURE
 }
 
 enum CareFormatPreference {
   VIDEO
   ASYNC
+  BOTH
   NOT_SURE
 }
 
 /// Onboarding-collectible, non-clinical fields only (brief §6: "do not
 /// collect unnecessary sensitive clinical information during initial
 /// onboarding"). M1 provisioned an empty row at signup; M2 adds the
-/// specific onboarding fields (docs/noor/ARCHITECTURE.md's M2 milestone)
-/// — first/last name, state, a free-text reason for seeking care, and two
-/// preference enums. `reasonForSeekingCare` is deliberately free text but
-/// non-diagnostic: it is never treated as clinical history, never shown to
-/// an AI provider, and the onboarding UI copy frames it as "what brings
-/// you to Noor," not a symptom/history intake. `onboardingCompletedAt` is
-/// set once, by POST /patients/me/onboarding/complete, the first time all
-/// required fields are present — see packages/api/src/routes/patients.ts.
+/// specific onboarding fields — first/last name, state, and three
+/// self-reported preference enums (never free text — see NoorInterest
+/// above). These stay on PatientProfile rather than a separate
+/// "preferences" table deliberately: they are a fixed, small, 1:1 set of
+/// scalar fields describing this one patient's own onboarding answers,
+/// not a growing or multi-valued domain (unlike, say, CareGoal or
+/// Appointment) — splitting them out would be premature structure with no
+/// present benefit (see docs/noor/M2-IMPLEMENTATION.md §13 for the full
+/// reasoning). `onboardingCompletedAt` is set once, by
+/// POST /patients/me/onboarding/complete, the first time all required
+/// fields are present — see packages/api/src/routes/patients.ts.
 model PatientProfile {
   id                     String                @id @default(uuid())
   patient                Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -182,7 +203,7 @@ model PatientProfile {
   lastName               String?
   state                  String?               @db.Char(2)
   city                   String?
-  reasonForSeekingCare   String?
+  whatBringsYouToNoor    NoorInterest?
   careType               CareType?
   careFormatPreference   CareFormatPreference?
   onboardingCompletedAt  DateTime?

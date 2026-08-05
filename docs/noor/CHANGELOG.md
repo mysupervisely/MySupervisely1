@@ -91,3 +91,40 @@ platform are recorded here, in addition to the standard git history.
 - Explicitly not built in M2: the weekly check-in, subscriptions, EHR
   integration, AI functionality, clinical assessment/diagnosis, MFA
   enforcement, email verification enforcement, or password reset.
+
+### M2 refinement (same milestone, before approval)
+
+- **Product direction:** Noor's primary product is live therapy — a
+  standalone "Noor Async" product is explicitly *not* being committed to
+  yet ("Your care continues between sessions," not "Therapy without
+  appointments"). Removed the "Noor Async" branded entry point from Home
+  entirely; relabeled care-preference options to avoid presupposing an
+  unbuilt product name (e.g. "Ongoing support," "Support between
+  appointments" instead of "Asynchronous support"). No price, message
+  quota, check-in count, clinician SLA, or clinician-compensation rule
+  was ever hardcoded, in either pass.
+- **Database:** replaced `PatientProfile.reasonForSeekingCare` (free
+  text) with `whatBringsYouToNoor` (new `NoorInterest` enum, 5 fixed
+  choices) — onboarding is now free-text-free end to end. Expanded
+  `CareType` with `PSYCHIATRY`/`ASYNC_SUPPORT` and
+  `CareFormatPreference` with `BOTH` — migration
+  `20260805184330_onboarding_preferences_refinement`. Still no new model;
+  the reasoning for keeping these on `PatientProfile` is documented in
+  `M2-IMPLEMENTATION.md` §5.
+- **Onboarding UX:** rebuilt as a 6-screen conversational flow (welcome →
+  4 data screens → completion), matching the brief's exact example
+  copy. Added real "resume" behavior: a returning patient with saved
+  progress lands on their first incomplete screen, not the welcome
+  screen and not step 1 — verified by both an API test and a live
+  leave-and-return pass in manual verification.
+- **Home redesign:** restructured into "Your care / Your Noor journey /
+  Explore care / Resources," per the refined brief; added a `/resources`
+  placeholder page; removed `/async-care`.
+- **Accessibility:** added visible `:focus-visible` states across every
+  interactive element, `fieldset`/`legend` grouping for radio choices,
+  `role="alert"`/`role="status"` on error/confirmation messages, and
+  explicit 44px touch targets.
+- Updated/added tests throughout (140 total across the monorepo now);
+  re-ran the full 12-step manual verification checklist end to end
+  against a live instance, including the mobile viewport, with no
+  hydration warnings or unhandled errors.

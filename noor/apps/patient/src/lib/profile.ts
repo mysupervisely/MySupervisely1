@@ -1,11 +1,11 @@
-import type { CareFormatPreference, CareType } from "@noor/types";
+import type { CareFormatPreference, CareType, NoorInterest } from "@noor/types";
 
 export interface PatientProfile {
   id: string;
   firstName: string | null;
   lastName: string | null;
   state: string | null;
-  reasonForSeekingCare: string | null;
+  whatBringsYouToNoor: NoorInterest | null;
   careType: CareType | null;
   careFormatPreference: CareFormatPreference | null;
   onboardingCompletedAt: string | null;

@@ -12,13 +12,18 @@ interface Me {
   roles: string[];
 }
 
-// The calm, premium Noor Home dashboard (M2 brief §"PATIENT HOME"). Every
-// section below is either real data from the API (greeting, profile
-// status) or an honest, clearly-labeled future/empty state — nothing here
-// is fabricated clinical or scheduling data. This page is client-rendered
-// and fetches its own data; the API enforces every authorization decision
-// regardless of what renders here (see docs/noor/M1-IMPLEMENTATION.md
-// "Known limitations").
+// The calm, premium Noor Home dashboard — the patient's central Noor hub
+// (M2 brief §6). Every section below is either real data from the API
+// (greeting, profile status) or an honest, clearly-labeled future/empty
+// state — nothing here is fabricated clinical, scheduling, or provider
+// data. Notably absent: any named "Noor Async" product entry point —
+// Noor's primary product is live therapy, and whether structured
+// between-session care ships as a bundled feature or a separate product
+// is an open decision (see docs/noor/M2-IMPLEMENTATION.md "Product
+// direction: Async"), so this page never brands or prices it. This page
+// is client-rendered and fetches its own data; the API enforces every
+// authorization decision regardless of what renders here (see
+// docs/noor/M1-IMPLEMENTATION.md "Known limitations").
 export default function HomePage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
@@ -66,7 +71,9 @@ export default function HomePage() {
   if (error) {
     return (
       <main className="noor-shell">
-        <p className="noor-error">{error}</p>
+        <p className="noor-error" role="alert">
+          {error}
+        </p>
       </main>
     );
   }
@@ -97,74 +104,69 @@ export default function HomePage() {
         <h1>
           {timeOfDayGreeting()}, {displayName}.
         </h1>
-        <p className="noor-muted">Here&apos;s where things stand today.</p>
+        <p className="noor-muted">A brighter path forward.</p>
+        <p className="noor-muted" style={{ fontSize: "0.9rem" }}>
+          {profile.completionPercent === 100 ? "Your profile is complete." : "A few profile details are still missing."}{" "}
+          <Link href="/profile">Edit your info →</Link>
+        </p>
 
-        <div className="noor-section noor-card-grid">
+        <section className="noor-section" aria-labelledby="your-care-heading">
+          <h2 id="your-care-heading">Your care</h2>
           <div className="noor-card">
-            <div className="noor-entry-card-head">
-              <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.15rem" }}>Your profile</h3>
-              <span className="noor-badge">{profile.completionPercent === 100 ? "Complete" : `${profile.completionPercent}%`}</span>
-            </div>
-            <p className="noor-muted">
-              {profile.completionPercent === 100
-                ? "You're all set up."
-                : "A few details are still missing."}
+            <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.15rem" }}>No provider yet</h3>
+            <p className="noor-muted">Find a therapist who fits your needs.</p>
+            <Link href="/find-a-therapist" className="noor-button">
+              Find a Therapist
+            </Link>
+            <p className="noor-muted" style={{ fontSize: "0.85rem", marginTop: "1rem", marginBottom: 0 }}>
+              No upcoming appointments yet. Once you&apos;re matched with a provider, they&apos;ll show up here.
             </p>
-            <Link href="/profile">Edit your info →</Link>
           </div>
+        </section>
 
-          <div className="noor-card">
-            <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.15rem" }}>Subscription</h3>
-            <p className="noor-muted">No active subscription.</p>
-            <Link href="/async-care">Learn about Noor Async →</Link>
+        <section className="noor-section" aria-labelledby="your-journey-heading">
+          <h2 id="your-journey-heading">Your Noor journey</h2>
+          <div className="noor-card noor-card--muted">
+            <p style={{ margin: 0 }}>Your care continues between sessions.</p>
+            <p className="noor-muted" style={{ marginTop: "0.5rem", marginBottom: 0, fontSize: "0.9rem" }}>
+              Check-ins, goals, and resources will appear here as they become available.
+            </p>
           </div>
-        </div>
+        </section>
 
-        <div className="noor-section">
-          <h2>Find your way</h2>
+        <section className="noor-section" aria-labelledby="explore-care-heading">
+          <h2 id="explore-care-heading">Explore care</h2>
           <div className="noor-card-grid">
-            <Link href="/find-a-therapist" className="noor-entry-card">
+            <div className="noor-card">
+              <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.1rem" }}>Therapy</h3>
+              <p className="noor-muted">Connect with a therapist who fits your needs.</p>
+              <Link href="/find-a-therapist" className="noor-button noor-button--secondary">
+                Explore Therapy
+              </Link>
+            </div>
+            <div className="noor-card noor-card--muted">
               <div className="noor-entry-card-head">
-                <h3>Find a therapist</h3>
+                <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.1rem", margin: 0 }}>Psychiatry</h3>
                 <span className="noor-badge noor-badge--muted">Coming soon</span>
               </div>
-              <p>Browse providers by specialty, language, and availability.</p>
+              <p className="noor-muted" style={{ margin: 0 }}>
+                Psychiatric care may be available as Noor expands.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="noor-section" aria-labelledby="resources-heading">
+          <h2 id="resources-heading">Resources</h2>
+          <div className="noor-card">
+            <p className="noor-muted" style={{ marginBottom: "1rem" }}>
+              Tools and information to support your mental health.
+            </p>
+            <Link href="/resources" className="noor-button noor-button--secondary">
+              Explore Resources
             </Link>
-
-            <Link href="/async-care" className="noor-entry-card">
-              <div className="noor-entry-card-head">
-                <h3>Noor Async</h3>
-                <span className="noor-badge noor-badge--muted">Coming soon</span>
-              </div>
-              <p>Ongoing, asynchronous support between sessions.</p>
-            </Link>
           </div>
-        </div>
-
-        <div className="noor-section">
-          <h2>Upcoming care</h2>
-          <div className="noor-card noor-card--muted">
-            <p className="noor-muted" style={{ margin: 0 }}>
-              No upcoming appointments yet. Once you&apos;re matched with a provider, they&apos;ll show
-              up here.
-            </p>
-          </div>
-        </div>
-
-        <div className="noor-section noor-card-grid">
-          <div className="noor-card noor-card--muted">
-            <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.1rem" }}>Weekly check-in</h3>
-            <p className="noor-muted" style={{ margin: 0 }}>
-              Your first check-in will appear here once your care begins.
-            </p>
-          </div>
-          <div className="noor-card noor-card--muted">
-            <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.1rem" }}>Noor resources</h3>
-            <p className="noor-muted" style={{ margin: 0 }}>
-              Articles and guides are on their way.
-            </p>
-          </div>
-        </div>
+        </section>
       </main>
     </div>
   );

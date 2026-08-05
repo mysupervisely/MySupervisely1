@@ -39,7 +39,7 @@ export default function LoginPage() {
         <h1 className="noor-center">Welcome back</h1>
         <div className="noor-card">
           <form onSubmit={onSubmit}>
-            {error && <p className="noor-error">{error}</p>}
+            {error && <p className="noor-error" role="alert">{error}</p>}
             <div className="noor-field">
               <label htmlFor="email">Email</label>
               <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

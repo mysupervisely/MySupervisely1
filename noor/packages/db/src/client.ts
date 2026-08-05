@@ -28,6 +28,7 @@ export {
   CareRelationshipStatus,
   CareType,
   CareFormatPreference,
+  NoorInterest,
 } from "../generated/client/client.js";
 export type {
   User,

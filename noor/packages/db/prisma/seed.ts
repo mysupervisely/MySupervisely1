@@ -12,6 +12,7 @@ import {
   RoleName,
   ClinicianStatus,
   CareRelationshipStatus,
+  NoorInterest,
   CareType,
   CareFormatPreference,
 } from "../generated/client/client.js";
@@ -79,7 +80,7 @@ async function main() {
     await prisma.patientProfile.update({
       where: { patientId: patientUser.patient.id },
       data: {
-        reasonForSeekingCare: "Feeling stressed about work and looking for someone to talk to.",
+        whatBringsYouToNoor: NoorInterest.LOOKING_FOR_THERAPIST,
         careType: CareType.INDIVIDUAL_THERAPY,
         careFormatPreference: CareFormatPreference.VIDEO,
         onboardingCompletedAt: new Date(),

@@ -21,7 +21,7 @@ const completedProfile: PatientProfile = {
   firstName: "Sam",
   lastName: "Rivera",
   state: "CA",
-  reasonForSeekingCare: "work stress",
+  whatBringsYouToNoor: "LOOKING_FOR_THERAPIST",
   careType: "INDIVIDUAL_THERAPY",
   careFormatPreference: "VIDEO",
   onboardingCompletedAt: "2026-08-05T00:00:00.000Z",
@@ -47,7 +47,7 @@ describe("ProfilePage", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/onboarding"));
   });
 
-  it("pre-fills the form from the existing profile and saves an edit via PATCH", async () => {
+  it("pre-fills the form from the existing profile and saves an edit via PATCH (#patient can update allowed fields)", async () => {
     const user = userEvent.setup();
     apiFetchMock.mockResolvedValueOnce(completedProfile);
     apiFetchMock.mockResolvedValueOnce({ ...completedProfile, firstName: "Samuel" });
@@ -69,5 +69,19 @@ describe("ProfilePage", () => {
       ),
     );
     expect(await screen.findByText("Saved")).toBeInTheDocument();
+  });
+
+  it("only exposes editable onboarding-preference fields — no user ID, role, audit, care-relationship, or system-timestamp field exists to edit (#patient cannot modify protected fields)", async () => {
+    apiFetchMock.mockResolvedValueOnce(completedProfile);
+    const { default: ProfilePage } = await import("../page");
+    render(<ProfilePage />);
+
+    await screen.findByLabelText(/first name/i);
+    // Every form control on the page is one of the six onboarding fields
+    // — there is simply no input for id/role/audit/timestamps to submit,
+    // by construction of this form.
+    expect(screen.getAllByRole("textbox").length + screen.getAllByRole("combobox").length).toBe(6);
+    expect(screen.queryByLabelText(/role/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/user id/i)).not.toBeInTheDocument();
   });
 });

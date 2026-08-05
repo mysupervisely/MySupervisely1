@@ -7,7 +7,7 @@ const validOnboarding = {
   firstName: "Sam",
   lastName: "Rivera",
   state: "CA",
-  reasonForSeekingCare: "Looking for support with work stress.",
+  whatBringsYouToNoor: "LOOKING_FOR_THERAPIST",
   careType: "INDIVIDUAL_THERAPY",
   careFormatPreference: "VIDEO",
 };
@@ -96,13 +96,47 @@ describe("onboarding + patient profile (M2)", () => {
         method: "PATCH",
         url: "/patients/me",
         headers: { cookie },
-        payload: { reasonForSeekingCare: "feeling overwhelmed at work" },
+        payload: { whatBringsYouToNoor: "ONGOING_SUPPORT" },
       });
 
       const events = await prisma.auditEvent.findMany({ where: { action: "patient_profile.self_update" } });
       expect(events).toHaveLength(1);
-      expect(events[0]!.metadata).toEqual({ fields: ["reasonForSeekingCare"] });
-      expect(JSON.stringify(events[0]!.metadata)).not.toContain("overwhelmed");
+      expect(events[0]!.metadata).toEqual({ fields: ["whatBringsYouToNoor"] });
+    });
+
+    it("patient can begin onboarding and resume it later with prior answers intact (#resume)", async () => {
+      const { cookie } = await createPatient(app, "resume.me@example.test");
+
+      // Begin onboarding: save the first couple of steps...
+      await app.inject({
+        method: "PATCH",
+        url: "/patients/me",
+        headers: { cookie },
+        payload: { firstName: "Riley", lastName: "Chen", state: "WA" },
+      });
+
+      // ...then simulate leaving (no more requests for a while) and
+      // returning: a fresh GET must reflect exactly what was saved, so the
+      // onboarding UI can resume from here rather than starting over.
+      const resumed = (await app.inject({ method: "GET", url: "/patients/me", headers: { cookie } })).json();
+      expect(resumed.firstName).toBe("Riley");
+      expect(resumed.lastName).toBe("Chen");
+      expect(resumed.state).toBe("WA");
+      expect(resumed.whatBringsYouToNoor).toBeNull();
+      expect(resumed.onboardingCompletedAt).toBeNull();
+      expect(resumed.completionPercent).toBeGreaterThan(0);
+      expect(resumed.completionPercent).toBeLessThan(100);
+
+      // Resuming: save the remaining steps and complete.
+      await app.inject({
+        method: "PATCH",
+        url: "/patients/me",
+        headers: { cookie },
+        payload: { whatBringsYouToNoor: "EXPLORING_OPTIONS", careType: "NOT_SURE", careFormatPreference: "NOT_SURE" },
+      });
+      const completed = await app.inject({ method: "POST", url: "/patients/me/onboarding/complete", headers: { cookie } });
+      expect(completed.statusCode).toBe(200);
+      expect(completed.json().onboardingCompletedAt).not.toBeNull();
     });
   });
 
@@ -124,13 +158,24 @@ describe("onboarding + patient profile (M2)", () => {
       expect(response.statusCode).toBe(400);
     });
 
-    it("rejects an empty/whitespace reasonForSeekingCare", async () => {
-      const { cookie } = await createPatient(app, "bad.reason@example.test");
+    it("rejects an invalid whatBringsYouToNoor value (it's a fixed enum, not free text)", async () => {
+      const { cookie } = await createPatient(app, "bad.interest@example.test");
       const response = await app.inject({
         method: "PATCH",
         url: "/patients/me",
         headers: { cookie },
-        payload: { reasonForSeekingCare: "  " },
+        payload: { whatBringsYouToNoor: "I feel anxious about everything" },
+      });
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("rejects a malformed request body", async () => {
+      const { cookie } = await createPatient(app, "malformed@example.test");
+      const response = await app.inject({
+        method: "PATCH",
+        url: "/patients/me",
+        headers: { cookie },
+        payload: { firstName: 12345 },
       });
       expect(response.statusCode).toBe(400);
     });

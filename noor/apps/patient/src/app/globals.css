@@ -265,6 +265,7 @@ a.noor-entry-card:hover {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  min-height: 44px; /* touch target */
   background: var(--noor-gold);
   color: var(--noor-white);
   border: none;
@@ -390,8 +391,13 @@ a.noor-entry-card:hover {
   }
 }
 
+/* display: flex + min-height gives every radio card at least a 44px
+   touch target (WCAG 2.5.5 / Apple & Android HIG guidance) via padding,
+   not a fixed height, so text can still wrap on narrow screens. */
 .noor-radio-card {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   cursor: pointer;
   border: 1px solid var(--noor-border-strong);
   border-radius: var(--radius-field);
@@ -407,6 +413,23 @@ a.noor-entry-card:hover {
 
 .noor-radio-card input {
   margin-right: 0.6rem;
+}
+
+/* Fieldset/legend for grouped radio choices (screen-reader users get an
+   announced group name — e.g. "What brings you to Noor?, radio group" —
+   instead of an unlabeled list of options). Browser default fieldset
+   chrome (border/padding) is reset so it matches the rest of the form. */
+.noor-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.noor-legend {
+  font-weight: 500;
+  margin-bottom: 0.6rem;
+  padding: 0;
+  color: var(--noor-ink-soft);
 }
 
 /* ---------- Progress ---------- */
@@ -458,4 +481,20 @@ a.noor-entry-card:hover {
 .noor-hero-mark {
   color: var(--noor-gold);
   margin-bottom: 1.25rem;
+}
+
+/* ---------- Focus visibility ----------
+   Accessibility requirement: every interactive element gets a visible,
+   high-contrast focus ring on keyboard focus (not on mouse click —
+   :focus-visible skips that so clicking doesn't leave a ring). Nothing in
+   this file ever sets `outline: none` without this replacement. */
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.noor-radio-card:has(input:focus-visible) {
+  outline: 2px solid var(--noor-gold-deep);
+  outline-offset: 2px;
 }

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { onboardingSchema, patientProfileUpdateSchema, usStateSchema, reasonForSeekingCareSchema } from "../src/onboarding.js";
+import { onboardingSchema, patientProfileUpdateSchema, usStateSchema, noorInterestSchema } from "../src/onboarding.js";
 
 describe("onboardingSchema", () => {
   const valid = {
     firstName: "Sam",
     lastName: "Rivera",
     state: "CA",
-    reasonForSeekingCare: "Looking for support with work stress.",
+    whatBringsYouToNoor: "LOOKING_FOR_THERAPIST",
     careType: "INDIVIDUAL_THERAPY",
     careFormatPreference: "VIDEO",
   };
@@ -25,26 +25,36 @@ describe("onboardingSchema", () => {
     expect(onboardingSchema.safeParse({ ...valid, state: "california" }).success).toBe(false);
   });
 
+  it("rejects an invalid whatBringsYouToNoor value", () => {
+    expect(onboardingSchema.safeParse({ ...valid, whatBringsYouToNoor: "SOMETHING_ELSE" }).success).toBe(false);
+  });
+
   it("rejects an invalid careType value", () => {
     expect(onboardingSchema.safeParse({ ...valid, careType: "GROUP_THERAPY" }).success).toBe(false);
+  });
+
+  it("accepts the new PSYCHIATRY and ASYNC_SUPPORT careType values", () => {
+    expect(onboardingSchema.safeParse({ ...valid, careType: "PSYCHIATRY" }).success).toBe(true);
+    expect(onboardingSchema.safeParse({ ...valid, careType: "ASYNC_SUPPORT" }).success).toBe(true);
   });
 
   it("rejects an invalid careFormatPreference value", () => {
     expect(onboardingSchema.safeParse({ ...valid, careFormatPreference: "IN_PERSON" }).success).toBe(false);
   });
 
-  it("accepts 'NOT_SURE' for both care preference fields", () => {
-    expect(onboardingSchema.safeParse({ ...valid, careType: "NOT_SURE", careFormatPreference: "NOT_SURE" }).success).toBe(
-      true,
-    );
+  it("accepts the new BOTH careFormatPreference value", () => {
+    expect(onboardingSchema.safeParse({ ...valid, careFormatPreference: "BOTH" }).success).toBe(true);
   });
 
-  it("rejects a reason that is too short (empty/whitespace)", () => {
-    expect(onboardingSchema.safeParse({ ...valid, reasonForSeekingCare: "  " }).success).toBe(false);
-  });
-
-  it("rejects an unreasonably long reason", () => {
-    expect(onboardingSchema.safeParse({ ...valid, reasonForSeekingCare: "x".repeat(5000) }).success).toBe(false);
+  it("accepts 'NOT_SURE' for all three preference fields", () => {
+    expect(
+      onboardingSchema.safeParse({
+        ...valid,
+        whatBringsYouToNoor: "NOT_SURE",
+        careType: "NOT_SURE",
+        careFormatPreference: "NOT_SURE",
+      }).success,
+    ).toBe(true);
   });
 });
 
@@ -59,18 +69,18 @@ describe("patientProfileUpdateSchema", () => {
 
   it("still validates the shape of any field that IS present", () => {
     expect(patientProfileUpdateSchema.safeParse({ state: "not-a-state" }).success).toBe(false);
+    expect(patientProfileUpdateSchema.safeParse({ whatBringsYouToNoor: "not-a-real-value" }).success).toBe(false);
   });
 });
 
-describe("usStateSchema / reasonForSeekingCareSchema", () => {
+describe("usStateSchema / noorInterestSchema", () => {
   it("accepts every real two-letter state/DC code", () => {
     expect(usStateSchema.safeParse("NY").success).toBe(true);
     expect(usStateSchema.safeParse("DC").success).toBe(true);
   });
 
-  it("trims whitespace on the free-text reason", () => {
-    const result = reasonForSeekingCareSchema.safeParse("  feeling anxious lately  ");
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data).toBe("feeling anxious lately");
+  it("is a fixed-choice enum, not free text — there is no way to submit arbitrary text here", () => {
+    expect(noorInterestSchema.safeParse("I feel anxious all the time").success).toBe(false);
+    expect(noorInterestSchema.safeParse("LOOKING_FOR_THERAPIST").success).toBe(true);
   });
 });
