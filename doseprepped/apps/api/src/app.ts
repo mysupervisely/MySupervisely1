@@ -11,6 +11,7 @@ import { medicationJourneyRoutes } from "./routes/medication-journey.js";
 import { questionRoutes } from "./routes/questions.js";
 import { pharmacistQuestionRoutes } from "./routes/pharmacist-questions.js";
 import { analyticsRoutes } from "./routes/analytics.js";
+import { organizationRoutes } from "./routes/organizations.js";
 import { env } from "./config/env.js";
 
 export interface BuildAppOptions {
@@ -46,6 +47,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(questionRoutes, { aiProvider, aiTimeoutMs });
   app.register(pharmacistQuestionRoutes);
   app.register(analyticsRoutes);
+  app.register(organizationRoutes);
 
   // M5.1 — global safety net. Every deliberate route response
   // (400/401/403/404/409) already calls reply.code(...).send({ error })

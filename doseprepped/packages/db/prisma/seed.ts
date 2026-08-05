@@ -10,6 +10,7 @@ import {
   QuestionDisposition,
   DispositionSource,
   QuestionStatus,
+  OrganizationRole,
 } from "../generated/client/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -282,6 +283,244 @@ async function main() {
     },
   });
 
+  // M5.4 demo data — organization/tenant fixtures. See
+  // docs/doseprepped/ARCHITECTURE.md "M5.4 — Organization / Tenant
+  // Infrastructure". Two synthetic, non-Wasef-branded organizations, each
+  // with an org admin, an org pharmacist, and an org patient, so tenant
+  // isolation has something real to demonstrate/test against. `admin`
+  // above (Role.ADMIN, zero memberships) remains the one DosePrepped
+  // platform admin — no separate platform-admin account is needed.
+  //
+  // Deliberately: org admins get global Role.PATIENT (inert) rather than
+  // Role.ADMIN, because their admin capability comes entirely from
+  // OrganizationMembership.role = ORG_ADMIN, not from the platform Role.
+  // This is what makes "organization admin ≠ platform admin" a fact of
+  // the data model rather than merely of the authorization code.
+  //
+  // patientA/patientB/pharmacist/pharmacistB/admin above are left
+  // completely untouched with zero OrganizationMembership rows — they
+  // remain the "DosePrepped Direct" (org-less) pool exactly as in M0–M5.3.
+  const orgA = await prisma.organization.upsert({
+    where: { slug: "meridian-telehealth-demo" },
+    update: {},
+    create: { name: "Meridian Telehealth (Demo)", slug: "meridian-telehealth-demo" },
+  });
+  const orgB = await prisma.organization.upsert({
+    where: { slug: "northstar-digital-pharmacy-demo" },
+    update: {},
+    create: { name: "Northstar Digital Pharmacy (Demo)", slug: "northstar-digital-pharmacy-demo" },
+  });
+
+  const orgAAdmin = await prisma.user.upsert({
+    where: { email: "orga-admin@demo.doseprepped.dev" },
+    update: {},
+    create: {
+      email: "orga-admin@demo.doseprepped.dev",
+      firstName: "Meridian",
+      lastName: "Admin",
+      passwordHash,
+      role: Role.PATIENT,
+    },
+  });
+  const orgAPharmacist = await prisma.user.upsert({
+    where: { email: "orga-pharmacist@demo.doseprepped.dev" },
+    update: {},
+    create: {
+      email: "orga-pharmacist@demo.doseprepped.dev",
+      firstName: "Meridian",
+      lastName: "Pharmacist",
+      passwordHash,
+      role: Role.PHARMACIST,
+    },
+  });
+  const orgAPatient = await prisma.user.upsert({
+    where: { email: "orga-patient@demo.doseprepped.dev" },
+    update: {},
+    include: { medications: true },
+    create: {
+      email: "orga-patient@demo.doseprepped.dev",
+      firstName: "Meridian",
+      lastName: "Patient",
+      passwordHash,
+      role: Role.PATIENT,
+      medications: {
+        create: [
+          {
+            name: "Atorvastatin",
+            strength: "20 mg",
+            dosageForm: "Tablet",
+            directions: "Take one tablet by mouth once daily in the evening.",
+            frequency: "Once daily",
+            route: "Oral",
+            startDate: DEMO_START_DATE,
+          },
+        ],
+      },
+    },
+  });
+
+  const orgBAdmin = await prisma.user.upsert({
+    where: { email: "orgb-admin@demo.doseprepped.dev" },
+    update: {},
+    create: {
+      email: "orgb-admin@demo.doseprepped.dev",
+      firstName: "Northstar",
+      lastName: "Admin",
+      passwordHash,
+      role: Role.PATIENT,
+    },
+  });
+  const orgBPharmacist = await prisma.user.upsert({
+    where: { email: "orgb-pharmacist@demo.doseprepped.dev" },
+    update: {},
+    create: {
+      email: "orgb-pharmacist@demo.doseprepped.dev",
+      firstName: "Northstar",
+      lastName: "Pharmacist",
+      passwordHash,
+      role: Role.PHARMACIST,
+    },
+  });
+  const orgBPatient = await prisma.user.upsert({
+    where: { email: "orgb-patient@demo.doseprepped.dev" },
+    update: {},
+    include: { medications: true },
+    create: {
+      email: "orgb-patient@demo.doseprepped.dev",
+      firstName: "Northstar",
+      lastName: "Patient",
+      passwordHash,
+      role: Role.PATIENT,
+      medications: {
+        create: [
+          {
+            name: "Levothyroxine",
+            strength: "50 mcg",
+            dosageForm: "Tablet",
+            directions: "Take one tablet by mouth once daily on an empty stomach.",
+            frequency: "Once daily",
+            route: "Oral",
+            startDate: DEMO_START_DATE,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: orgA.id, userId: orgAAdmin.id } },
+    update: {},
+    create: { organizationId: orgA.id, userId: orgAAdmin.id, role: OrganizationRole.ORG_ADMIN },
+  });
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: orgA.id, userId: orgAPharmacist.id } },
+    update: {},
+    create: { organizationId: orgA.id, userId: orgAPharmacist.id, role: OrganizationRole.ORG_PHARMACIST },
+  });
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: orgA.id, userId: orgAPatient.id } },
+    update: {},
+    create: { organizationId: orgA.id, userId: orgAPatient.id, role: OrganizationRole.ORG_PATIENT },
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: orgB.id, userId: orgBAdmin.id } },
+    update: {},
+    create: { organizationId: orgB.id, userId: orgBAdmin.id, role: OrganizationRole.ORG_ADMIN },
+  });
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: orgB.id, userId: orgBPharmacist.id } },
+    update: {},
+    create: { organizationId: orgB.id, userId: orgBPharmacist.id, role: OrganizationRole.ORG_PHARMACIST },
+  });
+  await prisma.organizationMembership.upsert({
+    where: { organizationId_userId: { organizationId: orgB.id, userId: orgBPatient.id } },
+    update: {},
+    create: { organizationId: orgB.id, userId: orgBPatient.id, role: OrganizationRole.ORG_PATIENT },
+  });
+
+  // Synthetic pharmacist profiles for the org pharmacists, matching the
+  // pattern used for the org-less pharmacist/pharmacistB above.
+  await prisma.pharmacistProfile.upsert({
+    where: { pharmacistId: orgAPharmacist.id },
+    update: {},
+    create: {
+      pharmacistId: orgAPharmacist.id,
+      licenseState: "TX",
+      licenseNumber: "DEMO-PH-1001",
+      credentialStatus: PharmacistCredentialStatus.UNVERIFIED,
+    },
+  });
+  await prisma.pharmacistProfile.upsert({
+    where: { pharmacistId: orgBPharmacist.id },
+    update: {},
+    create: {
+      pharmacistId: orgBPharmacist.id,
+      licenseState: "WA",
+      licenseNumber: "DEMO-PH-1002",
+      credentialStatus: PharmacistCredentialStatus.UNVERIFIED,
+    },
+  });
+
+  // One unclaimed pharmacist-review question per org patient, so the
+  // tenant-isolated pharmacist queue and org-scoped analytics report both
+  // have real, distinguishable per-organization data to show. Idempotent
+  // via delete+recreate, matching the M5.2 pattern above.
+  const orgAAtorvastatin = orgAPatient.medications.find((m) => m.name === "Atorvastatin")!;
+  const orgBLevothyroxine = orgBPatient.medications.find((m) => m.name === "Levothyroxine")!;
+
+  await prisma.medicationQuestion.deleteMany({
+    where: { patientId: { in: [orgAPatient.id, orgBPatient.id] } },
+  });
+
+  const orgRequestedAt = new Date();
+  await prisma.medicationQuestion.create({
+    data: {
+      patientId: orgAPatient.id,
+      medicationId: orgAAtorvastatin.id,
+      medicationSnapshot: {
+        name: orgAAtorvastatin.name,
+        strength: orgAAtorvastatin.strength,
+        dosageForm: orgAAtorvastatin.dosageForm,
+        directions: orgAAtorvastatin.directions,
+        frequency: orgAAtorvastatin.frequency,
+        route: orgAAtorvastatin.route,
+      },
+      category: QuestionCategory.SIDE_EFFECT,
+      questionText: "I've had some muscle soreness since starting Atorvastatin — is that expected?",
+      disposition: QuestionDisposition.PHARMACIST_REVIEW,
+      dispositionSource: DispositionSource.DETERMINISTIC,
+      dispositionRuleIds: [],
+      safetyRuleSetVersion: "seed-synthetic",
+      dispositionAssignedAt: orgRequestedAt,
+      status: QuestionStatus.PHARMACIST_REQUESTED,
+      pharmacistRequestedAt: orgRequestedAt,
+    },
+  });
+  await prisma.medicationQuestion.create({
+    data: {
+      patientId: orgBPatient.id,
+      medicationId: orgBLevothyroxine.id,
+      medicationSnapshot: {
+        name: orgBLevothyroxine.name,
+        strength: orgBLevothyroxine.strength,
+        dosageForm: orgBLevothyroxine.dosageForm,
+        directions: orgBLevothyroxine.directions,
+        frequency: orgBLevothyroxine.frequency,
+        route: orgBLevothyroxine.route,
+      },
+      category: QuestionCategory.GENERAL_INFO,
+      questionText: "Should I take my Levothyroxine at the same time as my morning coffee?",
+      disposition: QuestionDisposition.PHARMACIST_REVIEW,
+      dispositionSource: DispositionSource.DETERMINISTIC,
+      dispositionRuleIds: [],
+      safetyRuleSetVersion: "seed-synthetic",
+      dispositionAssignedAt: orgRequestedAt,
+      status: QuestionStatus.PHARMACIST_REQUESTED,
+      pharmacistRequestedAt: orgRequestedAt,
+    },
+  });
+
   // Synthetic medication reference catalog powering the "Add Medication"
   // name autocomplete only — not an authoritative medication database. Kept
   // idempotent by clearing and re-inserting the synthetic set each seed run.
@@ -309,6 +548,8 @@ async function main() {
     pharmacist: pharmacist.email,
     pharmacistB: pharmacistB.email,
     admin: admin.email,
+    orgA: { name: orgA.name, admin: orgAAdmin.email, pharmacist: orgAPharmacist.email, patient: orgAPatient.email },
+    orgB: { name: orgB.name, admin: orgBAdmin.email, pharmacist: orgBPharmacist.email, patient: orgBPatient.email },
   });
 }
 

@@ -1,5 +1,5 @@
-// DosePrepped database schema — through M5.3 (pilot analytics & ROI
-// instrumentation).
+// DosePrepped database schema — through M5.4 (organization/tenant
+// infrastructure).
 //
 // This covers the DB framework, the patient/pharmacist/admin role
 // structure, authentication (User + Session), a patient's manually-entered
@@ -11,11 +11,19 @@
 // storage only — no verification logic), a medication-agnostic
 // post-prescription journey foundation (M5.2): per-dose adherence
 // self-report (MedicationAdherenceEvent) and structured medication
-// check-ins (MedicationCheckIn), and a non-PHI analytics event log
+// check-ins (MedicationCheckIn), a non-PHI analytics event log
 // (AnalyticsEvent, M5.3) instrumenting the workflows above for aggregate
-// pilot reporting. Provider messaging, B2B/multi-tenant organizations,
-// payments, and any dosing/scheduling engine remain out of scope —
-// deliberately not implemented here.
+// pilot reporting, and a minimum-viable multi-tenant/B2B foundation
+// (Organization/OrganizationMembership, M5.4) — see
+// docs/doseprepped/ARCHITECTURE.md "M5.4 — Organization / Tenant
+// Infrastructure" for the full tenant-boundary reasoning. Patient-owned
+// tables (PatientMedication, MedicationQuestion,
+// MedicationAdherenceEvent, MedicationCheckIn, AnalyticsEvent) deliberately
+// received NO organizationId column — organization visibility is derived
+// live through the membership graph, never a stamped/denormalized column.
+// Payments, billing, organization branding/white-labeling, and any
+// dosing/scheduling engine remain out of scope — deliberately not
+// implemented here.
 
 generator client {
   provider = "prisma-client"
@@ -54,6 +62,10 @@ model User {
   /// M5.2 — see MedicationAdherenceEvent/MedicationCheckIn below.
   adherenceEvents     MedicationAdherenceEvent[]
   checkIns            MedicationCheckIn[]
+  /// M5.4 — see OrganizationMembership below. Zero rows means this user
+  /// is a "DosePrepped Direct" account, not affiliated with any
+  /// organization — true for every M0–M5.3 account.
+  memberships         OrganizationMembership[]
 
   @@map("users")
 }
@@ -515,4 +527,64 @@ model AnalyticsEvent {
   @@index([patientId])
   @@index([questionId])
   @@map("analytics_events")
+}
+
+/// A healthcare customer — a telehealth company, digital pharmacy, health
+/// plan, or any future B2B customer (M5.4). Deliberately minimal: no
+/// billing/plan/contract fields, no branding/settings blob. See
+/// docs/doseprepped/ARCHITECTURE.md "M5.4 — Organization model". Never a
+/// specific real company by name anywhere in this codebase — seed/demo
+/// organizations use obviously-synthetic generic names.
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  /// URL/identifier-safe unique slug — reserved for a future
+  /// routing/branding layer; not used for routing yet.
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships OrganizationMembership[]
+
+  @@map("organizations")
+}
+
+/// Closed taxonomy for a user's role *within one specific organization*
+/// (M5.4) — deliberately a separate enum from the platform-wide `Role`
+/// (PATIENT/PHARMACIST/ADMIN), prefixed ORG_* so the two axes are never
+/// visually or semantically conflated. Nothing in the schema constrains a
+/// User's platform `role` to match any OrganizationMembership.role they
+/// hold — see docs/doseprepped/ARCHITECTURE.md "M5.4 — Membership / role
+/// model" for why that decoupling is deliberate (a platform ADMIN is not
+/// automatically an ORG_ADMIN of any org, and vice versa).
+enum OrganizationRole {
+  ORG_ADMIN
+  ORG_PHARMACIST
+  ORG_PATIENT
+}
+
+/// A user's membership in one organization (M5.4) — a proper join table,
+/// not a nullable organizationId on User, specifically so a user can
+/// eventually belong to more than one organization without a schema
+/// change (@@unique below prevents a *duplicate* membership in the same
+/// org, not a second membership in a different org). Patient-owned data
+/// (PatientMedication, MedicationQuestion, MedicationAdherenceEvent,
+/// MedicationCheckIn) is NEVER stamped with an organizationId — every
+/// organization-scoped query derives visibility live through this table
+/// instead. See docs/doseprepped/ARCHITECTURE.md "M5.4 — Tenant
+/// boundaries" for the full reasoning.
+model OrganizationMembership {
+  id             String           @id @default(uuid())
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  role           OrganizationRole
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("organization_memberships")
 }

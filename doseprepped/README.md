@@ -1,11 +1,11 @@
-# DosePrepped — M0–M5.3 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening, Medication Journey & Adherence Foundation, Pilot Analytics & ROI Instrumentation)
+# DosePrepped — M0–M5.4 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening, Medication Journey & Adherence Foundation, Pilot Analytics & ROI Instrumentation, Organization/Tenant Infrastructure)
 
 DosePrepped is a digital medication-support layer: it helps patients
 understand their medications and connect with licensed pharmacists (and
 their own provider when appropriate) when they have medication-related
 questions.
 
-> **Status: through M5.3 (Pilot Analytics & ROI Instrumentation).** Real
+> **Status: through M5.4 (Organization / Tenant Infrastructure).** Real
 > accounts, login/logout, password hashing, sessions, server-enforced
 > role-based access control (patient / pharmacist / admin), a full patient
 > medication list, structured medication-question intake, a deterministic
@@ -39,18 +39,25 @@ questions.
 > for the full design, metric definitions, and privacy rules. DosePrepped
 > is still not a chatbot: no chat history, no multi-turn AI conversation,
 > and no automated pharmacist response — only an authenticated pharmacist
-> can create one. There is still no payments, no B2B organization/tenant
-> infrastructure (analytics today are global, not per-customer — see the
-> architecture doc), no telemedicine/EHR integration, no real patient
-> onboarding, no pharmacist compensation, no authoritative medication
-> database, no OCR, no dosing/reminder engine, and no real financial ROI
-> calculation. DosePrepped is medication support infrastructure connecting
-> patients, medication education, pharmacists, and appropriate provider
-> escalation — it is not an AI doctor, an emergency service, a replacement
-> for the dispensing pharmacy, a diagnostic tool, or a replacement for a
+> can create one. **M5.4 adds the minimum viable multi-tenant/B2B
+> foundation**: an `Organization` + `OrganizationMembership` model, strict
+> tenant isolation for the pharmacist queue and analytics, and a
+> platform-admin-vs-organization-admin authorization split — all without
+> touching the patient-facing experience, which remains completely
+> unchanged (no organization branding, no org-switcher, no white-labeling).
+> This is infrastructure, not a new clinical feature — see "Organization /
+> tenant infrastructure (M5.4)" below. There is still no payments/billing,
+> no invitation/email flow, no organization-admin UI, no
+> telemedicine/EHR integration, no real patient onboarding, no pharmacist
+> compensation, no authoritative medication database, no OCR, no
+> dosing/reminder engine, and no real financial ROI calculation.
+> DosePrepped is medication support infrastructure connecting patients,
+> medication education, pharmacists, and appropriate provider escalation —
+> it is not an AI doctor, an emergency service, a replacement for the
+> dispensing pharmacy, a diagnostic tool, or a replacement for a
 > prescriber.
 
-## What's in M0–M5.3
+## What's in M0–M5.4
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -184,41 +191,56 @@ questions.
   cost-savings claim — DosePrepped still never messages a real provider
   directly), and a labeled `roiOperationalMetrics` section surfaces
   per-1,000-patient volume ratios with an explicit disclaimer that
-  they're operational metrics, not a financial estimate. Global only
-  today — no organization/tenant column exists yet, so every report
-  covers the whole system, not one customer (documented extension path).
-  The previously-placeholder `/admin` screen now renders this report as
-  labeled stat cards. See "M5.3 — Pilot Analytics & ROI Instrumentation"
-  in the architecture doc for the full event catalog, metric
-  definitions, and privacy/authorization rules.
+  they're operational metrics, not a financial estimate. Global by
+  default, and as of M5.4 also available per-organization (see below) —
+  the two are separate, non-overlapping routes; an organization
+  administrator can never reach the global report. The previously-
+  placeholder `/admin` screen now renders the global report as labeled
+  stat cards. See "M5.3 — Pilot Analytics & ROI Instrumentation" in the
+  architecture doc for the full event catalog, metric definitions, and
+  privacy/authorization rules.
+- **Organization / tenant infrastructure (M5.4):** the minimum viable
+  multi-tenant/B2B foundation — an `Organization` + `OrganizationMembership`
+  model, strict tenant isolation for the pharmacist queue and analytics,
+  and a platform-admin-vs-organization-admin authorization split. See
+  "Organization / tenant infrastructure (M5.4)" below for the full
+  summary and "M5.4 — Organization / Tenant Infrastructure" in the
+  architecture doc for the complete design.
 - A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
   `MedicationReference`, `MedicationQuestion`, `PharmacistProfile`,
-  `MedicationAdherenceEvent`, `MedicationCheckIn`, and `AnalyticsEvent`,
-  seeded with **synthetic demo data only** (including two synthetic
-  pharmacist accounts, each with a demo profile, so the shared queue has
-  more than one demo reviewer, and a worked M5.2 example on the demo
-  Semaglutide medication: 91% adherence, a "having some issues" check-in,
-  and two linked questions — `AnalyticsEvent` rows accrue from this point
-  forward as the seeded workflows are used, not retroactively).
+  `MedicationAdherenceEvent`, `MedicationCheckIn`, `AnalyticsEvent`,
+  `Organization`, and `OrganizationMembership`, seeded with **synthetic
+  demo data only** (including two synthetic pharmacist accounts, each
+  with a demo profile, so the shared queue has more than one demo
+  reviewer; a worked M5.2 example on the demo Semaglutide medication: 91%
+  adherence, a "having some issues" check-in, and two linked questions;
+  and, as of M5.4, two synthetic organizations — see "Organization /
+  tenant infrastructure (M5.4)" below — `AnalyticsEvent` rows accrue from
+  this point forward as the seeded workflows are used, not
+  retroactively).
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 125 auth/RBAC/medication/question/disposition/AI-education/
-  pharmacist-workflow/error-handling/medication-journey/analytics
-  integration tests (one of them a genuine concurrent two-pharmacist
-  claim race) against a real (disposable) test database, plus 16
-  standalone unit tests for the safety-rules engine, 17 for the
-  ai-service package, and 5 for the patient app's own components — 163
-  tests total. No test makes a real call to any AI vendor.
+  including auth/RBAC/medication/question/disposition/AI-education/
+  pharmacist-workflow/error-handling/medication-journey/analytics/
+  organization-tenant-isolation integration tests (including a genuine
+  concurrent two-pharmacist claim race, and a genuine concurrent
+  org-vs-org-less-pharmacist claim race) against a real (disposable) test
+  database, plus standalone unit tests for the safety-rules engine, the
+  ai-service package, and the patient app's own components. No test
+  makes a real call to any AI vendor. See "Testing" below for the current
+  total.
 
 Not in scope yet (see the architecture doc for when these land): provider
 messaging/EHR integration, secure two-way patient/pharmacist messaging, an
 authoritative medication reference database, OCR/medication scanning,
-a structured dosing/reminder engine, payments, pharmacist compensation,
-B2B/multi-tenant organization infrastructure (analytics remain global,
-not per-customer), a real financial ROI/cost-savings calculation,
-pharmacist self-service analytics, telemedicine
-integration, account deletion, consent tracking, drug interaction
-checking, and any comprehensive clinical decision support. Neither the
-Phase 2 rule engine nor the Phase 3 AI layer diagnoses, recommends
+a structured dosing/reminder engine, payments/billing/subscriptions,
+pharmacist compensation, an organization-admin UI, an invitation/email
+flow for organization membership, organization branding/white-labeling/
+subdomain routing, multi-organization patient/pharmacist UI (the schema
+allows a second `OrganizationMembership` row; nothing builds or tests
+that today), a real financial ROI/cost-savings calculation, pharmacist
+self-service analytics, telemedicine integration, account deletion,
+consent tracking, drug interaction checking, and any comprehensive
+clinical decision support. Neither the Phase 2 rule engine nor the Phase 3 AI layer diagnoses, recommends
 treatment, or evaluates whether a medication is "safe" for a given
 patient — both are routing/education aids, and the M4 pharmacist workflow
 is where real clinical judgment enters the system, by a licensed human,
@@ -290,22 +312,35 @@ pnpm db:migrate      # apply migrations to doseprepped_dev locally
 pnpm db:seed          # load synthetic demo accounts
 ```
 
-The seed creates five synthetic accounts, all with the password
+The seed creates the following synthetic accounts, all with the password
 **`DosepreppedDemo!1`** (a publicly-documented local-dev-only demo
 password — not a secret, never use it for anything real):
 
-| Email | Role |
-|---|---|
-| `patient-a@demo.doseprepped.dev` | Patient (Lisinopril + Metformin) |
-| `patient-b@demo.doseprepped.dev` | Patient (Semaglutide + Ondansetron) |
-| `pharmacist@demo.doseprepped.dev` | Pharmacist |
-| `pharmacist-b@demo.doseprepped.dev` | Pharmacist (a second reviewer, so the shared queue has more than one) |
-| `admin@demo.doseprepped.dev` | Admin |
+| Email | Role | Organization |
+|---|---|---|
+| `patient-a@demo.doseprepped.dev` | Patient (Lisinopril + Metformin) | none — DosePrepped Direct |
+| `patient-b@demo.doseprepped.dev` | Patient (Semaglutide + Ondansetron) | none — DosePrepped Direct |
+| `pharmacist@demo.doseprepped.dev` | Pharmacist | none — DosePrepped Direct |
+| `pharmacist-b@demo.doseprepped.dev` | Pharmacist (a second reviewer, so the shared queue has more than one) | none — DosePrepped Direct |
+| `admin@demo.doseprepped.dev` | Admin | none — this is the one DosePrepped **platform** admin |
+| `orga-admin@demo.doseprepped.dev` | Patient (platform role — inert) | Meridian Telehealth (Demo), `ORG_ADMIN` |
+| `orga-pharmacist@demo.doseprepped.dev` | Pharmacist | Meridian Telehealth (Demo), `ORG_PHARMACIST` |
+| `orga-patient@demo.doseprepped.dev` | Patient (Atorvastatin) | Meridian Telehealth (Demo), `ORG_PATIENT` |
+| `orgb-admin@demo.doseprepped.dev` | Patient (platform role — inert) | Northstar Digital Pharmacy (Demo), `ORG_ADMIN` |
+| `orgb-pharmacist@demo.doseprepped.dev` | Pharmacist | Northstar Digital Pharmacy (Demo), `ORG_PHARMACIST` |
+| `orgb-patient@demo.doseprepped.dev` | Patient (Levothyroxine) | Northstar Digital Pharmacy (Demo), `ORG_PATIENT` |
 
-None of this is real patient data. Public sign-up (via the UI or
-`POST /auth/signup`) always creates a **patient** account — pharmacist and
-admin accounts are only created via seeding/direct DB access in this
-milestone, by design (no public pharmacist self-registration).
+None of this is real patient data — organization names are obviously
+synthetic and generic, never a real company. Public sign-up (via the UI
+or `POST /auth/signup`) always creates a **patient** account with no
+organization membership — pharmacist, admin, and every organization
+membership are only created via seeding/direct DB access in this
+milestone, by design (no public pharmacist self-registration, no
+public/self-service organization creation or joining). An org admin's
+*platform* role is deliberately `PATIENT` (inert) rather than `ADMIN` —
+their administrative capability comes entirely from their
+`OrganizationMembership.role = ORG_ADMIN`, not from the platform role.
+See "Organization / tenant infrastructure (M5.4)" below.
 
 ## Development commands
 
@@ -828,22 +863,102 @@ Pilot Analytics & ROI Instrumentation" — this is a summary.
   that combining these with a customer's actual labor costs is a future,
   pilot-specific exercise this codebase does not perform. No dollar
   figure or "time saved" claim is made anywhere.
-- **Global only — no multi-tenant isolation yet.** No `Organization`
-  table or `organizationId` column exists; every report covers the whole
-  system, not one customer. The reporting function's options object
-  (`{ from, to }`) is deliberately shaped so an `organizationId` filter
-  can be added later without a signature change — see the architecture
-  doc for the full extension path. **Do not present this milestone's
+- **Global by default; per-organization as of M5.4.** `GET
+  /admin/analytics/report` (platform-admin-only) is unchanged from M5.3 —
+  still every patient/pharmacist/question in the system. `GET
+  /organizations/:organizationId/analytics/report` (organization-admin-only,
+  see "Organization / tenant infrastructure (M5.4)" below) calls the same
+  `buildAnalyticsReport()` with an `organizationId`, scoping every metric
+  to that one organization's patients only. **Do not present either
   report to more than one prospective customer as if it were their own
-  isolated data.**
+  isolated data** — but as of M5.4 there is now a real mechanism for
+  giving an organization *only* its own numbers, not just a documented
+  intention.
 - **Current limitations.** No pharmacist self-service analytics (only
-  `ADMIN` can access the report); no historical backfill (events only
-  exist from this milestone forward, though range-bound report metrics
-  computed from source tables are unaffected); no event retention/
-  archival policy; unclaimed-queue-volume and queue-aging are always a
-  *live* snapshot, not reconstructable for a historical `to`; no read
-  replica or pre-aggregated rollup table (the report queries the primary
-  database directly, synchronously, on every request).
+  `ADMIN`/organization-admin can access a report); no historical backfill
+  (events only exist from this milestone forward, though range-bound
+  report metrics computed from source tables are unaffected); no event
+  retention/archival policy; unclaimed-queue-volume and queue-aging are
+  always a *live* snapshot, not reconstructable for a historical `to`; no
+  read replica or pre-aggregated rollup table (the report queries the
+  primary database directly, synchronously, on every request).
+
+## Organization / tenant infrastructure (M5.4)
+
+Full rationale, the tenant-boundary reasoning, and the complete route
+table live in `docs/doseprepped/ARCHITECTURE.md` under "M5.4 —
+Organization / Tenant Infrastructure" — this is a summary. **This is
+infrastructure work, not a new patient-facing feature**: the patient
+application is completely unchanged — no organization branding,
+org-switcher, or org-specific copy anywhere in it.
+
+- **`Organization` + `OrganizationMembership`.** An `Organization`
+  represents one healthcare customer (a telehealth company, a digital
+  pharmacy, a health plan — never Wasef or any other real company by
+  name). `OrganizationMembership` is a join table
+  (`organizationId` + `userId` + `OrganizationRole`), not a nullable
+  column on `User` — this is what lets a user belong to more than one
+  organization later without a schema change, even though M5.4 doesn't
+  build or test that today. `OrganizationRole` (`ORG_ADMIN` |
+  `ORG_PHARMACIST` | `ORG_PATIENT`) is a deliberately separate enum from
+  the platform `Role` (`PATIENT` | `PHARMACIST` | `ADMIN`) — the two axes
+  are never conflated, which is exactly what makes "an organization admin
+  is not automatically a DosePrepped platform admin" a structural fact,
+  not just a policy statement.
+- **Patient-owned data was not touched.** No `organizationId` column was
+  added to `PatientMedication`, `MedicationQuestion`,
+  `MedicationAdherenceEvent`, `MedicationCheckIn`, or `AnalyticsEvent`.
+  Organization visibility into a patient's records is derived *live* from
+  the current `OrganizationMembership` graph (a nested Prisma relation
+  filter), not from a stamped, potentially-stale column — patient
+  ownership and organization ownership are different concepts and are
+  never merged into one column.
+- **Tenant-isolated pharmacist queue.** An org-affiliated pharmacist sees
+  and can claim only questions from patients in their own organization; a
+  DosePrepped Direct (org-less) pharmacist sees and can claim only
+  DosePrepped Direct patients' questions — a strict, symmetric split,
+  with zero behavior change for every pre-M5.4 account (which has no
+  organization membership). This applies both to the existing shared
+  `GET /pharmacist/queue` and, critically, to the atomic claim mutation
+  itself (`POST /pharmacist/questions/:id/claim`) — not just the list —
+  so a cross-organization question can never be claimed by ID even if a
+  pharmacist somehow learned it existed. A cross-organization claim
+  attempt returns `404`, the same as any other out-of-scope resource,
+  never `409` (which would falsely confirm an in-scope race happened).
+- **Organization-scoped analytics.** See "Analytics & reporting
+  architecture" above — an organization administrator gets their own
+  `GET /organizations/:organizationId/analytics/report`, computed by the
+  same `buildAnalyticsReport()` used for the M5.3 global report, and can
+  never reach the global platform-admin report.
+- **Centralized authorization helpers**
+  (`apps/api/src/lib/organization-auth.ts`): `requirePlatformAdmin`,
+  `requireOrganizationMember`, `requireOrganizationAdmin`,
+  `requireOrganizationPharmacist`. Every organization-scoped route reads
+  `organizationId` only from the URL path and re-validates membership
+  against the database on every request — never from a request body or
+  query string, so organization context can never be spoofed by a
+  client. A non-member gets `404`, not `403`, for any organization-scoped
+  route (the API never confirms an organization's existence to a
+  non-member) — the same existence-hiding pattern already used for
+  patient/pharmacist resource ownership. A platform admin (`Role.ADMIN`)
+  can act on any organization without needing a membership row.
+- **Minimal management API, platform-admin-gated creation.**
+  `POST /organizations` (platform-admin-only — no public organization
+  creation), `GET /organizations/:organizationId`,
+  `GET`/`POST /organizations/:organizationId/memberships` and
+  `DELETE .../memberships/:id` (organization-admin self-service — no
+  invitation/email flow, the target user must already have a DosePrepped
+  account), and `GET /organizations/me` (derived from the session,
+  returns only the caller's own memberships).
+- **What's intentionally deferred**: an organization-admin UI (the
+  authorization foundation and API exist and are fully tested; there is
+  no dashboard screen yet), an invitation/email flow, organization
+  branding/white-labeling/subdomain routing (`Organization.slug` is
+  stored but not yet used for routing), multi-organization patient/
+  pharmacist UI or reasoning, billing/subscriptions/pricing, state
+  licensure/collaborative-practice enforcement tied to an organization,
+  and organization deletion/rename. None of this is precluded by the
+  M5.4 schema or authorization model — it's simply not built yet.
 
 ## Security notes for this milestone
 
@@ -893,6 +1008,20 @@ Pilot Analytics & ROI Instrumentation" — this is a summary.
   endpoint anywhere returns one patient's activity to anyone but that
   patient. Analytics writes are fire-and-forget and can never fail or
   block a real patient/pharmacist request.
+- **M5.4 additions:** every organization-scoped route derives
+  `organizationId` only from the URL path and re-validates the
+  authenticated user's `OrganizationMembership` against the database on
+  every request — never from a request body or query string, so
+  organization context can never be spoofed by a client. A non-member
+  gets `404` (never `403`, never a differently-shaped error) for any
+  organization-scoped route, so the API never confirms an organization's
+  existence to a non-member — the same pattern already used for
+  patient/pharmacist resource ownership. The pharmacist queue's atomic
+  claim mutation, not just its list view, is tenant-checked, so a
+  cross-organization question can never be claimed by ID. Verified by a
+  dedicated cross-organization test suite
+  (`apps/api/tests/organizations.test.ts`) — see "Organization / tenant
+  infrastructure (M5.4)" above.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

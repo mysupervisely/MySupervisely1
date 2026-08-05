@@ -3106,33 +3106,561 @@ screen or workflow.
 
 ---
 
+## M5.4 — Organization / Tenant Infrastructure (implemented)
+
+**Status: implemented.** M5.4 is infrastructure, not a new patient-facing
+feature: it establishes the minimum viable multi-tenant/B2B foundation so
+DosePrepped can eventually be sold to more than one healthcare
+organization, without building any single customer's product. Nothing
+here is Wasef-specific, and nothing here is billing, branding, or a full
+enterprise admin portal — those are explicitly future milestones.
+
+**DosePrepped's positioning, restated (unchanged by M5.4):** medication
+support infrastructure connecting patients, medication education,
+pharmacists, and appropriate provider escalation. M5.4 adds *who owns
+which slice of that infrastructure*, not any new clinical capability.
+
+### Audit method
+
+Before writing any code, this milestone re-read `README.md`, this
+document in full, the complete `schema.prisma`, `apps/api/src/lib/auth.ts`
+and `packages/auth/src/session.ts`, every ownership check in
+`medications.ts`/`medication-journey.ts`/`questions.ts`, every
+authorization check in `pharmacist-questions.ts` (including claim
+concurrency), the M5.3 analytics architecture (`analytics.ts`,
+`analytics-report.ts`), and the full existing test suite (163 tests).
+
+**Places the existing system assumed a single global environment**,
+identified during this review:
+
+1. `pharmacist-questions.ts`'s `visibilityWhere()` — the shared unclaimed
+   queue pool is every `PHARMACIST_REQUESTED` question in the entire
+   database; any pharmacist can see and claim any of them. There was no
+   concept of "this pharmacist's employer" at all.
+2. The atomic claim `updateMany` in `POST
+   /pharmacist/questions/:id/claim` — matches purely on `{id, status,
+   pharmacistId: null}`, with no notion of whether the claiming
+   pharmacist has any relationship to the patient.
+3. `GET /admin/analytics/report` — aggregates across every patient,
+   pharmacist, and question in the system; `AnalyticsReportOptions`
+   already reserved an unused `organizationId?` field for this reason
+   (see M5.3 §6), but nothing populated it.
+4. `Role` (platform role: `PATIENT`/`PHARMACIST`/`ADMIN`) is the *only*
+   authorization axis anywhere in the codebase — there was no way to
+   express "this ADMIN administers one specific customer" as distinct
+   from "this ADMIN administers the whole platform."
+5. Seed data (`packages/db/prisma/seed.ts`) creates every account in one
+   undifferentiated pool.
+
+### 1. Organization model
+
+```prisma
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  /// URL/identifier-safe unique slug — e.g. future subdomain or API path
+  /// segment. Not used for routing yet; reserved for that purpose.
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships OrganizationMembership[]
+
+  @@map("organizations")
+}
+```
+
+Minimal by design: a name and a unique slug. No billing plan, no contract
+metadata, no branding/white-label fields, no settings blob — those are
+explicitly deferred (see "What is intentionally deferred" below). An
+`Organization` represents one healthcare customer — a telehealth company,
+a digital pharmacy, a health plan, or any future B2B customer — never a
+specific one by name in code or seed comments beyond generic,
+obviously-synthetic demo names.
+
+### 2. Membership / role model
+
+```prisma
+enum OrganizationRole {
+  ORG_ADMIN
+  ORG_PHARMACIST
+  ORG_PATIENT
+}
+
+model OrganizationMembership {
+  id             String           @id @default(uuid())
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  role           OrganizationRole
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("organization_memberships")
+}
+```
+
+- **A proper join table, not a nullable `organizationId` on `User`.**
+  This is the key design choice for "a user may eventually belong to one
+  or more organizations": the schema already supports multi-org
+  membership today, at zero extra cost, simply because it's a join
+  table — `@@unique([organizationId, userId])` prevents a *duplicate*
+  membership in the same org, not a second membership in a *different*
+  org. M5.4 doesn't build any UI/API that exercises multi-org membership
+  (every seed/test fixture has at most one membership), but the schema
+  never forecloses it.
+- **`OrganizationRole` is a deliberately separate enum from the platform
+  `Role`** (`PATIENT`/`PHARMACIST`/`ADMIN`), prefixed `ORG_*` to keep the
+  two axes visually and semantically distinct wherever they appear
+  together (route code, tests, JSON payloads). This is the concrete
+  mechanism behind "platform admin vs. organization admin" (§6): a
+  platform `Role.ADMIN` and an org's `ORG_ADMIN` membership are stored in
+  completely different tables and never conflated.
+- **The two axes are intentionally decoupled at the database level.**
+  Nothing constrains a `User`'s platform `role` to match any
+  `OrganizationMembership.role` they hold. An org admin's account can
+  have platform role `PATIENT` (the default for a non-clinical,
+  non-platform-privileged business contact — see seed data below); a
+  platform `ADMIN` is not automatically an `ORG_ADMIN` of any org (and
+  vice versa). This is deliberate, not an oversight — it's exactly what
+  "do not assume an organization admin is a DosePrepped super-admin"
+  requires structurally, not just as a policy statement.
+
+### 3. Tenant boundaries — patient-owned vs. organization-owned data
+
+This is the most important design decision in M5.4, so it's stated
+explicitly: **no `organizationId` column was added to
+`PatientMedication`, `MedicationQuestion`, `MedicationAdherenceEvent`,
+`MedicationCheckIn`, or `AnalyticsEvent`.** All five of those remain
+exactly as patient-owned as they were before this milestone — scoped by
+`patientId`, never by a duplicated tenant column.
+
+**Reasoning.** A medication record, a question, an adherence event, and a
+check-in belong to the *patient*, full stop — that ownership predates
+organizations and doesn't change because a patient happens to be
+affiliated with one. Organization affiliation is a property of the
+*patient's account* (via `OrganizationMembership`), not a property that
+should be stamped onto every row that patient ever creates:
+
+- A stamped `organizationId` column on `MedicationQuestion` would need to
+  be decided *once, at creation time* — but a patient's org affiliation
+  can change over that patient's lifetime (join, leave, switch). A
+  frozen, denormalized copy would silently go stale the moment that
+  happens, and nothing would ever notice.
+- It would blur exactly the line the milestone brief warns against:
+  "patient ownership and organization ownership are different concepts
+  and must not be conflated." A question is never *owned* by an
+  organization — it's owned by the patient who asked it. What an
+  organization gets is *visibility into* the questions of patients who
+  are currently its members, derived live, not a claim of ownership over
+  patient data.
+- It would be "blindly adding `organizationId` to every existing table,"
+  which the brief explicitly says not to do.
+
+**Instead, organization scoping is derived at query time via the
+membership graph.** Because `User.memberships` is now a real Prisma
+relation, every tenant-scoped query for patient-owned data is a nested
+relation filter through the *current* membership rows —
+`patient: { memberships: { some: { organizationId, role: ORG_PATIENT } } } }`
+— rather than a stored column. This always reflects the patient's
+*current* affiliation, never a stale snapshot, and required zero schema
+changes to any of those four patient-owned tables.
+
+`AnalyticsEvent` is the one exception worth calling out: because it was
+deliberately built with no `@relation` at all (M5.3 — an independent,
+FK-free append-only log), it has no `patient`/`pharmacist` relation to
+nest-filter through. Where the reporting service needs to scope
+`AnalyticsEvent` rows to an organization, it pre-resolves a plain
+`patientId`/`pharmacistId` array from `OrganizationMembership` first,
+then filters by `{ in: [...] }` — a small, explicit exception, not a
+schema change.
+
+**What *is* organization-owned**: the `Organization` and
+`OrganizationMembership` rows themselves. Nothing else.
+
+### 4. Patient / organization relationship
+
+A patient's relationship to an organization is expressed purely through
+`OrganizationMembership` (`role: ORG_PATIENT`), never through any change
+to `PatientMedication`/`MedicationQuestion`/etc. This supports all three
+futures named in the milestone brief without further schema change:
+
+1. **A patient belonging to a telehealth organization** — has one
+   `OrganizationMembership` row with `role: ORG_PATIENT`.
+2. **A patient using DosePrepped directly** — has zero
+   `OrganizationMembership` rows. This is the "DosePrepped Direct" pool
+   (§10) and is exactly how every M0–M5.3 patient account (including all
+   existing seed/demo accounts) continues to work, completely unchanged.
+3. **A patient belonging to more than one organization** — already
+   representable (a second `OrganizationMembership` row, different
+   `organizationId`, same `userId`) because of the join-table design in
+   §2. **Not implemented or tested in M5.4** — no route creates a second
+   membership for the same patient, and no UI/report reasons about a
+   patient with multiple org memberships — but nothing in the schema
+   prevents it, satisfying "do not create an architecture that makes
+   this impossible later" without over-building "unless necessary for
+   the milestone."
+
+The patient-facing application (`apps/patient`) is completely unchanged
+by M5.4 — no organization information is fetched, computed, or rendered
+anywhere in the patient experience. A patient never sees their own
+organization affiliation (if any) in the UI; there is no
+organization-switcher, no org branding, no org-specific copy.
+
+### 5. Pharmacist / organization relationship & tenant-isolated queue
+
+A pharmacist's relationship to an organization is the same
+`OrganizationMembership` mechanism (`role: ORG_PHARMACIST`). The gap
+identified in the audit (finding #1/#2 above) — the shared pharmacist
+queue and the atomic claim were both fully global — is closed with a
+**minimal, additive, backward-compatible visibility rule**, applied in
+exactly two places in `pharmacist-questions.ts`:
+
+- `visibilityWhere()` (used by `GET /pharmacist/queue` and `GET
+  /pharmacist/questions/:id`), and
+- the atomic `updateMany` inside `POST
+  /pharmacist/questions/:id/claim`.
+
+**The rule**: first resolve the calling pharmacist's own `ORG_PHARMACIST`
+organization memberships (usually zero or one).
+
+- **If the pharmacist has no organization memberships** (every M0–M5.3
+  seed/test pharmacist, unchanged), the shared unclaimed pool is exactly
+  what it always was: every `PHARMACIST_REQUESTED`, unclaimed question
+  whose *patient* **also** has no organization memberships. This is a
+  no-op for every existing account — full backward compatibility,
+  verified by the entire pre-existing M4/M5.2/M5.3 pharmacist test suite
+  passing unchanged.
+- **If the pharmacist belongs to one or more organizations**, the shared
+  pool is narrowed to unclaimed questions whose patient has an
+  `ORG_PATIENT` membership in one of *those same* organizations.
+
+This is a **strict, symmetric split**, not a "direct pool + bonus org
+access" model: an org-affiliated pharmacist does not also see the
+DosePrepped Direct pool, and a Direct pharmacist does not see any
+org-affiliated patient's question. Two separate tenant pools, cleanly
+partitioned, with the existing "already claimed by me" branch of
+`visibilityWhere` unaffected (a pharmacist always keeps visibility into
+work they've already claimed, regardless of org, since a completed claim
+already passed this same check once).
+
+**Why the claim mutation needed the same fix, not just the list.** The
+existing `GET /pharmacist/queue` list and the `POST .../claim` mutation
+were independent code paths — the claim `updateMany` never consulted
+`visibilityWhere` at all, it matched purely on `{id, status,
+pharmacistId: null}`. Fixing only the list would have hidden
+cross-organization questions from the queue view while leaving them
+directly claimable by ID. Both were changed together so tenant isolation
+is enforced at the actual mutation boundary, not just the read path —
+this is the one place M5.4 touches previously-completed M4 code, and it
+is exactly the "clearly documented dependency fix" the milestone brief
+allows for: without it, "must never gain access to another
+organization's queue merely because they have the pharmacist role" would
+not actually hold.
+
+**404, not 409, for a cross-organization claim attempt.** The existing
+claim handler already distinguishes "never existed / never
+queue-eligible" (404) from "existed, was eligible, but someone else
+claimed it first" (409 — the genuine race case, see M4 "Claim
+concurrency"). A question that exists, was queue-eligible, but belongs to
+a *different organization* than the caller is now folded into the 404
+branch, not 409 — 409 would confirm to the caller that a real,
+in-scope-looking race happened, which is not true and would leak that
+the question exists. This matches the brief's explicit instruction to
+"use 404 where the existing architecture intentionally avoids revealing
+the existence of unauthorized resources," and mirrors the exact pattern
+already used for out-of-scope patient/medication records elsewhere in
+this codebase.
+
+**No dedicated `/organizations/:id/pharmacist/queue` list route was
+added.** The existing `GET /pharmacist/queue` URL is now inherently
+tenant-aware (per the rule above) — adding a second URL that returns the
+same, already-correctly-scoped data would be surface area with no
+additional correctness benefit, and the brief asks for the minimum
+foundation, not additional enterprise routes. What *was* added is a thin,
+explicitly-authorized alias, `GET
+/organizations/:organizationId/pharmacist/queue`, gated by
+`requireOrganizationPharmacist` — it calls the exact same now-tenant-aware
+query logic (`buildPharmacistQueue()`, extracted into a shared function)
+but requires the caller to explicitly hold `ORG_PHARMACIST` membership in
+the *named* organization first (chained after the same `requireRole
+(Role.PHARMACIST)` every other pharmacist route uses — an
+`ORG_PHARMACIST` membership alone is not sufficient without the platform
+`Role.PHARMACIST` too, preserving "all existing pharmacist authorization
+rules"). This exists specifically to give `requireOrganizationPharmacist`
+a real, directly-testable caller and to provide an explicit,
+self-documenting URL a future org-facing UI could call, rather than
+relying on implicit scoping alone. The shared query logic itself lives in
+`buildPharmacistQueueResponse()`, extracted from the original inline `GET
+/pharmacist/queue` handler so both routes call exactly one
+implementation.
+
+Respond, escalate, and release were **not modified** — each of those only
+ever operates on a question already matched by `{id, pharmacistId}` (the
+claiming pharmacist's own claim), and because claim itself is now
+tenant-checked, any question a pharmacist successfully claims is already
+guaranteed same-organization (or same "Direct" pool). Tenant correctness
+at claim time propagates through the rest of the lifecycle for free — no
+further routes needed changes.
+
+### 6. Platform admin vs. organization admin
+
+Two structurally distinct authorization concepts, per §2:
+
+- **Platform administration** — `Role.ADMIN` on `User`, unchanged since
+  M1. Grants access to platform-wide routes (`/admin/ping`, `GET
+  /admin/analytics/report`) and, in M5.4, an override on every
+  organization-scoped route (a platform admin can act as if they were a
+  member/admin/pharmacist of *any* organization — see `requirePlatformAdmin`
+  in §7). There is exactly one pool of platform admins, and it is not
+  organization-scoped.
+- **Organization administration** — an `OrganizationMembership` row with
+  `role: ORG_ADMIN` for one specific organization. Grants management
+  access (membership CRUD, that organization's own analytics report) for
+  *that organization only*. An org admin's platform `Role` is not
+  required to be, and by default in seed data is not, `ADMIN` — see §2.
+
+An org admin is never a platform admin unless they *separately* also hold
+`Role.ADMIN` on their `User` row (nothing in M5.4 grants that
+automatically), and a platform admin does not need any
+`OrganizationMembership` row to manage or view any organization's data —
+the override in §7 covers that. No organization-admin UI was built in
+M5.4 (see §11) — the authorization foundation exists and is fully tested,
+but there is no dashboard page yet, exactly as the brief allows
+("establish the authorization foundation and document the UI limitation
+rather than building a large admin portal").
+
+### 7. Authorization helpers
+
+`apps/api/src/lib/organization-auth.ts` — centralized, testable
+preHandlers, none of which trust a client-supplied organization id except
+as a route *parameter* whose membership is then verified server-side
+against the database on every call:
+
+- **`requirePlatformAdmin`** — authenticates, then requires `Role.ADMIN`.
+  A thin, explicitly-named wrapper around the same check `requireRole
+  (Role.ADMIN)` already performs — introduced under this name
+  specifically so "platform admin" reads as a distinct concept from "the
+  ADMIN role" everywhere it's used in M5.4 route code, per §6.
+- **`requireOrganizationMember`** — authenticates, reads `:organizationId`
+  from the route params, and requires either `Role.ADMIN` (platform admin
+  override) or an `OrganizationMembership` row for that exact
+  `(organizationId, userId)` pair. A non-member (and a non-existent
+  `organizationId`) both produce `404` — the API never reveals whether an
+  organization exists to a non-member. On success, attaches
+  `request.organizationId` and `request.organizationRole` (`null`, not a
+  real `OrganizationRole`, for the platform-admin-override path — a
+  platform admin may hold no membership row in the organization at all)
+  for downstream handlers.
+- **`requireOrganizationAdmin`** — runs `requireOrganizationMember` first,
+  then additionally requires `request.organizationRole === "ORG_ADMIN"`
+  (or the platform-admin override) — `403` otherwise.
+- **`requireOrganizationPharmacist`** — same shape, requires
+  `"ORG_PHARMACIST"` (or the platform-admin override).
+
+**The organization id always comes from the URL path
+(`request.params.organizationId`), resolved and membership-checked
+server-side on every request — never from a request body field, a query
+string, or anything else client-supplied that isn't independently
+verified.** This is what "the server must derive or validate organization
+context" means concretely: there is no route anywhere in M5.4 that reads
+an `organizationId` out of a POST body and trusts it without this same
+membership check.
+
+### 8. Organization management API
+
+Deliberately minimal — creation is platform-admin-only, and there is no
+public organization creation, invitation, or email flow:
+
+```
+POST   /organizations                                  requirePlatformAdmin
+GET    /organizations/:organizationId                  requireOrganizationMember
+GET    /organizations/:organizationId/memberships       requireOrganizationAdmin
+POST   /organizations/:organizationId/memberships       requireOrganizationAdmin
+DELETE /organizations/:organizationId/memberships/:id   requireOrganizationAdmin
+GET    /organizations/me                                authenticate only
+GET    /organizations/:organizationId/pharmacist/queue   requireRole(PHARMACIST) + requireOrganizationPharmacist
+GET    /organizations/:organizationId/analytics/report   requireOrganizationAdmin
+```
+
+- **`POST /organizations`** — platform-admin-only, per the brief
+  ("avoid public organization creation"). Body: `{name, slug}`; `slug`
+  must be unique.
+- **Membership add/remove** — `requireOrganizationAdmin` lets an org's own
+  admin manage their team (add a pharmacist, add another org admin, add a
+  patient membership, remove someone) without needing a platform admin
+  for every change — this is the one piece of genuine self-service in
+  M5.4, deliberately small: no invitation email, no pending/accepted
+  state, just an immediate membership row created by someone already
+  authorized to manage that org. The target `userId` must already exist
+  as a `User` (no account creation happens through this endpoint).
+- **`GET /organizations/me`** — "determine current user's organization
+  context." Returns the *caller's own* memberships (derived from
+  `request.user.id`, never a parameter) — every authenticated user can
+  call this; it can only ever return their own data.
+- No `PATCH /organizations/:id` (rename/slug-change), no organization
+  deletion/archival, no bulk membership import — all deferred (§12).
+
+### 9. Analytics — tenant strategy
+
+M5.3 built `buildAnalyticsReport({ from, to })` with an intentionally
+unused, reserved `organizationId?` field (see M5.3 §6) specifically so
+this milestone wouldn't need to rewrite it — M5.4 makes good on that:
+
+- **`organizationId` is now load-bearing.** When provided, every
+  patient-sourced query (questions, medications, adherence, check-ins,
+  medication views) adds a nested `patient: { memberships: { some: {
+  organizationId, role: ORG_PATIENT } } } }` filter; every pharmacist-time
+  query (claimed/responded/escalated, and the live unclaimed-queue
+  snapshot) adds the equivalent `pharmacist`/`patient` filter. `User`
+  counts (`totalPatients`, `patientsActivated`) filter by the same nested
+  relation on `User.memberships`. The one exception is `AnalyticsEvent`
+  (no relations by design, M5.3) — its queries pre-resolve a plain
+  `patientId`/`pharmacistId` array from `OrganizationMembership` first,
+  then filter by `{ in: [...] }`.
+- **When `organizationId` is omitted, behavior is byte-identical to
+  M5.3** — every added filter is conditionally spread in (`{}` when no
+  organization id), so the existing platform-wide `GET
+  /admin/analytics/report` and its full M5.3 test suite are unaffected.
+- **`GET /organizations/:organizationId/analytics/report`** —
+  `requireOrganizationAdmin`-gated, calls `buildAnalyticsReport({ from,
+  to, organizationId })`. An org admin can only ever request *their own*
+  organization's id (enforced by the same authorization helper as every
+  other org route — the URL path segment is membership-checked, not
+  trusted); a platform admin can request any organization's scoped report
+  via the same route (the override in §7).
+- **The existing `GET /admin/analytics/report` is completely
+  unchanged** — still `requirePlatformAdmin`-gated (in M5.4 this is
+  literally the same check as the M5.3-era `requireRole(Role.ADMIN)`,
+  just re-exported under the new name), still global, still the only way
+  to see cross-organization aggregate numbers. Organization admins cannot
+  reach it — `requireOrganizationAdmin` never grants access to the
+  platform-wide route, and `requirePlatformAdmin` never accepts an
+  `ORG_ADMIN` membership as a substitute for `Role.ADMIN`.
+- **No analytics data ever mixes across organizations.** Every query
+  behind the org-scoped route filters by exactly one `organizationId`;
+  there is no code path that unions two organizations' data into one
+  response.
+
+### 10. Commercial future (architecture only — nothing implemented)
+
+The schema and authorization model above are shaped so the following
+remain buildable later without a rewrite — none of it exists yet:
+
+```
+DosePrepped Platform
+  |
+  +-- DosePrepped Direct  — patients with zero OrganizationMembership rows
+  |                           (every M0–M5.3 account, unchanged)
+  |
+  +-- DosePrepped B2B
+         |
+         +-- Organization A (e.g. a telehealth company)
+         |      +-- ORG_PATIENT members
+         |      +-- ORG_PHARMACIST members
+         |      +-- ORG_ADMIN members  -> that org's own analytics report
+         |
+         +-- Organization B (e.g. a digital pharmacy)
+                +-- ... (fully isolated from Organization A, see §3/§5/§9)
+```
+
+Per-active-patient/month billing, enterprise contracts,
+pharmacist-support packages, and API/integration fees are all namable
+*business models* this shape is compatible with — none are implemented,
+priced, or referenced anywhere in code. No `Plan`/`Subscription`/
+`Invoice` model exists.
+
+### 11. Security/authorization tests
+
+`apps/api/tests/organizations.test.ts` — see also the modified
+pharmacist-queue/claim tests in `pharmacist-questions.test.ts`. Covers:
+organization creation (platform-admin-only, `403` otherwise); membership
+creation/listing/removal (org-admin and platform-admin allowed, `403` for
+a non-admin member, `403`/`404` for a non-member); **tenant isolation** —
+an Organization A pharmacist cannot see or claim an Organization B
+patient's question (via both the modified global queue/claim and the new
+org-scoped queue route), an Organization A org admin cannot read
+Organization B's membership list or analytics report (`404`, not `403`,
+for a non-member calling an org-scoped route — consistent with the
+existence-hiding pattern used everywhere else); a client cannot spoof
+organization context by passing an arbitrary `organizationId` in a
+request body (every check re-derives it from the authenticated
+membership row, never trusts the body); a platform admin retains full
+cross-organization access; and full regression of every pre-existing
+M0–M5.3 authentication/authorization/ownership/pharmacist/analytics test.
+
+### Remaining limitations / what is intentionally deferred
+
+- **No organization-admin UI.** The authorization foundation
+  (`requireOrganizationAdmin`, the membership/analytics API) exists and
+  is fully tested; there is no frontend screen for it. Per the brief,
+  building one was explicitly out of scope for this milestone.
+- **No multi-organization patient/pharmacist UI or reasoning**, even
+  though the schema supports it (§2/§4) — no route or report considers
+  what should happen if a user holds two memberships with conflicting
+  implications; this is untested and undocumented behavior if it were to
+  occur today (nothing prevents creating it via direct membership calls,
+  but nothing exercises it either).
+- **No invitation/email flow** — membership is added directly by an
+  already-authorized org admin or platform admin; there is no
+  pending-invite state, no email sending, no self-service signup into an
+  organization.
+- **No organization branding/white-labeling, no organization-specific
+  patient UI, no subdomain routing** — `Organization.slug` is stored but
+  not yet used for anything (reserved for a future routing/branding
+  layer).
+- **No billing, subscriptions, plans, or pricing** — not modeled, not
+  referenced.
+- **No state licensure/collaborative-practice enforcement** tied to
+  organization or pharmacist — M5.1's `PharmacistProfile` foundation and
+  M5.4's organization model remain independent; combining them (e.g.
+  "this pharmacist may only serve patients in states where their license
+  is valid, within this organization") is explicitly future work.
+- **No organization deletion/archival, no rename/slug-change API.**
+- **Existing patient-owned tables were not touched.** This is a design
+  choice (§3), not a limitation — but it does mean there is currently no
+  way to ask "show me every record ever created by a patient who has
+  since left organization X" as a historical query; only *current*
+  membership is ever considered.
+
+---
+
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
 & disposition), M3 Phase 3 (AI-assisted medication education), M4
 (pharmacist review & concierge workflow), M5.1 (pilot readiness & product
-hardening), M5.2 (medication journey & adherence foundation), and M5.3
-(pilot analytics & ROI instrumentation) are implemented, tested, and
-merged. A question now flows end-to-end through deterministic safety →
-(non-emergency, non-fully-AI-answered) AI education → automatic pharmacist
-queueing → atomic claim → a human pharmacist response or a structured
-escalation, with no code path anywhere that lets AI-generated content
-become an official pharmacist response or change a deterministic
-disposition. Every patient- and pharmacist-facing screen shows accurate,
-current copy, and API errors fail safely without leaking internal detail.
-Patients can also record per-dose adherence (taken/missed/skipped),
-complete a structured medication check-in, and view a derived medication
-timeline; a pharmacist reviewing a routed question sees bounded,
-clearly-labeled medication context alongside it. Every meaningful
-patient/pharmacist action now emits a versioned, non-PHI analytics event
-(`AnalyticsEvent`), and an admin-only aggregate report
-(`GET /admin/analytics/report`) answers patient engagement, question
-funnel, AI, pharmacist, provider-escalation, and adherence/check-in
-questions over a date range — with "escalated to provider" and "resolved
-without provider escalation" defined precisely and never conflated with a
-clinical-outcome or cost-savings claim. Still global-only (no
-organization/tenant isolation yet — documented extension path). Still not
-built: B2B organizations, payments, pharmacist compensation, EHR/
-telehealth integration, pharmacist license verification/enforcement, a
-structured dosing/reminder engine, and any real cost/ROI calculation.
-Awaiting direction on M5.4.
+hardening), M5.2 (medication journey & adherence foundation), M5.3 (pilot
+analytics & ROI instrumentation), and M5.4 (organization/tenant
+infrastructure) are implemented, tested, and merged. A question now flows
+end-to-end through deterministic safety → (non-emergency,
+non-fully-AI-answered) AI education → automatic pharmacist queueing →
+atomic claim → a human pharmacist response or a structured escalation,
+with no code path anywhere that lets AI-generated content become an
+official pharmacist response or change a deterministic disposition.
+Patients can also record per-dose adherence, complete a structured
+medication check-in, and view a derived medication timeline; a pharmacist
+reviewing a routed question sees bounded, clearly-labeled medication
+context alongside it. Every meaningful patient/pharmacist action emits a
+versioned, non-PHI analytics event, and an admin-only aggregate report
+answers patient engagement, question funnel, AI, pharmacist,
+provider-escalation, and adherence/check-in questions over a date range.
+DosePrepped now has a minimum viable multi-tenant/B2B foundation:
+`Organization`/`OrganizationMembership` (patient-owned data stays
+patient-owned — organization visibility is derived live through the
+membership graph, never a stamped column), a tenant-isolated pharmacist
+queue/claim (an organization's pharmacist can never see or claim another
+organization's patient question), organization-scoped analytics
+(`GET /organizations/:id/analytics/report`, isolated from both the global
+platform report and every other organization), and a clear platform-admin
+vs. organization-admin authorization split. The patient application is
+completely unchanged — no organization UI, no branding, no
+white-labeling. Still not built: B2B billing/subscriptions/pricing,
+organization-admin UI, invitation/email flows, organization
+branding/subdomain routing, pharmacist license verification/enforcement,
+EHR/telehealth integration, a structured dosing/reminder engine, and any
+real cost/ROI calculation. Awaiting direction on M5.5.

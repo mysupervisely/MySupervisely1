@@ -33,6 +33,7 @@ export {
   AdherenceStatus,
   CheckInResponse,
   AnalyticsEventType,
+  OrganizationRole,
 } from "../generated/client/client.js";
 export type {
   User,
@@ -44,5 +45,7 @@ export type {
   MedicationAdherenceEvent,
   MedicationCheckIn,
   AnalyticsEvent,
+  Organization,
+  OrganizationMembership,
   Prisma,
 } from "../generated/client/client.js";

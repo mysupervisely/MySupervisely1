@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { LightMyRequestResponse } from "fastify";
-import { prisma, Role } from "@doseprepped/db";
+import { prisma, Role, OrganizationRole } from "@doseprepped/db";
 import { hashPassword } from "@doseprepped/auth";
 import type { buildApp } from "../src/app.js";
 
@@ -59,6 +59,28 @@ export async function createMedicationForPatient(
     payload: { ...VALID_MEDICATION_PAYLOAD, ...overrides },
   });
   return response.json().medication;
+}
+
+// M5.4 — organization/tenant test fixtures. A fixed, recognizable slug
+// prefix (rather than TEST_EMAIL_DOMAIN, which contains dots that the
+// slug format rejects) so afterAll hooks across test files can reliably
+// clean up every test-created Organization without touching seed data.
+export const TEST_ORG_SLUG_PREFIX = "test-org-";
+
+/** Slug-safe unique string (lowercase letters, digits, hyphens only) —
+ * use for any test that needs to POST /organizations directly. */
+export function uniqueSlug(label: string): string {
+  return `${TEST_ORG_SLUG_PREFIX}${label}-${randomUUID()}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+}
+
+export async function createOrganizationDirectly(label: string) {
+  return prisma.organization.create({
+    data: { name: `Test Org ${label}`, slug: uniqueSlug(label) },
+  });
+}
+
+export async function addOrgMembership(organizationId: string, userId: string, role: OrganizationRole) {
+  return prisma.organizationMembership.create({ data: { organizationId, userId, role } });
 }
 
 export async function createQuestionForPatient(

@@ -7,19 +7,60 @@ import {
   EscalationReasonCategory,
   CheckInResponse,
   AnalyticsEventType,
+  OrganizationRole,
+  type Prisma,
 } from "@doseprepped/db";
 import { computeAdherenceSummary } from "./adherence.js";
 
 export interface AnalyticsReportOptions {
   from: Date;
   to: Date;
-  // Reserved for future per-tenant scoping — see
-  // docs/doseprepped/ARCHITECTURE.md "M5.3 — Multi-tenant / organization
-  // compatibility (not built)". Not implemented: no organizationId column
-  // exists on User/AnalyticsEvent yet, so passing this today has no
-  // effect. Kept here so a future caller/route doesn't need a signature
-  // change once tenant scoping exists.
+  // M5.4 — when present, every metric in the returned report is scoped to
+  // this organization's patients only (see `resolveOrgPatientIds` and
+  // `patientRelationFilter` below). This field was reserved-but-unused in
+  // M5.3; M5.4 makes it load-bearing without changing the function's
+  // signature or its behavior when omitted. Omitting it reproduces the
+  // exact M5.3 global-report behavior byte-for-byte. See
+  // docs/doseprepped/ARCHITECTURE.md "M5.4 — Analytics — tenant
+  // strategy".
   organizationId?: string;
+}
+
+/**
+ * M5.4 — the user ids of every ORG_PATIENT member of `organizationId`.
+ * AnalyticsEvent has no foreign keys (see
+ * docs/doseprepped/ARCHITECTURE.md "M5.3 — What analytics must never
+ * store" for why), so it cannot be filtered with a nested relation filter
+ * like every other table below — its patientId is pre-resolved to a
+ * plain id array and filtered with `{ in: [...] }` instead. This is the
+ * one exception to the nested-relation-filter approach used everywhere
+ * else in this file.
+ */
+async function resolveOrgPatientIds(organizationId: string): Promise<string[]> {
+  const memberships = await prisma.organizationMembership.findMany({
+    where: { organizationId, role: OrganizationRole.ORG_PATIENT },
+    select: { userId: true },
+  });
+  return memberships.map((m) => m.userId);
+}
+
+/** Filter for queries against User itself (role = PATIENT rows). */
+function userOrgFilter(organizationId: string | undefined): Prisma.UserWhereInput {
+  if (!organizationId) return {};
+  return { memberships: { some: { organizationId, role: OrganizationRole.ORG_PATIENT } } };
+}
+
+/**
+ * Filter for queries against any table with a `patient` relation to User
+ * (PatientMedication, MedicationQuestion, MedicationAdherenceEvent,
+ * MedicationCheckIn). Derived live through OrganizationMembership, same
+ * as the pharmacist queue's tenant boundary — never a stamped
+ * organizationId column. See docs/doseprepped/ARCHITECTURE.md "M5.4 —
+ * Tenant boundaries".
+ */
+function patientRelationFilter(organizationId: string | undefined): { patient?: Prisma.UserWhereInput } {
+  if (!organizationId) return {};
+  return { patient: userOrgFilter(organizationId) };
 }
 
 function zeroRecord<T extends string>(values: readonly T[]): Record<T, number> {
@@ -174,9 +215,20 @@ const ROI_NOTE =
  * compatibility (not built)".
  */
 export async function buildAnalyticsReport(options: AnalyticsReportOptions): Promise<AnalyticsReport> {
-  const { from, to } = options;
+  const { from, to, organizationId } = options;
   const range = { gte: from, lte: to };
   const now = new Date();
+
+  // Pre-resolved once, reused by every AnalyticsEvent query below (see
+  // `resolveOrgPatientIds` doc comment for why AnalyticsEvent needs this
+  // instead of a nested relation filter). Undefined (not []) when the
+  // report is global, so every filter below collapses to the exact M5.3
+  // behavior.
+  const orgPatientIds = organizationId ? await resolveOrgPatientIds(organizationId) : undefined;
+  const analyticsEventPatientWhere: Prisma.AnalyticsEventWhereInput = orgPatientIds
+    ? { patientId: { in: orgPatientIds } }
+    : {};
+  const patientFilter = patientRelationFilter(organizationId);
 
   const [
     totalPatients,
@@ -196,15 +248,15 @@ export async function buildAnalyticsReport(options: AnalyticsReportOptions): Pro
     activeCheckInPatientIds,
     activeViewPatientIds,
   ] = await Promise.all([
-    prisma.user.count({ where: { role: Role.PATIENT, createdAt: { lte: to } } }),
-    prisma.user.count({ where: { role: Role.PATIENT, createdAt: range } }),
-    prisma.patientMedication.count({ where: { createdAt: { lte: to } } }),
-    prisma.patientMedication.count({ where: { createdAt: range } }),
+    prisma.user.count({ where: { role: Role.PATIENT, createdAt: { lte: to }, ...userOrgFilter(organizationId) } }),
+    prisma.user.count({ where: { role: Role.PATIENT, createdAt: range, ...userOrgFilter(organizationId) } }),
+    prisma.patientMedication.count({ where: { createdAt: { lte: to }, ...patientFilter } }),
+    prisma.patientMedication.count({ where: { createdAt: range, ...patientFilter } }),
     prisma.analyticsEvent.count({
-      where: { eventType: AnalyticsEventType.PATIENT_MEDICATION_VIEWED, createdAt: range },
+      where: { eventType: AnalyticsEventType.PATIENT_MEDICATION_VIEWED, createdAt: range, ...analyticsEventPatientWhere },
     }),
     prisma.medicationQuestion.findMany({
-      where: { createdAt: range },
+      where: { createdAt: range, ...patientFilter },
       select: {
         id: true,
         patientId: true,
@@ -218,34 +270,50 @@ export async function buildAnalyticsReport(options: AnalyticsReportOptions): Pro
       },
     }),
     prisma.medicationAdherenceEvent.findMany({
-      where: { recordedAt: range },
+      where: { recordedAt: range, ...patientFilter },
       select: { status: true },
     }),
     prisma.medicationCheckIn.findMany({
-      where: { createdAt: range },
+      where: { createdAt: range, ...patientFilter },
       select: { response: true },
     }),
     prisma.medicationQuestion.findMany({
-      where: { pharmacistClaimedAt: range },
+      where: { pharmacistClaimedAt: range, ...patientFilter },
       select: { pharmacistRequestedAt: true, pharmacistClaimedAt: true },
     }),
     prisma.medicationQuestion.findMany({
-      where: { pharmacistRespondedAt: range },
+      where: { pharmacistRespondedAt: range, ...patientFilter },
       select: { pharmacistClaimedAt: true, pharmacistRespondedAt: true },
     }),
     prisma.medicationQuestion.findMany({
-      where: { escalatedAt: range },
+      where: { escalatedAt: range, ...patientFilter },
       select: { escalationReasonCategory: true },
     }),
     prisma.medicationQuestion.findMany({
-      where: { status: QuestionStatus.PHARMACIST_REQUESTED, pharmacistId: null },
+      where: { status: QuestionStatus.PHARMACIST_REQUESTED, pharmacistId: null, ...patientFilter },
       select: { pharmacistRequestedAt: true },
     }),
-    prisma.medicationQuestion.findMany({ where: { createdAt: range }, select: { patientId: true }, distinct: ["patientId"] }),
-    prisma.medicationAdherenceEvent.findMany({ where: { recordedAt: range }, select: { patientId: true }, distinct: ["patientId"] }),
-    prisma.medicationCheckIn.findMany({ where: { createdAt: range }, select: { patientId: true }, distinct: ["patientId"] }),
+    prisma.medicationQuestion.findMany({
+      where: { createdAt: range, ...patientFilter },
+      select: { patientId: true },
+      distinct: ["patientId"],
+    }),
+    prisma.medicationAdherenceEvent.findMany({
+      where: { recordedAt: range, ...patientFilter },
+      select: { patientId: true },
+      distinct: ["patientId"],
+    }),
+    prisma.medicationCheckIn.findMany({
+      where: { createdAt: range, ...patientFilter },
+      select: { patientId: true },
+      distinct: ["patientId"],
+    }),
     prisma.analyticsEvent.findMany({
-      where: { eventType: AnalyticsEventType.PATIENT_MEDICATION_VIEWED, createdAt: range, patientId: { not: null } },
+      where: {
+        eventType: AnalyticsEventType.PATIENT_MEDICATION_VIEWED,
+        createdAt: range,
+        patientId: orgPatientIds ? { in: orgPatientIds } : { not: null },
+      },
       select: { patientId: true },
       distinct: ["patientId"],
     }),

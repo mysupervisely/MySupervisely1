@@ -7,6 +7,7 @@ import {
   QuestionStatus,
   EscalationReasonCategory,
   AnalyticsEventType,
+  OrganizationRole,
   type MedicationQuestion,
   type Prisma,
 } from "@doseprepped/db";
@@ -29,9 +30,9 @@ const escalateSchema = z.object({
 });
 
 const QUEUE_TABS = ["NEW", "IN_REVIEW", "COMPLETED", "ESCALATED"] as const;
-type QueueTab = (typeof QUEUE_TABS)[number];
+export type QueueTab = (typeof QUEUE_TABS)[number];
 
-const queueQuerySchema = z.object({
+export const queueQuerySchema = z.object({
   tab: z.enum(QUEUE_TABS).optional(),
 });
 
@@ -160,17 +161,54 @@ async function buildMedicationContext(question: MedicationQuestion) {
 }
 
 /**
+ * M5.4 — the organization ids (if any) this pharmacist holds an
+ * ORG_PHARMACIST membership in. See docs/doseprepped/ARCHITECTURE.md
+ * "M5.4 — Pharmacist / organization relationship". A user is expected to
+ * hold at most one such membership under the current milestone, but this
+ * makes no such assumption in code.
+ */
+async function resolvePharmacistOrgIds(pharmacistId: string): Promise<string[]> {
+  const memberships = await prisma.organizationMembership.findMany({
+    where: { userId: pharmacistId, role: OrganizationRole.ORG_PHARMACIST },
+    select: { organizationId: true },
+  });
+  return memberships.map((m) => m.organizationId);
+}
+
+/**
+ * M5.4 — the tenant boundary for the pharmacist queue. Strict and
+ * symmetric, no hybrid/bonus-access model: an org-affiliated pharmacist
+ * sees ONLY patients who are ORG_PATIENT members of one of their
+ * organizations; an org-less ("DosePrepped Direct") pharmacist sees ONLY
+ * patients with zero organization memberships. See
+ * docs/doseprepped/ARCHITECTURE.md "M5.4 — Pharmacist / organization
+ * relationship & tenant-isolated queue".
+ */
+function patientPoolWhere(orgIds: string[]): Prisma.MedicationQuestionWhereInput {
+  if (orgIds.length === 0) {
+    return { patient: { memberships: { none: {} } } };
+  }
+  return {
+    patient: {
+      memberships: { some: { organizationId: { in: orgIds }, role: OrganizationRole.ORG_PATIENT } },
+    },
+  };
+}
+
+/**
  * The one authorization boundary every pharmacist route uses — see
  * docs/doseprepped/ARCHITECTURE.md "Pharmacist queue architecture". A
  * question is visible to a pharmacist only if it's unclaimed and in the
  * shared queue, or if they are the pharmacist who claimed it (regardless
- * of its current status).
+ * of its current status) — AND, as of M5.4, only if the patient is within
+ * this pharmacist's tenant pool (see `patientPoolWhere`).
  */
-function visibilityWhere(pharmacistId: string): Prisma.MedicationQuestionWhereInput {
+async function visibilityWhere(pharmacistId: string): Promise<Prisma.MedicationQuestionWhereInput> {
+  const orgIds = await resolvePharmacistOrgIds(pharmacistId);
   return {
-    OR: [
-      { status: QuestionStatus.PHARMACIST_REQUESTED, pharmacistId: null },
-      { pharmacistId },
+    AND: [
+      { OR: [{ status: QuestionStatus.PHARMACIST_REQUESTED, pharmacistId: null }, { pharmacistId }] },
+      patientPoolWhere(orgIds),
     ],
   };
 }
@@ -188,6 +226,48 @@ function tabWhere(tab: QueueTab, pharmacistId: string): Prisma.MedicationQuestio
   }
 }
 
+/**
+ * M5.4 — extracted so both the global `/pharmacist/queue` route and the
+ * tenant-scoped `/organizations/:organizationId/pharmacist/queue` route
+ * (see routes/organizations.ts) share exactly one query/count/sort
+ * implementation. `visibilityWhere` already tenant-scopes the result —
+ * the caller doesn't need to know whether `pharmacistId` is org-affiliated
+ * or not.
+ */
+export async function buildPharmacistQueueResponse(pharmacistId: string, tab?: QueueTab) {
+  const visible = await prisma.medicationQuestion.findMany({
+    where: await visibilityWhere(pharmacistId),
+  });
+
+  const counts = {
+    new: visible.filter((q) => q.status === QuestionStatus.PHARMACIST_REQUESTED && q.pharmacistId === null).length,
+    inReview: visible.filter(
+      (q) => q.status === QuestionStatus.PHARMACIST_IN_PROGRESS && q.pharmacistId === pharmacistId,
+    ).length,
+    completed: visible.filter(
+      (q) => q.status === QuestionStatus.PHARMACIST_RESOLVED && q.pharmacistId === pharmacistId,
+    ).length,
+    escalated: visible.filter((q) => q.status === QuestionStatus.ESCALATED && q.pharmacistId === pharmacistId)
+      .length,
+  };
+
+  const filtered = tab
+    ? visible.filter((q) => {
+        const where = tabWhere(tab, pharmacistId);
+        return q.status === where.status && q.pharmacistId === where.pharmacistId;
+      })
+    : visible;
+
+  const sorted = [...filtered].sort((a, b) => {
+    const priorityDiff =
+      (DISPOSITION_PRIORITY[a.disposition ?? ""] ?? 2) - (DISPOSITION_PRIORITY[b.disposition ?? ""] ?? 2);
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
+
+  return { counts, questions: sorted.map(serializeForPharmacist) };
+}
+
 export async function pharmacistQuestionRoutes(app: FastifyInstance) {
   app.get(
     "/pharmacist/queue",
@@ -197,40 +277,9 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
       if (!parsed.success) {
         return reply.code(400).send({ error: "Invalid query.", details: parsed.error.flatten() });
       }
-      const pharmacistId = request.user!.id;
 
-      const visible = await prisma.medicationQuestion.findMany({
-        where: visibilityWhere(pharmacistId),
-      });
-
-      const counts = {
-        new: visible.filter((q) => q.status === QuestionStatus.PHARMACIST_REQUESTED && q.pharmacistId === null)
-          .length,
-        inReview: visible.filter(
-          (q) => q.status === QuestionStatus.PHARMACIST_IN_PROGRESS && q.pharmacistId === pharmacistId,
-        ).length,
-        completed: visible.filter(
-          (q) => q.status === QuestionStatus.PHARMACIST_RESOLVED && q.pharmacistId === pharmacistId,
-        ).length,
-        escalated: visible.filter(
-          (q) => q.status === QuestionStatus.ESCALATED && q.pharmacistId === pharmacistId,
-        ).length,
-      };
-
-      const filtered = parsed.data.tab
-        ? visible.filter((q) => {
-            const where = tabWhere(parsed.data.tab!, pharmacistId);
-            return q.status === where.status && q.pharmacistId === where.pharmacistId;
-          })
-        : visible;
-
-      const sorted = [...filtered].sort((a, b) => {
-        const priorityDiff = (DISPOSITION_PRIORITY[a.disposition ?? ""] ?? 2) - (DISPOSITION_PRIORITY[b.disposition ?? ""] ?? 2);
-        if (priorityDiff !== 0) return priorityDiff;
-        return a.createdAt.getTime() - b.createdAt.getTime();
-      });
-
-      return reply.send({ counts, questions: sorted.map(serializeForPharmacist) });
+      const result = await buildPharmacistQueueResponse(request.user!.id, parsed.data.tab);
+      return reply.send(result);
     },
   );
 
@@ -242,7 +291,7 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
       const pharmacistId = request.user!.id;
 
       const question = await prisma.medicationQuestion.findFirst({
-        where: { id, ...visibilityWhere(pharmacistId) },
+        where: { id, ...(await visibilityWhere(pharmacistId)) },
       });
 
       if (!question) {
@@ -260,14 +309,22 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const pharmacistId = request.user!.id;
+      const orgIds = await resolvePharmacistOrgIds(pharmacistId);
 
       // Single atomic conditional update — see
       // docs/doseprepped/ARCHITECTURE.md "Claim concurrency". No
       // read-then-write race window: PostgreSQL evaluates WHERE and
       // applies SET as one row-locked operation, so if two pharmacists
-      // race, exactly one UPDATE matches.
+      // race, exactly one UPDATE matches. M5.4 adds `patientPoolWhere` to
+      // this same atomic WHERE so a pharmacist can never claim a
+      // question outside their tenant pool, even under a race.
       const result = await prisma.medicationQuestion.updateMany({
-        where: { id, status: QuestionStatus.PHARMACIST_REQUESTED, pharmacistId: null },
+        where: {
+          id,
+          status: QuestionStatus.PHARMACIST_REQUESTED,
+          pharmacistId: null,
+          ...patientPoolWhere(orgIds),
+        },
         data: {
           pharmacistId,
           pharmacistClaimedAt: new Date(),
@@ -276,7 +333,8 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
       });
 
       if (result.count === 0) {
-        // Distinguish "never existed / never queue-eligible" (404, same as
+        // Distinguish "never existed / never queue-eligible / belongs to
+        // another organization's tenant pool" (404, same as
         // every other out-of-scope pharmacist access) from "genuinely
         // exists and was in the shared queue, but someone already claimed
         // it" (409 — the race-loser case required by
@@ -286,11 +344,19 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
         // to any pharmacist before the race, so confirming "someone else
         // got it first" reveals nothing this pharmacist didn't already
         // have visibility into.
-        const existing = await prisma.medicationQuestion.findUnique({ where: { id } });
+        // Re-checked with the same patientPoolWhere filter as the update
+        // above: a question that genuinely exists but belongs to another
+        // organization's tenant pool comes back null here, exactly like a
+        // question that never existed — see docs/doseprepped/ARCHITECTURE.md
+        // "M5.4 — Pharmacist / organization relationship" for why this is
+        // folded into 404 rather than a separate case.
+        const existing = await prisma.medicationQuestion.findFirst({
+          where: { id, ...patientPoolWhere(orgIds) },
+        });
         const wasQueueEligible =
           existing?.disposition === QuestionDisposition.PHARMACIST_REVIEW ||
           existing?.disposition === QuestionDisposition.PROVIDER_EVALUATION;
-        if (!wasQueueEligible) {
+        if (!existing || !wasQueueEligible) {
           return reply.code(404).send({ error: "Question not found." });
         }
         return reply.code(409).send({ error: "This question is no longer available to claim." });
