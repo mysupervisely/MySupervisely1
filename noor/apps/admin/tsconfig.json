@@ -25,6 +25,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "vitest.setup.ts",
     "src",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"

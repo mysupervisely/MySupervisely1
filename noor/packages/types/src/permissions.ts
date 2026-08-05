@@ -1,4 +1,4 @@
-import type { Role } from "./role.js";
+import type { Role } from "./role";
 
 /**
  * Central permission catalog (docs/noor/ARCHITECTURE.md §E). This is the

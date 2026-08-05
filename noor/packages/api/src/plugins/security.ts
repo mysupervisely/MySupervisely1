@@ -12,6 +12,13 @@ async function securityPlugins(app: FastifyInstance) {
   await app.register(cors, {
     origin: env.APP_ORIGINS,
     credentials: true,
+    // @fastify/cors's own default method list is GET,HEAD,POST — missing
+    // PATCH (onboarding/profile updates) and DELETE, which silently
+    // breaks those requests at the browser's CORS preflight step (the
+    // request never even reaches a route handler, so nothing appears in
+    // server logs). Every method any route in this API actually uses
+    // must be listed here explicitly.
+    methods: ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"],
   });
 
   await app.register(cookie, {

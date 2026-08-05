@@ -1,15 +1,18 @@
 # Noor — patient platform
 
-Noor is a behavioral-health patient engagement platform. This directory is
-the M1 ("Foundations") build: monorepo scaffold, authentication, RBAC,
-ownership/care-relationship authorization, and an audit-logging foundation.
-**No clinical features exist yet** — no weekly check-in, no onboarding
-form, no scheduling, no subscriptions, no real EHR/AI/payment integration.
-See [`docs/noor/ARCHITECTURE.md`](../docs/noor/ARCHITECTURE.md) for the
-full M0 architecture and [`docs/noor/M1-IMPLEMENTATION.md`](../docs/noor/M1-IMPLEMENTATION.md)
-for what M1 actually implements, including known limitations.
+Noor is a behavioral-health patient engagement platform. This directory
+now includes M1 ("Foundations": monorepo scaffold, authentication, RBAC,
+ownership/care-relationship authorization, audit logging) and M2
+("Patient Onboarding + Home": landing → signup → onboarding → patient
+profile → Noor Home, for the patient app). **No clinical features exist
+yet** — no weekly check-in, no scheduling, no subscriptions, no real
+EHR/AI/payment integration, no clinical assessment or diagnosis. See
+[`docs/noor/ARCHITECTURE.md`](../docs/noor/ARCHITECTURE.md) for the full
+M0 architecture, [`docs/noor/M1-IMPLEMENTATION.md`](../docs/noor/M1-IMPLEMENTATION.md)
+and [`docs/noor/M2-IMPLEMENTATION.md`](../docs/noor/M2-IMPLEMENTATION.md)
+for what's actually implemented, including known limitations.
 
-**Status: M1 foundations only. Not production-ready. Not HIPAA compliant.
+**Status: M1 + M2 only. Not production-ready. Not HIPAA compliant.
 No clinical decision-making logic. No real patient data has ever touched
 this codebase — every seeded account is synthetic.**
 
@@ -66,7 +69,9 @@ pnpm dev:admin       # admin app     — http://localhost:3002
 `pnpm db:seed` creates four synthetic accounts, all sharing the password
 `NoorDevSeed!2026` (obviously not a real password — dev/test only), already
 linked by an active care relationship between the seeded patient and
-clinician:
+clinician. The seeded patient account also has onboarding pre-completed,
+so logging in takes you straight to a populated Home dashboard — sign up
+a fresh account instead if you want to walk through the onboarding wizard.
 
 | Email | Role | App |
 |---|---|---|

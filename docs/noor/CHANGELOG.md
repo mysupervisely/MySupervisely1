@@ -53,3 +53,41 @@ platform are recorded here, in addition to the standard git history.
   enforcement, password reset, onboarding, the weekly check-in, provider
   directory, scheduling, subscriptions, or any real EHR/payment/AI
   integration.
+
+## M2 — Patient Onboarding + Home
+
+- Implemented the first complete patient-facing product surface: landing
+  → signup → 4-step onboarding wizard → Noor Home → patient profile
+  page, plus honest "coming soon" placeholders for Find a Therapist and
+  Noor Async. Full details, brand sourcing note, and known limitations in
+  `M2-IMPLEMENTATION.md`.
+- Database: `PatientProfile` gains `reasonForSeekingCare`, `careType`
+  (`CareType` enum), `careFormatPreference` (`CareFormatPreference` enum)
+  — migration `20260805165544_onboarding_fields`. No clinical-content
+  tables added; M1's deferral of those still holds.
+- API: `PATCH /patients/me` (partial profile update) and
+  `POST /patients/me/onboarding/complete` (validates all required fields
+  present, sets `onboardingCompletedAt` once, 409 on a second attempt),
+  both self-scoped to the authenticated patient, both audited (field
+  names only, never values).
+- Brand: an original interpretation of the brief's written brand
+  description (warm cream/charcoal/gold, elegant serif display type,
+  rounded cards/pills, an original sun-mark SVG) — `noortherapygroup.com`
+  was not reachable and no screenshot was attached to the conversation,
+  so no real brand assets were available to reference. Flagged for a
+  design review pass if/when real assets exist.
+- Manual/Playwright browser verification (not just `tsc`/unit tests)
+  caught four real bugs the automated suite missed: `@fastify/cors`'s
+  default `methods` list silently blocking `PATCH` at the browser's
+  preflight step, `Content-Type: application/json` sent with an empty
+  body breaking the onboarding-complete call, a floating-point hydration
+  mismatch in the sun mark's SVG coordinates, and a header overflow on a
+  390px mobile viewport. All four fixed, each with a regression test
+  added.
+- 51 new automated tests (134 total across the monorepo) — onboarding
+  authorization, patient ownership, profile creation/update, validation,
+  incomplete/completed onboarding, unauthorized access, home-dashboard
+  access, and the four regression tests above.
+- Explicitly not built in M2: the weekly check-in, subscriptions, EHR
+  integration, AI functionality, clinical assessment/diagnosis, MFA
+  enforcement, email verification enforcement, or password reset.

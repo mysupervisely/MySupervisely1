@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, ApiError } from "../../lib/api";
+import { NoorLogo } from "../../components/NoorLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +22,8 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify({ email, password, app: "patient" }),
       });
+      // /home itself checks onboarding completion and redirects to
+      // /onboarding when needed — one place owns that decision.
       router.push("/home");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
@@ -30,33 +33,36 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="noor-shell">
-      <h1>Log in</h1>
-      <div className="noor-card">
-        <form onSubmit={onSubmit}>
-          {error && <p className="noor-error">{error}</p>}
-          <div className="noor-field">
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="noor-field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="noor-button" disabled={submitting}>
-            {submitting ? "Logging in..." : "Log in"}
-          </button>
-        </form>
+    <main className="noor-shell noor-center">
+      <NoorLogo />
+      <div className="noor-section noor-stack" style={{ textAlign: "left" }}>
+        <h1 className="noor-center">Welcome back</h1>
+        <div className="noor-card">
+          <form onSubmit={onSubmit}>
+            {error && <p className="noor-error">{error}</p>}
+            <div className="noor-field">
+              <label htmlFor="email">Email</label>
+              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="noor-field">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="noor-button noor-button--full" disabled={submitting}>
+              {submitting ? "Logging in..." : "Log in"}
+            </button>
+          </form>
+        </div>
+        <p className="noor-muted noor-center">
+          No account? <Link href="/signup">Sign up</Link>
+        </p>
       </div>
-      <p className="noor-muted">
-        No account? <Link href="/signup">Sign up</Link>
-      </p>
     </main>
   );
 }

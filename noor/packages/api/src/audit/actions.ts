@@ -7,6 +7,8 @@ export const AuditAction = {
   AUTH_LOGIN_FAILURE: "auth.login.failure",
   AUTH_LOGOUT: "auth.logout",
   PATIENT_PROFILE_SELF_READ: "patient_profile.self_read",
+  PATIENT_PROFILE_SELF_UPDATE: "patient_profile.self_update",
+  PATIENT_ONBOARDING_COMPLETED: "patient_profile.onboarding_completed",
   CLINICIAN_PROFILE_SELF_READ: "clinician_profile.self_read",
   CLINICIAN_PATIENT_LIST_READ: "clinician.assigned_patients.list_read",
   CLINICIAN_PATIENT_DETAIL_READ: "clinician.patient_profile.read",

@@ -26,6 +26,8 @@ export {
   ClinicianStatus,
   CareRelationshipType,
   CareRelationshipStatus,
+  CareType,
+  CareFormatPreference,
 } from "../generated/client/client.js";
 export type {
   User,

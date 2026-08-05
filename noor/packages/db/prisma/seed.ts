@@ -7,7 +7,14 @@
 
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient, RoleName, ClinicianStatus, CareRelationshipStatus } from "../generated/client/client.js";
+import {
+  PrismaClient,
+  RoleName,
+  ClinicianStatus,
+  CareRelationshipStatus,
+  CareType,
+  CareFormatPreference,
+} from "../generated/client/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const connectionString = process.env["DATABASE_URL"];
@@ -62,6 +69,23 @@ async function main() {
     },
     include: { patient: true },
   });
+
+  // Onboarding fields are synced here (not inside the upsert's `create`
+  // block above) so this is idempotent even if patient.dev@example.test
+  // already existed from an earlier seed run — the `create` block only
+  // runs on first creation, but a developer re-running `pnpm db:seed`
+  // should always see a fully onboarded seed account.
+  if (patientUser.patient) {
+    await prisma.patientProfile.update({
+      where: { patientId: patientUser.patient.id },
+      data: {
+        reasonForSeekingCare: "Feeling stressed about work and looking for someone to talk to.",
+        careType: CareType.INDIVIDUAL_THERAPY,
+        careFormatPreference: CareFormatPreference.VIDEO,
+        onboardingCompletedAt: new Date(),
+      },
+    });
+  }
 
   // --- Clinician -------------------------------------------------------
   const clinicianUser = await prisma.user.upsert({

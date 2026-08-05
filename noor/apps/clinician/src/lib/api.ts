@@ -18,13 +18,21 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // Only set Content-Type when there's actually a body — Fastify's JSON
+  // body parser rejects a request that declares application/json but
+  // sends zero bytes (e.g. POST /auth/logout, POST .../onboarding/complete),
+  // a real bug caught during M2 manual/browser verification that the
+  // automated test suite's app.inject() calls didn't surface (inject
+  // doesn't reproduce a real browser's default fetch headers).
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) };
+  if (init.body !== undefined && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
