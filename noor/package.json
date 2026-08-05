@@ -1,0 +1,22 @@
+{
+  "name": "noor",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Noor patient platform monorepo — patient app, clinician dashboard, admin dashboard, backend API, and shared packages.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @noor/patient dev",
+    "dev:clinician": "pnpm --filter @noor/clinician dev",
+    "dev:admin": "pnpm --filter @noor/admin dev",
+    "dev:api": "pnpm --filter @noor/api dev",
+    "build": "pnpm -r --workspace-concurrency=1 run build",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "db:generate": "pnpm --filter @noor/db run generate",
+    "db:migrate": "pnpm --filter @noor/db run migrate",
+    "db:migrate:deploy": "pnpm --filter @noor/db run migrate:deploy",
+    "db:seed": "pnpm --filter @noor/db run seed"
+  }
+}

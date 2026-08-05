@@ -1,0 +1,77 @@
+name: Noor CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "noor/**"
+      - ".github/workflows/noor-ci.yml"
+  pull_request:
+    paths:
+      - "noor/**"
+      - ".github/workflows/noor-ci.yml"
+
+defaults:
+  run:
+    working-directory: noor
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # Synthetic-data-only test database, scoped to this CI run — see
+    # docs/noor/ARCHITECTURE.md §K "environment isolation" and
+    # docs/noor/M1-IMPLEMENTATION.md "Environment separation." Never the
+    # same database as any development/staging/production environment.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: noor_app
+          POSTGRES_PASSWORD: noor_app_ci_password
+          POSTGRES_DB: noor_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://noor_app:noor_app_ci_password@localhost:5432/noor_ci_test
+      SESSION_SECRET: ci-only-session-secret-not-used-anywhere-real-32chars
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: noor/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Apply database migrations
+        run: pnpm db:migrate:deploy
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # ESLint wiring across all four package "flavors" (Next.js x3,
+      # Fastify API, plain TS libraries) is deferred past M1 — see
+      # docs/noor/M1-IMPLEMENTATION.md "Known limitations." Typecheck +
+      # tests are the enforced gates for now.
+
+      - name: Test
+        run: pnpm test

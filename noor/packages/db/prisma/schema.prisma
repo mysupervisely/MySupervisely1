@@ -1,0 +1,290 @@
+// Noor database schema — M1 (Foundations).
+//
+// This is a deliberately narrower slice of the full model approved in
+// docs/noor/ARCHITECTURE.md §C ("Initial Database Schema"). M1's scope is
+// identity, roles, sessions, the minimum patient/clinician records needed
+// to demonstrate ownership/care-relationship-scoped authorization, and the
+// audit trail. Per the project's milestone discipline ("work in
+// milestones," "do not build everything at once" — see AGENTS-equivalent
+// dev rules in the product brief), the remaining M0-approved tables are
+// intentionally NOT created yet and will each arrive as their own
+// migration, documented at that time, alongside the milestone that
+// actually implements the feature that needs them:
+//
+//   - CheckInQuestion / CheckIn / CheckInResponse   -> M3 (Weekly check-in)
+//   - ClinicianReview / CareGoal                     -> M4 (Clinician dashboard v1)
+//   - ClinicianLicense (state licensing)               -> M5 (Provider directory)
+//   - ExternalRecordMapping                              -> M6 (EHR/AI abstractions wired in)
+//   - SubscriptionPlan / Subscription / SubscriptionEvent -> M7 (Subscriptions)
+//   - ProviderAvailability / Appointment                    -> M8 (Scheduling v1)
+//   - Notification, ConsentRecord                             -> alongside the
+//     feature that first triggers a notification / requires recorded
+//     consent (onboarding in M2 for ConsentRecord; earliest transactional
+//     email in M3+ for Notification)
+//
+// This is a scope decision, not an oversight — see
+// docs/noor/M1-IMPLEMENTATION.md "Database foundation."
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identity, roles, sessions
+// ---------------------------------------------------------------------------
+
+enum RoleName {
+  PATIENT
+  CLINICIAN
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+/// Seeded, closed set of the four roles defined in
+/// docs/noor/ARCHITECTURE.md §E. Not user-editable via any API in M1.
+model Role {
+  id    Int      @id @default(autoincrement()) @db.SmallInt
+  name  RoleName @unique
+
+  users UserRole[]
+
+  @@map("roles")
+}
+
+/// Account record shared by every role. Deliberately holds no clinical
+/// content and no onboarding-collected PII — that lives in PatientProfile /
+/// ClinicianProfile so a person's role-specific sensitive data is never
+/// reachable through a bare User row. `displayName` exists only for
+/// ADMIN/SUPER_ADMIN accounts, which have no profile table of their own
+/// (there is no clinical or directory-facing reason for one) — it is never
+/// treated as PHI.
+///
+/// MFA: `mfaEnabled` and (future) TOTP secret storage are modeled here so
+/// the schema doesn't need to change when MFA enforcement is implemented,
+/// but M1 does not implement MFA enrollment/verification — see
+/// docs/noor/M1-IMPLEMENTATION.md "Known limitations."
+model User {
+  id                String     @id @default(uuid())
+  email             String     @unique
+  passwordHash      String
+  displayName       String?
+  status            UserStatus @default(PENDING_VERIFICATION)
+  mfaEnabled        Boolean    @default(false)
+  emailVerifiedAt   DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  roles             UserRole[]
+  sessions          Session[]
+  patient           Patient?
+  clinician         Clinician?
+  auditEvents       AuditEvent[]
+
+  @@map("users")
+}
+
+/// Join table for User<->Role. The schema permits a user to hold more than
+/// one role; M1 policy is that every account is provisioned with exactly
+/// one role and no UI exists for switching roles. Whether a single person
+/// may ever legitimately hold two roles (e.g. PATIENT and CLINICIAN) is an
+/// open product/compliance question — see docs/noor/ARCHITECTURE.md §N.
+model UserRole {
+  userId String
+  roleId Int    @db.SmallInt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+/// An active login session, identified to the browser by an opaque cookie
+/// token. Only a SHA-256 hash of the token is persisted (see
+/// packages/auth/src/session.ts) — a database read alone cannot be used to
+/// impersonate a session. `issuedForApp` records which frontend
+/// (patient/clinician/admin) the session was created for, for audit
+/// clarity only; it is not used to enforce anything in M1.
+model Session {
+  id           String   @id @default(uuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  tokenHash    String   @unique
+  issuedForApp String?
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Patients
+// ---------------------------------------------------------------------------
+
+model Patient {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId    String   @unique
+  createdAt DateTime @default(now())
+
+  profile           PatientProfile?
+  careRelationships CareRelationship[]
+
+  @@map("patients")
+}
+
+/// Onboarding-collectible, non-clinical fields only (brief §6: "do not
+/// collect unnecessary sensitive clinical information during initial
+/// onboarding"). M1 provisions an empty PatientProfile row at signup so
+/// ownership-scoped routes have something to read; the actual onboarding
+/// form (collecting these fields from the patient) is M2, not M1.
+model PatientProfile {
+  id                     String    @id @default(uuid())
+  patient                Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId              String    @unique
+  firstName              String?
+  lastName               String?
+  state                  String?   @db.Char(2)
+  city                   String?
+  onboardingCompletedAt  DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([state])
+  @@map("patient_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Clinicians
+// ---------------------------------------------------------------------------
+
+enum ClinicianStatus {
+  ACTIVE
+  INACTIVE
+  ONBOARDING
+}
+
+model Clinician {
+  id                     String          @id @default(uuid())
+  user                   User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId                 String          @unique
+  status                 ClinicianStatus @default(ONBOARDING)
+  acceptingNewPatients   Boolean         @default(false)
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  profile           ClinicianProfile?
+  careRelationships CareRelationship[]
+
+  @@map("clinicians")
+}
+
+/// Public/directory-facing fields only, deliberately separate from
+/// Clinician itself (which will hold private fields such as NPI and is
+/// never exposed through a directory-style read). The provider directory
+/// UI itself is M5 — this table exists in M1 only so a clinician has a
+/// display name for the clinician-dashboard shell.
+model ClinicianProfile {
+  id                String    @id @default(uuid())
+  clinician         Clinician @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+  clinicianId       String    @unique
+  displayName       String
+  credentialsDisplay String?
+  bio               String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("clinician_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Care relationships
+// ---------------------------------------------------------------------------
+
+enum CareRelationshipType {
+  ASYNC
+  THERAPY
+  PSYCHIATRY
+}
+
+enum CareRelationshipStatus {
+  REQUESTED
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+/// The authorization anchor for clinician access to a patient (see
+/// docs/noor/ARCHITECTURE.md §E "ownership scoping"). A CLINICIAN may only
+/// read/act on a patient's data through an ACTIVE row here — enforced in
+/// packages/api/src/rbac, never left to individual route handlers to
+/// remember. M1 has no patient-initiated "request care" flow (that's M5)
+/// or self-serve matching (M4 roadmap note: "admin-assigned for MVP") — the
+/// only way a relationship is created in M1 is an ADMIN/SUPER_ADMIN action,
+/// which is itself audited.
+model CareRelationship {
+  id               String                  @id @default(uuid())
+  patient          Patient                 @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  patientId        String
+  clinician        Clinician               @relation(fields: [clinicianId], references: [id], onDelete: Restrict)
+  clinicianId      String
+  relationshipType CareRelationshipType    @default(ASYNC)
+  status           CareRelationshipStatus  @default(REQUESTED)
+  requestedAt      DateTime                @default(now())
+  startedAt        DateTime?
+  endedAt          DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([patientId, status])
+  @@index([clinicianId, status])
+  @@map("care_relationships")
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail
+// ---------------------------------------------------------------------------
+
+/// Append-only. The application's runtime database role is granted INSERT
+/// and SELECT only on this table — no UPDATE, no DELETE — so the audit
+/// trail cannot be quietly edited by an application bug or a compromised
+/// app credential (see docs/noor/ARCHITECTURE.md §J). `metadata` is jsonb
+/// specifically so the application layer can enforce a field allowlist at
+/// write time (see packages/api/src/audit) that keeps clinical *content*
+/// out of the audit row — audit *that* a resource was accessed, never
+/// *what it said*.
+model AuditEvent {
+  id          BigInt   @id @default(autoincrement())
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUserId String?
+  actorRole   String?
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json     @default("{}")
+  ipAddress   String?
+  userAgent   String?
+  occurredAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId, occurredAt])
+  @@index([occurredAt])
+  @@map("audit_events")
+}

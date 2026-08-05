@@ -1,0 +1,20 @@
+# Optional convenience for local development: a synthetic-data-only
+# Postgres instance. Not required if you already have a local Postgres
+# server — just create the noor_dev/noor_test databases there instead.
+# NEVER point this compose file's database at anything resembling
+# production configuration; it exists purely for local dev/test.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noor_app
+      POSTGRES_PASSWORD: noor_app_dev_password
+      POSTGRES_DB: noor_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - noor_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  noor_postgres_data:
