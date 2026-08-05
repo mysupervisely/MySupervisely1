@@ -32,6 +32,7 @@ export {
   PharmacistCredentialStatus,
   AdherenceStatus,
   CheckInResponse,
+  AnalyticsEventType,
 } from "../generated/client/client.js";
 export type {
   User,
@@ -42,5 +43,6 @@ export type {
   PharmacistProfile,
   MedicationAdherenceEvent,
   MedicationCheckIn,
+  AnalyticsEvent,
   Prisma,
 } from "../generated/client/client.js";

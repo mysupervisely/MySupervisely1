@@ -6,12 +6,14 @@ import {
   MedicationStatus,
   AdherenceStatus,
   CheckInResponse,
+  AnalyticsEventType,
   type MedicationAdherenceEvent,
   type MedicationCheckIn,
 } from "@doseprepped/db";
 import { requireRole } from "../lib/auth.js";
 import { computeAdherenceSummary } from "../lib/adherence.js";
 import { buildMedicationTimeline } from "../lib/timeline.js";
+import { emitAnalyticsEvent } from "../lib/analytics.js";
 
 const ADHERENCE_STATUSES = Object.values(AdherenceStatus) as [AdherenceStatus, ...AdherenceStatus[]];
 const CHECK_IN_RESPONSES = Object.values(CheckInResponse) as [CheckInResponse, ...CheckInResponse[]];
@@ -90,6 +92,16 @@ export async function medicationJourneyRoutes(app: FastifyInstance) {
         },
       });
 
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.MEDICATION_ADHERENCE_RECORDED,
+          patientId: request.user!.id,
+          medicationId: medication.id,
+          metadata: { status: event.status },
+        },
+        request.log,
+      );
+
       return reply.code(201).send({ event: serializeAdherenceEvent(event) });
     },
   );
@@ -145,6 +157,19 @@ export async function medicationJourneyRoutes(app: FastifyInstance) {
           notes: parsed.data.notes,
         },
       });
+
+      // metadata carries the closed-taxonomy `response` only — never
+      // `notes`. See docs/doseprepped/ARCHITECTURE.md "M5.3 — What
+      // analytics must never store".
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.MEDICATION_CHECKIN_COMPLETED,
+          patientId: request.user!.id,
+          medicationId: medication.id,
+          metadata: { response: checkIn.response },
+        },
+        request.log,
+      );
 
       return reply.code(201).send({ checkIn: serializeCheckIn(checkIn) });
     },

@@ -1,5 +1,5 @@
-// DosePrepped database schema — through M5.2 (medication journey &
-// adherence foundation).
+// DosePrepped database schema — through M5.3 (pilot analytics & ROI
+// instrumentation).
 //
 // This covers the DB framework, the patient/pharmacist/admin role
 // structure, authentication (User + Session), a patient's manually-entered
@@ -8,10 +8,12 @@
 // education/summary generation gated behind that disposition (Phase 3),
 // the pharmacist queue/claim/respond/escalate workflow (M4), a minimal
 // pharmacist profile foundation for future licensing/state scoping (M5.1,
-// storage only — no verification logic), and a medication-agnostic
+// storage only — no verification logic), a medication-agnostic
 // post-prescription journey foundation (M5.2): per-dose adherence
 // self-report (MedicationAdherenceEvent) and structured medication
-// check-ins (MedicationCheckIn). Provider messaging, B2B organizations,
+// check-ins (MedicationCheckIn), and a non-PHI analytics event log
+// (AnalyticsEvent, M5.3) instrumenting the workflows above for aggregate
+// pilot reporting. Provider messaging, B2B/multi-tenant organizations,
 // payments, and any dosing/scheduling engine remain out of scope —
 // deliberately not implemented here.
 
@@ -465,4 +467,52 @@ model MedicationQuestion {
   @@index([status])
   @@index([medicationId])
   @@map("medication_questions")
+}
+
+/// Closed, versionable taxonomy of every analytics event this codebase
+/// actually emits (M5.3) — see docs/doseprepped/ARCHITECTURE.md "M5.3 —
+/// Analytics event architecture". Adding an event type here is the only
+/// way to emit it; emitAnalyticsEvent() rejects anything else at compile
+/// time. Every value here corresponds to a real, already-implemented
+/// workflow step — none are speculative/"do not create fake events".
+enum AnalyticsEventType {
+  PATIENT_MEDICATION_VIEWED
+  MEDICATION_ADHERENCE_RECORDED
+  MEDICATION_CHECKIN_COMPLETED
+  QUESTION_SUBMITTED
+  QUESTION_DISPOSITION_ASSIGNED
+  AI_EDUCATION_GENERATED
+  AI_EDUCATION_FAILED
+  PHARMACIST_QUEUE_ENTERED
+  PHARMACIST_CLAIMED
+  PHARMACIST_RESPONDED
+  PHARMACIST_ESCALATED
+  PROVIDER_ESCALATION_CREATED
+}
+
+/// Non-PHI analytics/event log (M5.3) — see
+/// docs/doseprepped/ARCHITECTURE.md "M5.3 — Pilot Analytics & ROI
+/// Instrumentation". Deliberately has NO @relation to User/
+/// MedicationQuestion/PatientMedication: this is an independent,
+/// append-only log, not a first-class domain entity, so its lifecycle
+/// isn't coupled to cascade-delete behavior on the tables it references.
+/// `patientId`/`pharmacistId`/`questionId`/`medicationId` are opaque
+/// identifiers only (the same category of data already used as foreign
+/// keys throughout this schema) — `metadata` is a small, explicitly
+/// enumerated, non-free-text object; never question text, AI response
+/// text, pharmacist response text, check-in notes, passwords, or tokens.
+model AnalyticsEvent {
+  id           String             @id @default(uuid())
+  eventType    AnalyticsEventType
+  patientId    String?
+  pharmacistId String?
+  questionId   String?
+  medicationId String?
+  metadata     Json?
+  createdAt    DateTime           @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([patientId])
+  @@index([questionId])
+  @@map("analytics_events")
 }

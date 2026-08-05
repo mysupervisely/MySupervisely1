@@ -5,14 +5,17 @@ import {
   Role,
   QuestionCategory,
   QuestionStatus,
+  QuestionDisposition,
   DispositionSource,
   AiResponseStatus,
+  AnalyticsEventType,
   type MedicationQuestion,
 } from "@doseprepped/db";
 import { evaluateDisposition } from "@doseprepped/safety-rules";
 import type { MedicationEducationProvider } from "@doseprepped/ai-service";
 import { requireRole } from "../lib/auth.js";
 import { runEducationPipeline } from "../lib/ai-education.js";
+import { emitAnalyticsEvent } from "../lib/analytics.js";
 
 const QUESTION_CATEGORIES = Object.values(QuestionCategory) as [QuestionCategory, ...QuestionCategory[]];
 
@@ -290,6 +293,81 @@ export async function questionRoutes(app: FastifyInstance, opts: QuestionRoutesO
           pharmacistRequestedAt,
         },
       });
+
+      // M5.3 — analytics events. See docs/doseprepped/ARCHITECTURE.md
+      // "M5.3 — Analytics event architecture" for exactly what each event
+      // means and why; every call here fires after the question row has
+      // already been written, and none of it can affect the response
+      // below (emitAnalyticsEvent never throws).
+      const patientId = request.user!.id;
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.QUESTION_SUBMITTED,
+          patientId,
+          questionId: question.id,
+          medicationId: medication.id,
+          metadata: { category },
+        },
+        request.log,
+      );
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.QUESTION_DISPOSITION_ASSIGNED,
+          patientId,
+          questionId: question.id,
+          metadata: { disposition, dispositionSource: DispositionSource.DETERMINISTIC },
+        },
+        request.log,
+      );
+      if (aiOutcome.status === "SUCCESS") {
+        await emitAnalyticsEvent(
+          {
+            eventType: AnalyticsEventType.AI_EDUCATION_GENERATED,
+            patientId,
+            questionId: question.id,
+            metadata: {
+              disposition,
+              hasClarifyingQuestion: Boolean(clarifyingExchange),
+              hasPharmacistSummary: Boolean(aiPharmacistSummary),
+              inputTokens: aiUsage?.inputTokens ?? null,
+              outputTokens: aiUsage?.outputTokens ?? null,
+            },
+          },
+          request.log,
+        );
+      } else if (aiOutcome.status === "FAILED") {
+        await emitAnalyticsEvent(
+          {
+            eventType: AnalyticsEventType.AI_EDUCATION_FAILED,
+            patientId,
+            questionId: question.id,
+            metadata: { disposition },
+          },
+          request.log,
+        );
+      }
+      if (status === QuestionStatus.PHARMACIST_REQUESTED) {
+        await emitAnalyticsEvent(
+          {
+            eventType: AnalyticsEventType.PHARMACIST_QUEUE_ENTERED,
+            patientId,
+            questionId: question.id,
+            metadata: { disposition },
+          },
+          request.log,
+        );
+      }
+      if (disposition === QuestionDisposition.PROVIDER_EVALUATION) {
+        await emitAnalyticsEvent(
+          {
+            eventType: AnalyticsEventType.PROVIDER_ESCALATION_CREATED,
+            patientId,
+            questionId: question.id,
+            metadata: { source: "automatic_routing" },
+          },
+          request.log,
+        );
+      }
 
       return reply.code(201).send({ question: serializeQuestion(question) });
     },

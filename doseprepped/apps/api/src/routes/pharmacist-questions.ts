@@ -6,11 +6,13 @@ import {
   QuestionDisposition,
   QuestionStatus,
   EscalationReasonCategory,
+  AnalyticsEventType,
   type MedicationQuestion,
   type Prisma,
 } from "@doseprepped/db";
 import { requireRole } from "../lib/auth.js";
 import { computeAdherenceSummary } from "../lib/adherence.js";
+import { emitAnalyticsEvent } from "../lib/analytics.js";
 
 const ESCALATION_REASON_CATEGORIES = Object.values(EscalationReasonCategory) as [
   EscalationReasonCategory,
@@ -295,6 +297,24 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
       }
 
       const question = await prisma.medicationQuestion.findUniqueOrThrow({ where: { id } });
+
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.PHARMACIST_CLAIMED,
+          pharmacistId,
+          patientId: question.patientId,
+          questionId: question.id,
+          metadata: {
+            disposition: question.disposition,
+            waitTimeMs:
+              question.pharmacistRequestedAt && question.pharmacistClaimedAt
+                ? question.pharmacistClaimedAt.getTime() - question.pharmacistRequestedAt.getTime()
+                : null,
+          },
+        },
+        request.log,
+      );
+
       return reply.send({ question: serializeForPharmacist(question) });
     },
   );
@@ -365,6 +385,26 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
       }
 
       const question = await prisma.medicationQuestion.findUniqueOrThrow({ where: { id } });
+
+      // metadata carries only the computed handling-time delta — never
+      // `responseText`. See docs/doseprepped/ARCHITECTURE.md "M5.3 — What
+      // analytics must never store".
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.PHARMACIST_RESPONDED,
+          pharmacistId,
+          patientId: question.patientId,
+          questionId: question.id,
+          metadata: {
+            handlingTimeMs:
+              question.pharmacistClaimedAt && question.pharmacistRespondedAt
+                ? question.pharmacistRespondedAt.getTime() - question.pharmacistClaimedAt.getTime()
+                : null,
+          },
+        },
+        request.log,
+      );
+
       return reply.send({ question: serializeForPharmacist(question) });
     },
   );
@@ -403,6 +443,35 @@ export async function pharmacistQuestionRoutes(app: FastifyInstance) {
       }
 
       const question = await prisma.medicationQuestion.findUniqueOrThrow({ where: { id } });
+
+      // metadata carries only the closed-taxonomy reason category — never
+      // the pharmacist's free-text `escalationReason`. See
+      // docs/doseprepped/ARCHITECTURE.md "M5.3 — What analytics must
+      // never store".
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.PHARMACIST_ESCALATED,
+          pharmacistId,
+          patientId: question.patientId,
+          questionId: question.id,
+          metadata: { escalationReasonCategory: question.escalationReasonCategory },
+        },
+        request.log,
+      );
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.PROVIDER_ESCALATION_CREATED,
+          pharmacistId,
+          patientId: question.patientId,
+          questionId: question.id,
+          metadata: {
+            source: "pharmacist_initiated",
+            escalationReasonCategory: question.escalationReasonCategory,
+          },
+        },
+        request.log,
+      );
+
       return reply.send({ question: serializeForPharmacist(question) });
     },
   );

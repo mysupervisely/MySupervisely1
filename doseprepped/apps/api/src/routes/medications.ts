@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { prisma, Role, MedicationStatus, type PatientMedication } from "@doseprepped/db";
+import { prisma, Role, MedicationStatus, AnalyticsEventType, type PatientMedication } from "@doseprepped/db";
 import { medicationReferenceProvider } from "@doseprepped/db/medication-reference";
 import { requireRole } from "../lib/auth.js";
+import { emitAnalyticsEvent } from "../lib/analytics.js";
 
 const textField = (max: number) => z.string().trim().min(1, "This field is required.").max(max);
 
@@ -135,6 +136,16 @@ export async function medicationRoutes(app: FastifyInstance) {
       if (!medication) {
         return reply.code(404).send({ error: "Medication not found." });
       }
+
+      await emitAnalyticsEvent(
+        {
+          eventType: AnalyticsEventType.PATIENT_MEDICATION_VIEWED,
+          patientId: request.user!.id,
+          medicationId: medication.id,
+          metadata: { status: medication.status },
+        },
+        request.log,
+      );
 
       return reply.send({ medication: serializeMedication(medication) });
     },

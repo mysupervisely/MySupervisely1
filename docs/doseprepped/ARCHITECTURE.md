@@ -2749,26 +2749,390 @@ patterns, no redesign. Added, on `/medications/:id`:
 
 ---
 
+## M5.3 — Pilot Analytics & ROI Instrumentation (implemented)
+
+**Status: implemented.** M5.3 does not add a new patient- or
+pharmacist-facing workflow — it instruments the ones that already exist
+(M3 question intake/disposition/AI, M4 pharmacist workflow, M5.2
+medication journey) so DosePrepped can answer, with real numbers, the
+questions a prospective telehealth customer would ask before a pilot:
+how many patients used it, how many questions got answered without ever
+reaching a provider, how fast pharmacists responded, how big the queue
+gets. It supersedes the illustrative `AnalyticsEvent` sketch from the
+original architecture (§11/§15) with an implemented version.
+
+**Explicitly not in scope, per the milestone brief:** Wasef-specific or
+any other single-customer-specific functionality, another major
+patient-facing feature, payments, advertising, billing, a full
+multi-tenant/organization system, and any claim of clinical outcomes or
+cost savings that haven't actually been measured. DosePrepped remains
+medication-agnostic, organization-agnostic, and B2B-*capable* (not
+B2B-*built*) after this milestone.
+
+### Audit method
+
+Before writing any code, this milestone re-read `README.md`, this
+document in full (including the original §11 Analytics architecture
+sketch and the M5.2 section above), and every route file that produces a
+metric this milestone reports on: `medications.ts`, `medication-journey.ts`,
+`questions.ts`, `pharmacist-questions.ts`, and the underlying
+`packages/safety-rules` / `packages/ai-service` outputs. No analytics or
+event-related code existed before this milestone — `AnalyticsEvent` was
+purely illustrative, never created.
+
+### 1. Analytics event architecture
+
+**A centralized taxonomy, not scattered calls.** Every event is emitted
+through one function, `emitAnalyticsEvent()`
+(`apps/api/src/lib/analytics.ts`), called from inside the existing,
+already-authenticated/ownership-checked route handlers — never from a
+new public ingestion endpoint. (The original §11 sketch proposed `POST
+/analytics/events`; this milestone deliberately does *not* build that —
+an endpoint that accepts arbitrary event writes from the client is
+unnecessary attack surface when every event this milestone needs is
+already known server-side at the moment the underlying action succeeds.)
+
+```prisma
+enum AnalyticsEventType {
+  PATIENT_MEDICATION_VIEWED
+  MEDICATION_ADHERENCE_RECORDED
+  MEDICATION_CHECKIN_COMPLETED
+  QUESTION_SUBMITTED
+  QUESTION_DISPOSITION_ASSIGNED
+  AI_EDUCATION_GENERATED
+  AI_EDUCATION_FAILED
+  PHARMACIST_QUEUE_ENTERED
+  PHARMACIST_CLAIMED
+  PHARMACIST_RESPONDED
+  PHARMACIST_ESCALATED
+  PROVIDER_ESCALATION_CREATED
+}
+
+model AnalyticsEvent {
+  id           String             @id @default(uuid())
+  eventType    AnalyticsEventType
+  patientId    String?
+  pharmacistId String?
+  questionId   String?
+  medicationId String?
+  metadata     Json?
+  createdAt    DateTime           @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([patientId])
+  @@index([questionId])
+  @@map("analytics_events")
+}
+```
+
+- **Deterministic, versionable taxonomy.** `AnalyticsEventType` is a
+  closed Prisma enum — emitting an unlisted event type is a compile-time
+  error, not a typo a report can silently miss. Every event type listed
+  in the milestone brief is implemented; **`QUESTION_STARTED` was
+  deliberately not built** — there is no server-side "draft" or
+  "started" state for a question today (intake is a single `POST
+  /questions` call), so emitting that event would mean inventing a
+  signal the workflow doesn't actually produce, which the brief
+  explicitly prohibits ("do not create fake events"). If a multi-step
+  intake draft is ever built, `QUESTION_STARTED` can be added the same
+  way every other event was: from the route handler that actually
+  performs that action.
+- **No hard foreign keys.** `AnalyticsEvent` intentionally does *not*
+  `@relation` to `User`/`MedicationQuestion`/`PatientMedication` — it's
+  an independent, append-only log, not a first-class domain entity (unlike
+  `MedicationAdherenceEvent`/`MedicationCheckIn` in M5.2, which *are*
+  domain entities and do use real relations). This avoids coupling the
+  event log's lifecycle to cascade-delete behavior on the tables it
+  references, and keeps a future retention/archival policy (§6) simple to
+  apply independently.
+- **Fire-and-forget, never blocking, never failing the request.**
+  `emitAnalyticsEvent()` wraps its `prisma.analyticsEvent.create()` call
+  in a try/catch that only logs on failure — analytics can never turn a
+  successful patient/pharmacist action into a failed HTTP response, and a
+  transient analytics-write failure can never surface to the user. This
+  is also *why* the reporting service (§4) computes headline funnel
+  numbers from the source-of-truth tables (`MedicationQuestion`,
+  `PatientMedication`, `MedicationAdherenceEvent`, `MedicationCheckIn`)
+  rather than solely from the event log — an occasional dropped event
+  must never silently undercount a metric a customer might see.
+- **Where each event is emitted** (all in the existing route handler,
+  immediately after the underlying write succeeds):
+
+  | Event | Emitted from | Metadata (non-PHI only) |
+  |---|---|---|
+  | `PATIENT_MEDICATION_VIEWED` | `GET /medications/:id` | `{status}` |
+  | `MEDICATION_ADHERENCE_RECORDED` | `POST /medications/:id/adherence-events` | `{status}` |
+  | `MEDICATION_CHECKIN_COMPLETED` | `POST /medications/:id/check-ins` | `{response}` — never `notes` |
+  | `QUESTION_SUBMITTED` | `POST /questions` | `{category}` |
+  | `QUESTION_DISPOSITION_ASSIGNED` | `POST /questions` | `{disposition, dispositionSource}` |
+  | `AI_EDUCATION_GENERATED` | `POST /questions`, when the AI outcome is `SUCCESS` | `{disposition, hasClarifyingQuestion, hasPharmacistSummary, inputTokens, outputTokens}` — never `aiEducationResponse`/`aiPharmacistSummary` text |
+  | `AI_EDUCATION_FAILED` | `POST /questions`, when the AI outcome is `FAILED` | `{disposition}` |
+  | `PHARMACIST_QUEUE_ENTERED` | `POST /questions`, when auto-queued | `{disposition}` |
+  | `PHARMACIST_CLAIMED` | `POST /pharmacist/questions/:id/claim` | `{disposition, waitTimeMs}` |
+  | `PHARMACIST_RESPONDED` | `POST /pharmacist/questions/:id/respond` | `{handlingTimeMs}` — never `responseText` |
+  | `PHARMACIST_ESCALATED` | `POST /pharmacist/questions/:id/escalate` | `{escalationReasonCategory}` — never the free-text `escalationReason` |
+  | `PROVIDER_ESCALATION_CREATED` | `POST /questions` (disposition `PROVIDER_EVALUATION`) *and* `POST /pharmacist/questions/:id/escalate` | `{source: "automatic_routing" \| "pharmacist_initiated", escalationReasonCategory?}` |
+
+  `PROVIDER_ESCALATION_CREATED` can fire twice for the same question (an
+  automatic-routing event at creation, then a pharmacist-initiated event
+  if a pharmacist separately escalates it later) — this is intentional:
+  it's an audit trail of *every* moment a question touched
+  provider-level routing, not a deduplicated count. The reporting
+  service (§4) computes the deduplicated, per-question escalation rate
+  from `MedicationQuestion` directly, exactly for this reason.
+
+### 2. What analytics must never store
+
+Restating and enforcing the milestone brief's privacy list, one column at
+a time:
+
+- **No question text, pharmacist response text, check-in free-text
+  notes, or AI response text** — `metadata` on every event above is a
+  small, explicitly-enumerated object; nothing free-text ever goes into
+  it. Verified by a dedicated test that creates a question with
+  distinctive text and a check-in with distinctive notes, then asserts
+  neither string appears anywhere in any event's serialized metadata.
+- **No passwords, tokens, or session data** — nothing in `packages/auth`
+  or `apps/api/src/lib/auth.ts` was touched by this milestone; no
+  analytics event is emitted from any auth route.
+- **Only the minimum metadata needed to measure the workflow** — e.g.
+  `PHARMACIST_ESCALATED` stores the closed-taxonomy
+  `escalationReasonCategory` (useful for "escalation reason breakdown")
+  but never the pharmacist's free-text explanation.
+- **`patientId`/`pharmacistId`/`questionId`/`medicationId` are opaque
+  UUID identifiers, not content** — the same category of data already
+  stored as foreign keys throughout the schema (e.g.
+  `MedicationQuestion.patientId`). They're required to compute "active
+  patients," "repeat usage," and per-pharmacist volume; excluding them
+  would make those explicitly-requested metrics impossible to compute.
+
+### 3. Provider escalation — the critical metric, defined precisely
+
+Two questions the brief asks for a "clearly defined metric" for:
+
+- **"Escalated to provider"** (the brief's suggested careful phrasing,
+  used verbatim in the report/UI) — a question counts as escalated to
+  provider if **either** its deterministic disposition was
+  `PROVIDER_EVALUATION` at creation (automatic routing — the patient sees
+  "This question may require evaluation by your healthcare provider,"
+  see the M3 Phase 2 disposition messaging) **or** a pharmacist later set
+  `status = ESCALATED` on it (pharmacist-initiated — reachable from a
+  `PHARMACIST_REVIEW`-disposition question too, if the pharmacist decides
+  mid-review that provider evaluation is warranted). A question matching
+  either condition is counted **once** (`OR`, not summed) —
+  `providerEscalation.totalEscalatedToProvider` in the report.
+- **"Provider escalation rate"** = `totalEscalatedToProvider /
+  totalQuestions` for the reporting window. A plain ratio, nothing more.
+- **"Resolved without provider escalation"** = `totalQuestions -
+  totalEscalatedToProvider` (and the corresponding rate). This label was
+  chosen deliberately from the brief's suggested vocabulary over
+  alternatives like "successfully handled" — it states only that the
+  question's path never required routing toward provider-level care, not
+  that the patient's underlying medical situation was resolved, improved,
+  or that any clinical outcome occurred. DosePrepped has no way to
+  observe clinical outcomes.
+- **`URGENT_EMERGENCY` is tracked separately, never folded into
+  "escalated to provider."** It's categorically different — the patient
+  is told to call 911/Poison Control, not "contact your provider," and
+  the question is never queued for AI or a pharmacist at all (see M3
+  Phase 2 architecture). Mixing it into the provider-escalation rate
+  would conflate two different severity signals into one number.
+- **What this metric does *not* claim.** DosePrepped never messages an
+  actual provider (no provider accounts/messaging integration exists —
+  unchanged since M4) — "escalated to provider" means *the patient was
+  routed/directed toward provider-level care*, not that a provider
+  received, reviewed, or acted on anything. The report and any
+  customer-facing copy must preserve this distinction. **No causal or
+  outcome claim is made anywhere in this milestone** — the metric
+  describes *routing*, not clinical benefit, cost savings, or "provider
+  time saved." That last phrase is deliberately absent from this
+  codebase; see §5 below.
+
+### 4. Reporting service
+
+`apps/api/src/lib/analytics-report.ts` exports `buildAnalyticsReport({
+from, to })`, called by `GET /admin/analytics/report?from=&to=`
+(`ADMIN`-only — see §5). Metrics are grouped exactly as the milestone
+brief's six sections (patient engagement, question funnel, AI,
+pharmacist, provider escalation, adherence/check-in), plus a labeled
+`roiOperationalMetrics` section (§6). Two computation strategies are used
+deliberately:
+
+- **Range-bound activity metrics** (e.g. questions submitted, pharmacist
+  responses, adherence events) are computed from the source-of-truth
+  domain tables filtered by `createdAt`/the relevant timestamp within
+  `[from, to)` — never solely from the event log, per §1's
+  fire-and-forget rationale.
+- **Snapshot metrics** are point-in-time state, not a flow, and split
+  into two kinds depending on whether they're reconstructable
+  historically: `totalPatients`/`totalMedicationRecords` are computed
+  *as of `to`* (`createdAt <= to`, so a historical report reflects that
+  moment); the unclaimed queue volume and queue aging are computed *as of
+  now* regardless of `to` — there's no stored history of past
+  claim/release cycles (`release` puts a question back in the shared
+  queue with no record of when), so a historical queue snapshot isn't
+  reconstructable from the current schema. Both are documented in the
+  report's field names and this is called out explicitly as a limitation
+  in "Remaining limitations" below.
+- **`activePatients`** is the one metric that *does* need the event log:
+  a patient who only viewed a medication (no question, no adherence
+  event, no check-in) has no other trace in the domain tables.
+  `activePatients` is the distinct union of `patientId` across
+  `MedicationQuestion`, `MedicationAdherenceEvent`, `MedicationCheckIn`
+  (all filtered to the range) and `PATIENT_MEDICATION_VIEWED` events in
+  the same range.
+- **Pharmacist response/handling time** use the same
+  `pharmacistRespondedAt - pharmacistClaimedAt` delta already computed
+  ad hoc elsewhere (M4's "time metrics computed on read" pattern) —
+  averaged here across every response in range, not stored as a separate
+  value.
+- **Queue aging** is computed only over *currently* unclaimed questions
+  (`status = PHARMACIST_REQUESTED`, `pharmacistId = null`, as of `to`):
+  `now - pharmacistRequestedAt`, averaged. Like queue volume, this is a
+  snapshot, not a range-bound flow.
+
+### 5. Authorization
+
+- `GET /admin/analytics/report` requires `Role.ADMIN` via the existing
+  `requireRole` preHandler — the same enforcement mechanism used by every
+  other role-gated route since M1. A patient or pharmacist request is
+  `403`, identical to every other role-mismatch route in this codebase.
+- **Pharmacists do not get an organization-wide analytics endpoint in
+  this milestone.** The brief permits pharmacist analytics access only if
+  "explicitly authorized" — no such authorization mechanism exists yet
+  (there's no concept of "this pharmacist's own performance" scoping
+  separate from admin-wide aggregates), so building it now would be
+  exactly the kind of speculative, unrequested feature the brief's "do
+  not build another major feature" constraint warns against. Left as a
+  documented future extension (§7).
+- **No patient-level analytics are exposed by this endpoint at all** —
+  every metric in the report is an aggregate count/rate/average over the
+  requested date range; there is no endpoint, in this milestone or any
+  prior one, that returns one specific patient's activity to anyone but
+  that patient themselves (via their own existing, patient-scoped
+  routes). This satisfies "do not expose patient-level analytics to
+  organizations" by construction — there is no organization-facing
+  per-patient view to restrict, because no such view was built.
+- **Existing patient ownership protections are completely unmodified.**
+  No route this milestone touches (`medications.ts`,
+  `medication-journey.ts`, `questions.ts`, `pharmacist-questions.ts`)
+  changes its authorization or ownership-scoping logic — every edit is
+  purely additive (an `emitAnalyticsEvent()` call after the existing
+  success path), verified by the full existing regression suite passing
+  unchanged.
+
+### 6. Multi-tenant / organization compatibility (not built)
+
+Per the milestone brief, no `Organization` table and no `organizationId`
+column were added — building real multi-tenant infrastructure for one
+milestone's reporting need would be scope creep the brief explicitly
+warns against, and there is still no `User.organizationId` (or any other
+tenant tag) anywhere in this schema for analytics to scope against. The
+architecture stays compatible with adding one later without a rewrite:
+
+- `emitAnalyticsEvent()` and `AnalyticsEvent` already carry `patientId`/
+  `pharmacistId` — the same identifiers a future `organizationId` lookup
+  (`User.organizationId`, once that column exists) would join against to
+  scope events per tenant. No event schema change would be needed, only
+  a join.
+- `buildAnalyticsReport()` takes a single options object
+  (`{ from, to }`) specifically so an `organizationId?: string` field can
+  be added to that same object later, threaded into each source-table
+  query's `where` clause (e.g. `patient: { organizationId }`), without
+  changing the function's shape or any caller.
+- **Until that column exists, every report produced by this milestone is
+  global** — it reports on every patient/pharmacist/question in the
+  system, not scoped to any one customer. This is a real limitation for
+  a genuinely multi-customer pilot and is called out explicitly here
+  rather than left implicit: **do not present this milestone's report to
+  more than one prospective customer as if it were their own isolated
+  data** until tenant scoping is built.
+
+### 7. ROI-supporting operational metrics (not a savings claim)
+
+`roiOperationalMetrics` in the report surfaces exactly the metrics the
+brief lists — `questionsPerThousandPatients`,
+`pharmacistCasesPerThousandPatients`,
+`providerEscalationsPerThousandPatients`,
+`percentResolvedWithoutProviderEscalation`,
+`averagePharmacistResponseTimeMs` — each computed from real,
+already-measured data (never invented), and the report includes a fixed
+disclaimer string on every response: *these are operational volume/rate
+metrics, not a financial estimate; combining them with a specific
+customer's actual labor costs and baseline (pre-DosePrepped) workflow
+volume is a future, pilot-specific exercise, not something this codebase
+calculates.* No dollar figure, cost-savings estimate, or "time saved"
+number is computed or claimed anywhere in this milestone.
+
+### 8. Admin analytics view
+
+The previously bare `/admin` placeholder (`apps/patient/src/app/admin/page.tsx`)
+now renders the last-30-days report (`GET /admin/analytics/report`) as
+labeled stat cards, reusing the existing `Card`/`Badge` components and
+the same stat-card layout already used on the pharmacist dashboard — no
+new visual pattern, no new component library. This is the one
+patient-app UI change in this milestone, and it is **admin-facing, not
+patient-facing** — it does not touch any patient- or pharmacist-facing
+screen or workflow.
+
+### Remaining limitations
+
+- **Global only, no tenant isolation** — see §6. A future
+  `organizationId` column is the documented extension path.
+- **No pharmacist self-service analytics** — see §5.
+- **No historical backfill** — events only exist from this milestone
+  forward; questions/medications/adherence/check-ins created before M5.3
+  shipped have no corresponding `AnalyticsEvent` rows (though they're
+  still fully counted in range-bound report metrics computed from the
+  source-of-truth tables, since those don't depend on the event log).
+- **No event retention/archival policy** — `analytics_events` grows
+  unbounded; a future milestone should define a retention window before
+  this reaches meaningful pilot volume.
+- **`activePatients`/engagement metrics only cover events emitted
+  starting now** — a patient who only viewed a medication before this
+  milestone shipped has no `PATIENT_MEDICATION_VIEWED` trace, unlike
+  their questions/adherence/check-ins which remain fully visible via the
+  source tables.
+- **No real-time/streaming analytics** — the report is computed on
+  request, synchronously, directly against the primary database; at
+  meaningful pilot scale this may need a read replica or a
+  pre-aggregated rollup table, neither of which exists yet.
+- **Queue volume/aging are always live, not historical** — requesting a
+  report for a past date range still returns the *current* unclaimed
+  queue depth/aging, not a reconstruction of what the queue looked like
+  at that past `to`. See §4.
+- **ROI metrics require pilot-specific inputs DosePrepped doesn't have**
+  — see §7; no cost/savings claim is made without them.
+
+---
+
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
 & disposition), M3 Phase 3 (AI-assisted medication education), M4
 (pharmacist review & concierge workflow), M5.1 (pilot readiness & product
-hardening), and M5.2 (medication journey & adherence foundation) are
-implemented, tested, and merged. A question now flows end-to-end through
-deterministic safety → (non-emergency, non-fully-AI-answered) AI
-education → automatic pharmacist queueing → atomic claim → a human
-pharmacist response or a structured escalation, with no code path
-anywhere that lets AI-generated content become an official pharmacist
-response or change a deterministic disposition. Every patient- and
-pharmacist-facing screen shows accurate, current copy, and API errors
-fail safely without leaking internal detail. Patients can now also record
-per-dose adherence (taken/missed/skipped), complete a structured
-medication check-in, and view a derived medication timeline; a pharmacist
-reviewing a routed question sees bounded, clearly-labeled medication
-context (adherence %, most recent check-in, most recent other question
-about the same medication) alongside it — informational only, never a
-recommendation. Still not built: B2B organizations, payments, pharmacist
-compensation, EHR/telehealth integration, pharmacist license
-verification/enforcement, a structured dosing/reminder engine, and the
-`AnalyticsEvent` table. Awaiting direction on M5.3.
+hardening), M5.2 (medication journey & adherence foundation), and M5.3
+(pilot analytics & ROI instrumentation) are implemented, tested, and
+merged. A question now flows end-to-end through deterministic safety →
+(non-emergency, non-fully-AI-answered) AI education → automatic pharmacist
+queueing → atomic claim → a human pharmacist response or a structured
+escalation, with no code path anywhere that lets AI-generated content
+become an official pharmacist response or change a deterministic
+disposition. Every patient- and pharmacist-facing screen shows accurate,
+current copy, and API errors fail safely without leaking internal detail.
+Patients can also record per-dose adherence (taken/missed/skipped),
+complete a structured medication check-in, and view a derived medication
+timeline; a pharmacist reviewing a routed question sees bounded,
+clearly-labeled medication context alongside it. Every meaningful
+patient/pharmacist action now emits a versioned, non-PHI analytics event
+(`AnalyticsEvent`), and an admin-only aggregate report
+(`GET /admin/analytics/report`) answers patient engagement, question
+funnel, AI, pharmacist, provider-escalation, and adherence/check-in
+questions over a date range — with "escalated to provider" and "resolved
+without provider escalation" defined precisely and never conflated with a
+clinical-outcome or cost-savings claim. Still global-only (no
+organization/tenant isolation yet — documented extension path). Still not
+built: B2B organizations, payments, pharmacist compensation, EHR/
+telehealth integration, pharmacist license verification/enforcement, a
+structured dosing/reminder engine, and any real cost/ROI calculation.
+Awaiting direction on M5.4.

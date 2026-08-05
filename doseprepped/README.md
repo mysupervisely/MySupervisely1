@@ -1,12 +1,12 @@
-# DosePrepped — M0–M5.2 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening, Medication Journey & Adherence Foundation)
+# DosePrepped — M0–M5.3 (Foundation, Auth, Medications, Question Intake, Deterministic Safety/Disposition, AI-Assisted Education, Pharmacist Workflow, Pilot Readiness & Hardening, Medication Journey & Adherence Foundation, Pilot Analytics & ROI Instrumentation)
 
 DosePrepped is a digital medication-support layer: it helps patients
 understand their medications and connect with licensed pharmacists (and
 their own provider when appropriate) when they have medication-related
 questions.
 
-> **Status: through M5.2 (Medication Journey & Adherence Foundation).**
-> Real accounts, login/logout, password hashing, sessions, server-enforced
+> **Status: through M5.3 (Pilot Analytics & ROI Instrumentation).** Real
+> accounts, login/logout, password hashing, sessions, server-enforced
 > role-based access control (patient / pharmacist / admin), a full patient
 > medication list, structured medication-question intake, a deterministic
 > AI-independent safety/disposition routing layer, a single typed AI
@@ -19,31 +19,38 @@ questions.
 > never become "the pharmacist's answer"), or escalates it with a required
 > structured reason. M5.1 hardened this M0–M4 product for a controlled
 > pilot (accurate UI copy, sanitized error responses, a storage-only
-> pharmacist profile foundation). **M5.2 adds the post-prescription
-> medication journey**, medication-agnostic throughout: a patient can
+> pharmacist profile foundation). M5.2 added the post-prescription
+> medication journey, medication-agnostic throughout: a patient can
 > record a dose as taken/missed/skipped, see a deterministic adherence
 > percentage, complete a structured (non-clinical) medication check-in,
 > and view a derived timeline for a medication; a pharmacist reviewing a
-> routed question sees bounded, clearly-labeled context (adherence %,
-> most recent check-in, most recent other question about the same
-> medication) alongside it. None of this recommends a medication or dose
-> change, diagnoses anything, or replaces pharmacist/provider judgment —
-> see "M5.2 — Medication Journey & Adherence Foundation" in
+> routed question sees bounded, clearly-labeled context alongside it.
+> **M5.3 instruments all of the above** with a centralized, non-PHI
+> analytics event log and an admin-only aggregate report
+> (`GET /admin/analytics/report`) answering patient engagement, question
+> funnel, AI, pharmacist, provider-escalation, and adherence/check-in
+> questions over a date range — built to help demonstrate business value
+> to a prospective telehealth customer without inventing any clinical
+> outcome or cost-savings claim. "Escalated to provider" and "resolved
+> without provider escalation" are precisely defined, careful-language
+> metrics — DosePrepped still never messages a real provider directly.
+> See "M5.3 — Pilot Analytics & ROI Instrumentation" in
 > [`docs/doseprepped/ARCHITECTURE.md`](../docs/doseprepped/ARCHITECTURE.md)
-> for the full design and safety rationale. DosePrepped is still not a
-> chatbot: no chat history, no multi-turn AI conversation, and no
-> automated pharmacist response — only an authenticated pharmacist can
-> create one. There is still no payments, no B2B organization management,
-> no telemedicine/EHR integration, no real patient onboarding, no
-> pharmacist compensation, no authoritative medication database, no OCR,
-> no dosing/reminder engine, and no comprehensive clinical decision
-> support. DosePrepped is medication support infrastructure connecting
+> for the full design, metric definitions, and privacy rules. DosePrepped
+> is still not a chatbot: no chat history, no multi-turn AI conversation,
+> and no automated pharmacist response — only an authenticated pharmacist
+> can create one. There is still no payments, no B2B organization/tenant
+> infrastructure (analytics today are global, not per-customer — see the
+> architecture doc), no telemedicine/EHR integration, no real patient
+> onboarding, no pharmacist compensation, no authoritative medication
+> database, no OCR, no dosing/reminder engine, and no real financial ROI
+> calculation. DosePrepped is medication support infrastructure connecting
 > patients, medication education, pharmacists, and appropriate provider
 > escalation — it is not an AI doctor, an emergency service, a replacement
 > for the dispensing pharmacy, a diagnostic tool, or a replacement for a
-> prescriber. The admin dashboard remains an explicit placeholder.
+> prescriber.
 
-## What's in M0–M5.2
+## What's in M0–M5.3
 
 - A Next.js patient-facing PWA shell with the DosePrepped visual identity
   (mobile-first, healthcare-oriented, non-clinical) and screens for:
@@ -106,7 +113,9 @@ questions.
   search + adherence events + check-ins + timeline — see below),
   `/questions*` (create/list/detail),
   `/pharmacist/queue`+`/pharmacist/questions/*` (queue, claim, release,
-  respond, escalate), and one role-gated placeholder ping route per role.
+  respond, escalate), `/admin/analytics/report` (aggregate pilot
+  reporting — see below), and one role-gated placeholder ping route for
+  patient/pharmacist.
 - **Pilot readiness & product hardening (M5.1):** corrected stale
   placeholder copy on the dev banner, patient home, and "Ask a Pharmacist"
   (which now explains automatic pharmacist routing and lists the
@@ -154,28 +163,59 @@ questions.
     minimum-necessary-exposure, and no-PHI-in-logs patterns as the rest
     of the API. See "M5.2 — Medication Journey & Adherence Foundation" in
     the architecture doc for the full design and safety rationale.
+- **Pilot analytics & ROI instrumentation (M5.3):** a centralized,
+  versioned event taxonomy (`AnalyticsEventType` — 12 event types, each
+  tied to a real, already-implemented workflow step, e.g.
+  `QUESTION_SUBMITTED`, `PHARMACIST_CLAIMED`, `PROVIDER_ESCALATION_CREATED`
+  — no speculative/"fake" events) instruments every meaningful
+  patient/pharmacist action through one function
+  (`emitAnalyticsEvent()`), fire-and-forget so an analytics write can
+  never fail a real request. Event metadata is narrow and non-PHI —
+  never question text, AI response text, pharmacist response text, or
+  check-in notes. `GET /admin/analytics/report?from=&to=` (`ADMIN`-only)
+  aggregates patient engagement, question funnel (by category/
+  disposition), AI (invoked/succeeded/failed/skipped, token usage),
+  pharmacist volume and response/handling time, provider escalation, and
+  adherence/check-in engagement over any date range, computed primarily
+  from the source-of-truth tables (not solely the event log, so a
+  dropped analytics write never undercounts a real metric). **"Escalated
+  to provider" and "resolved without provider escalation" are precisely,
+  deliberately defined** (never conflated with a clinical outcome or
+  cost-savings claim — DosePrepped still never messages a real provider
+  directly), and a labeled `roiOperationalMetrics` section surfaces
+  per-1,000-patient volume ratios with an explicit disclaimer that
+  they're operational metrics, not a financial estimate. Global only
+  today — no organization/tenant column exists yet, so every report
+  covers the whole system, not one customer (documented extension path).
+  The previously-placeholder `/admin` screen now renders this report as
+  labeled stat cards. See "M5.3 — Pilot Analytics & ROI Instrumentation"
+  in the architecture doc for the full event catalog, metric
+  definitions, and privacy/authorization rules.
 - A PostgreSQL database via Prisma: `User`, `Session`, `PatientMedication`,
   `MedicationReference`, `MedicationQuestion`, `PharmacistProfile`,
-  `MedicationAdherenceEvent`, and `MedicationCheckIn`, seeded with
-  **synthetic demo data only** (including two synthetic pharmacist
-  accounts, each with a demo profile, so the shared queue has more than
-  one demo reviewer, and a worked M5.2 example on the demo Semaglutide
-  medication: 91% adherence, an "having some issues" check-in, and two
-  linked questions).
+  `MedicationAdherenceEvent`, `MedicationCheckIn`, and `AnalyticsEvent`,
+  seeded with **synthetic demo data only** (including two synthetic
+  pharmacist accounts, each with a demo profile, so the shared queue has
+  more than one demo reviewer, and a worked M5.2 example on the demo
+  Semaglutide medication: 91% adherence, a "having some issues" check-in,
+  and two linked questions — `AnalyticsEvent` rows accrue from this point
+  forward as the seeded workflows are used, not retroactively).
 - Automated tests (Vitest) and lint/typecheck across every package,
-  including 109 auth/RBAC/medication/question/disposition/AI-education/
-  pharmacist-workflow/error-handling/medication-journey integration tests
-  (one of them a genuine concurrent two-pharmacist claim race) against a
-  real (disposable) test database, plus 16 standalone unit tests for the
-  safety-rules engine, 17 for the ai-service package, and 5 for the
-  patient app's own components — 147 tests total. No test makes a real
-  call to any AI vendor.
+  including 125 auth/RBAC/medication/question/disposition/AI-education/
+  pharmacist-workflow/error-handling/medication-journey/analytics
+  integration tests (one of them a genuine concurrent two-pharmacist
+  claim race) against a real (disposable) test database, plus 16
+  standalone unit tests for the safety-rules engine, 17 for the
+  ai-service package, and 5 for the patient app's own components — 163
+  tests total. No test makes a real call to any AI vendor.
 
 Not in scope yet (see the architecture doc for when these land): provider
 messaging/EHR integration, secure two-way patient/pharmacist messaging, an
 authoritative medication reference database, OCR/medication scanning,
 a structured dosing/reminder engine, payments, pharmacist compensation,
-B2B organizations, telemedicine
+B2B/multi-tenant organization infrastructure (analytics remain global,
+not per-customer), a real financial ROI/cost-savings calculation,
+pharmacist self-service analytics, telemedicine
 integration, account deletion, consent tracking, drug interaction
 checking, and any comprehensive clinical decision support. Neither the
 Phase 2 rule engine nor the Phase 3 AI layer diagnoses, recommends
@@ -730,6 +770,81 @@ Pharmacist Review & Concierge Workflow" — this is a summary.
   presentation-only, not a clinical triage system; no independent
   append-only audit log beyond `MedicationQuestion`'s own columns.
 
+## Analytics & reporting architecture (M5.3)
+
+Full rationale lives in `docs/doseprepped/ARCHITECTURE.md` under "M5.3 —
+Pilot Analytics & ROI Instrumentation" — this is a summary.
+
+- **Centralized event taxonomy.** `AnalyticsEventType` (a closed Prisma
+  enum) lists exactly 12 event types, each emitted from exactly one
+  existing, already-authenticated route handler via one function,
+  `emitAnalyticsEvent()` (`apps/api/src/lib/analytics.ts`) — there is no
+  public event-ingestion endpoint. Every event type corresponds to a real
+  workflow step already implemented in M3/M4/M5.2; none are speculative.
+  `AnalyticsEvent` (`apps/api/prisma` via `packages/db`) has no `@relation`
+  to `User`/`MedicationQuestion`/`PatientMedication` — it's an
+  independent, append-only log, not a first-class domain entity.
+- **Fire-and-forget, never blocking.** An analytics write failure is
+  logged and swallowed, never thrown — it can never turn a successful
+  patient/pharmacist action into a failed response. This is also why the
+  reporting service computes headline funnel numbers from the
+  source-of-truth tables (`MedicationQuestion`, `PatientMedication`,
+  `MedicationAdherenceEvent`, `MedicationCheckIn`) wherever one exists,
+  rather than solely from the event log.
+- **Non-PHI by construction.** Event `metadata` is a small, explicitly
+  enumerated object per event type — e.g. `MEDICATION_CHECKIN_COMPLETED`
+  stores the closed-taxonomy `response` but never `notes`;
+  `PHARMACIST_RESPONDED` stores a computed handling-time number but
+  never `responseText`; `PHARMACIST_ESCALATED` stores
+  `escalationReasonCategory` but never the free-text `escalationReason`.
+  Verified by a dedicated test that creates a question with distinctive
+  text and a check-in with distinctive notes, then asserts neither string
+  appears anywhere in any event's stored metadata.
+- **`GET /admin/analytics/report?from=&to=`** (`ADMIN`-only, `403` for
+  patient/pharmacist) returns an aggregate report — patient engagement,
+  question funnel (by category/disposition), AI
+  (invoked/succeeded/failed/skipped, token usage), pharmacist volume and
+  response/handling time, provider escalation, and adherence/check-in
+  engagement — for the requested date range (defaults to the last 30
+  days). No patient-level data is ever returned by this or any endpoint
+  to anyone but that patient themselves.
+- **"Escalated to provider," precisely defined**: a question counts as
+  escalated to provider if *either* its deterministic disposition was
+  `PROVIDER_EVALUATION` at creation (automatic routing) *or* a pharmacist
+  later set `status = ESCALATED` on it (pharmacist-initiated) —
+  deduplicated, counted once per question even if both are true.
+  **"Resolved without provider escalation"** = total questions minus that
+  count. `URGENT_EMERGENCY` is tracked separately and never folded into
+  either metric — it's a categorically different, more severe pathway.
+  Neither metric claims a clinical outcome: DosePrepped never messages a
+  real provider (no such integration exists), so "escalated to provider"
+  means the patient was routed/directed toward provider-level care, not
+  that a provider received or acted on anything.
+- **ROI-supporting operational metrics, not a savings claim.**
+  `roiOperationalMetrics` surfaces questions/pharmacist-cases/provider-
+  escalations per 1,000 patients, the resolved-without-escalation
+  percentage, and average pharmacist response time — every number
+  computed from real, already-measured activity, with a fixed disclaimer
+  that combining these with a customer's actual labor costs is a future,
+  pilot-specific exercise this codebase does not perform. No dollar
+  figure or "time saved" claim is made anywhere.
+- **Global only — no multi-tenant isolation yet.** No `Organization`
+  table or `organizationId` column exists; every report covers the whole
+  system, not one customer. The reporting function's options object
+  (`{ from, to }`) is deliberately shaped so an `organizationId` filter
+  can be added later without a signature change — see the architecture
+  doc for the full extension path. **Do not present this milestone's
+  report to more than one prospective customer as if it were their own
+  isolated data.**
+- **Current limitations.** No pharmacist self-service analytics (only
+  `ADMIN` can access the report); no historical backfill (events only
+  exist from this milestone forward, though range-bound report metrics
+  computed from source tables are unaffected); no event retention/
+  archival policy; unclaimed-queue-volume and queue-aging are always a
+  *live* snapshot, not reconstructable for a historical `to`; no read
+  replica or pre-aggregated rollup table (the report queries the primary
+  database directly, synchronously, on every request).
+
 ## Security notes for this milestone
 
 - No real patient data anywhere in this repo or its seed data — synthetic
@@ -770,6 +885,14 @@ Pharmacist Review & Concierge Workflow" — this is a summary.
   claimed to constitute verification, and is exposed only to the
   pharmacist it belongs to via their own `GET /auth/me` — never to
   patients, never to other pharmacists.
+- **M5.3 additions:** every `AnalyticsEvent` is a small, explicitly
+  enumerated, non-free-text object per event type — never question text,
+  AI response text, pharmacist response text, or check-in notes; verified
+  by a dedicated test. `GET /admin/analytics/report` is `ADMIN`-only
+  (`403` for patient/pharmacist) and returns aggregates only — no
+  endpoint anywhere returns one patient's activity to anyone but that
+  patient. Analytics writes are fire-and-forget and can never fail or
+  block a real patient/pharmacist request.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.
