@@ -1,0 +1,709 @@
+[
+  {
+    "id": "cardio-lesson-0",
+    "systemKey": "cardio",
+    "order": 0,
+    "title": "Blood Pressure Regulation & Hypertension",
+    "note": "BP = CO × SVR, the RAAS cascade, and every antihypertensive class mapped to the lever it pulls."
+  },
+  {
+    "id": "cardio-lesson-1",
+    "systemKey": "cardio",
+    "order": 1,
+    "title": "Heart Failure",
+    "note": "HFrEF vs. HFpEF, the compensatory vicious cycle, and the four pillars of GDMT."
+  },
+  {
+    "id": "cardio-lesson-2",
+    "systemKey": "cardio",
+    "order": 2,
+    "title": "Coronary Artery Disease & Acute Coronary Syndrome",
+    "note": "Plaque rupture, the ACS spectrum, DAPT, reperfusion, and secondary prevention."
+  },
+  {
+    "id": "cardio-lesson-3",
+    "systemKey": "cardio",
+    "order": 3,
+    "title": "Arrhythmias — Atrial Fibrillation",
+    "note": "Why AFib causes stroke, rate vs. rhythm control, and anticoagulation decision-making."
+  },
+  {
+    "id": "cardio-lesson-4",
+    "systemKey": "cardio",
+    "order": 4,
+    "title": "Lipid Metabolism & Atherosclerosis",
+    "note": "How plaque forms, statin intensity, and non-statin add-on therapy."
+  },
+  {
+    "id": "neuro-lesson-0",
+    "systemKey": "neuro",
+    "order": 0,
+    "title": "Seizure Disorders & Antiepileptic Drugs",
+    "note": "The excitation/inhibition framework, seizure-type-specific drug selection, and status epilepticus sequencing."
+  },
+  {
+    "id": "neuro-lesson-1",
+    "systemKey": "neuro",
+    "order": 1,
+    "title": "Major Depressive Disorder & Antidepressants",
+    "note": "Monoamine-based drug classes, the 4-6 week time course, and serotonin syndrome recognition."
+  },
+  {
+    "id": "neuro-lesson-2",
+    "systemKey": "neuro",
+    "order": 2,
+    "title": "Anxiety Disorders & Bipolar Disorder",
+    "note": "Fast-acting vs. durable anxiety therapy, and lithium’s narrow index and renal interactions."
+  },
+  {
+    "id": "neuro-lesson-3",
+    "systemKey": "neuro",
+    "order": 3,
+    "title": "Schizophrenia & Antipsychotics",
+    "note": "The four dopamine pathways explaining efficacy and every major side effect, plus clozapine monitoring."
+  },
+  {
+    "id": "neuro-lesson-4",
+    "systemKey": "neuro",
+    "order": 4,
+    "title": "Parkinson’s Disease & Alzheimer’s Disease",
+    "note": "Levodopa/carbidopa logic and the anticholinergic contrast between the two conditions."
+  },
+  {
+    "id": "neuro-lesson-5",
+    "systemKey": "neuro",
+    "order": 5,
+    "title": "Pain Management & Opioid Use Disorder",
+    "note": "Mu-receptor pharmacology, naloxone limitations, and buprenorphine/naltrexone induction timing."
+  },
+  {
+    "id": "respiratory-lesson-0",
+    "systemKey": "respiratory",
+    "order": 0,
+    "title": "Asthma: Pathophysiology & Chronic Controller Therapy",
+    "note": "Why inflammation, not bronchoconstriction, is the root cause — and why ICS is the foundation of control."
+  },
+  {
+    "id": "respiratory-lesson-1",
+    "systemKey": "respiratory",
+    "order": 1,
+    "title": "Asthma Exacerbations & Severe/Rescue Management",
+    "note": "Layered acute therapy by mechanism, and the \"silent chest\" danger sign."
+  },
+  {
+    "id": "respiratory-lesson-2",
+    "systemKey": "respiratory",
+    "order": 2,
+    "title": "COPD: Pathophysiology & Chronic Therapy",
+    "note": "Largely irreversible airflow limitation — why bronchodilators, not ICS, are foundational here."
+  },
+  {
+    "id": "respiratory-lesson-3",
+    "systemKey": "respiratory",
+    "order": 3,
+    "title": "COPD Exacerbations & Comprehensive Management",
+    "note": "Antibiotic-use criteria, and why oxygen needs careful titration in COPD patients specifically."
+  },
+  {
+    "id": "gi-lesson-0",
+    "systemKey": "gi",
+    "order": 0,
+    "title": "Acid-Peptic Disorders: GERD, PUD & H. pylori",
+    "note": "The acid/mucosal-defense balance, PPI mechanism, H. pylori eradication, and NSAID-induced ulcers."
+  },
+  {
+    "id": "gi-lesson-1",
+    "systemKey": "gi",
+    "order": 1,
+    "title": "Inflammatory Bowel Disease",
+    "note": "Crohn’s vs. UC by pattern, the step-up treatment ladder, and why colectomy cures UC but not Crohn’s."
+  },
+  {
+    "id": "gi-lesson-2",
+    "systemKey": "gi",
+    "order": 2,
+    "title": "Nausea, Vomiting & GI Motility Disorders",
+    "note": "Matching antiemetic mechanism to trigger pathway, and PAMORAs for opioid-induced constipation."
+  },
+  {
+    "id": "gi-lesson-3",
+    "systemKey": "gi",
+    "order": 3,
+    "title": "Cirrhosis & Portal Hypertension Complications",
+    "note": "Varices, ascites, and hepatic encephalopathy all traced back to portal hypertension."
+  },
+  {
+    "id": "gi-lesson-4",
+    "systemKey": "gi",
+    "order": 4,
+    "title": "Drug-Induced Liver Injury & Hepatic Dosing",
+    "note": "Acetaminophen/NAC timing, LFT interpretation, and Child-Pugh vs. CrCl-based dosing."
+  },
+  {
+    "id": "endocrine-lesson-0",
+    "systemKey": "endocrine",
+    "order": 0,
+    "title": "Glucose Homeostasis & Type 2 Diabetes",
+    "note": "Insulin resistance, beta-cell decline, all 8 non-insulin drug classes, and comorbidity-based agent selection."
+  },
+  {
+    "id": "endocrine-lesson-1",
+    "systemKey": "endocrine",
+    "order": 1,
+    "title": "Type 1 Diabetes, Insulin Therapy & DKA",
+    "note": "Autoimmune beta-cell loss, basal-bolus insulin logic, and the potassium-before-insulin DKA safety rule."
+  },
+  {
+    "id": "endocrine-lesson-2",
+    "systemKey": "endocrine",
+    "order": 2,
+    "title": "Diabetes Complications & Monitoring",
+    "note": "A1c interpretation, individualized targets, neuropathy pharmacotherapy, and links to CV/renal risk reduction."
+  },
+  {
+    "id": "endocrine-lesson-3",
+    "systemKey": "endocrine",
+    "order": 3,
+    "title": "Thyroid Disorders",
+    "note": "Reading TSH/T4 patterns, levothyroxine absorption rules, and thyroid storm sequencing."
+  },
+  {
+    "id": "endocrine-lesson-4",
+    "systemKey": "endocrine",
+    "order": 4,
+    "title": "Adrenal Disorders & Corticosteroid Pharmacology",
+    "note": "Cushing’s vs. adrenal insufficiency, the primary/secondary distinction, adrenal crisis, and steroid tapering/stress dosing."
+  },
+  {
+    "id": "renal-lesson-0",
+    "systemKey": "renal",
+    "order": 0,
+    "title": "Kidney Physiology & Acute Kidney Injury",
+    "note": "Nephron function, prerenal/intrinsic/postrenal classification, nephrotoxic drugs, and the \"triple whammy.\""
+  },
+  {
+    "id": "renal-lesson-1",
+    "systemKey": "renal",
+    "order": 1,
+    "title": "CKD Progression & CKD-Mineral Bone Disorder",
+    "note": "GFR/albuminuria staging, the hyperfiltration cycle, and the phosphate → PTH cascade with matching therapies."
+  },
+  {
+    "id": "renal-lesson-2",
+    "systemKey": "renal",
+    "order": 2,
+    "title": "Anemia of CKD & Hyperkalemia Management",
+    "note": "EPO deficiency, iron-before-ESA logic, and the stabilize/shift/remove hyperkalemia sequence."
+  },
+  {
+    "id": "renal-lesson-3",
+    "systemKey": "renal",
+    "order": 3,
+    "title": "Fluid & Electrolyte Disorders — Sodium & Water Balance",
+    "note": "ADH as the central regulator, hyponatremia by volume status, and correction-rate safety limits."
+  },
+  {
+    "id": "renal-lesson-4",
+    "systemKey": "renal",
+    "order": 4,
+    "title": "Dialysis & Drug Dosing in Renal Replacement Therapy",
+    "note": "HD vs. PD vs. CRRT, dialysis indications, and predicting drug removal from Vd, protein binding, and molecular weight."
+  },
+  {
+    "id": "immuno-lesson-0",
+    "systemKey": "immuno",
+    "order": 0,
+    "title": "Immune System Fundamentals & Hypersensitivity Reactions",
+    "note": "The Gell-Coombs Type I-IV classification that organizes every allergic and immune-mediated drug reaction in this course."
+  },
+  {
+    "id": "immuno-lesson-1",
+    "systemKey": "immuno",
+    "order": 1,
+    "title": "Anaphylaxis, Drug Allergy & Severe Cutaneous Reactions",
+    "note": "Why epinephrine is non-negotiable, real cross-reactivity nuance, and SJS/TEN/DRESS culprit drugs."
+  },
+  {
+    "id": "immuno-lesson-2",
+    "systemKey": "immuno",
+    "order": 2,
+    "title": "Transplant Immunology & Immunosuppressive Therapy",
+    "note": "The T-cell activation cascade and four drug classes that each block a different step."
+  },
+  {
+    "id": "immuno-lesson-3",
+    "systemKey": "immuno",
+    "order": 3,
+    "title": "Vaccine Immunology: Active & Passive Immunity",
+    "note": "Why boosters work faster than the original series, and active vs. passive immunity."
+  },
+  {
+    "id": "immuno-lesson-4",
+    "systemKey": "immuno",
+    "order": 4,
+    "title": "Specific Vaccines & the Adult Immunization Schedule",
+    "note": "Product-specific detail — pneumococcal sequencing, Shingrix vs. the old live version, Tdap/RSV in pregnancy, asplenia priorities."
+  },
+  {
+    "id": "immuno-lesson-5",
+    "systemKey": "immuno",
+    "order": 5,
+    "title": "Transplant Infection Prophylaxis & Post-Transplant Management",
+    "note": "CMV risk stratification, why trough targets shift over time, and vaccination timing around transplant."
+  },
+  {
+    "id": "peds-lesson-0",
+    "systemKey": "peds",
+    "order": 0,
+    "title": "Pediatric Pharmacokinetics & Dosing Principles",
+    "note": "How absorption, distribution, metabolism, and excretion each change predictably across development."
+  },
+  {
+    "id": "peds-lesson-1",
+    "systemKey": "peds",
+    "order": 1,
+    "title": "Common Pediatric Infections & Antimicrobial Considerations",
+    "note": "Reye syndrome, tetracycline’s age-8 cutoff, kernicterus, and codeine’s CYP2D6 danger."
+  },
+  {
+    "id": "peds-lesson-2",
+    "systemKey": "peds",
+    "order": 2,
+    "title": "Pediatric Immunization Schedule",
+    "note": "The full childhood schedule, live vs. non-live vaccines, and rotavirus’s strict age window."
+  },
+  {
+    "id": "peds-lesson-3",
+    "systemKey": "peds",
+    "order": 3,
+    "title": "Pediatric Emergencies & Weight-Based Resuscitation",
+    "note": "Why nearly every pediatric emergency drug is dosed by weight, not fixed dose."
+  },
+  {
+    "id": "geri-lesson-0",
+    "systemKey": "geri",
+    "order": 0,
+    "title": "PK/PD Changes in Aging & Polypharmacy",
+    "note": "Why a \"normal\" creatinine can hide significant renal impairment, and the prescribing cascade."
+  },
+  {
+    "id": "geri-lesson-1",
+    "systemKey": "geri",
+    "order": 1,
+    "title": "Beers Criteria & Potentially Inappropriate Medications",
+    "note": "Cumulative anticholinergic burden, the Z-drug misconception, and the antipsychotic-in-dementia boxed warning."
+  },
+  {
+    "id": "geri-lesson-2",
+    "systemKey": "geri",
+    "order": 2,
+    "title": "Falls, Fractures & Deprescribing",
+    "note": "The two-hit fracture model, and STOPP/START as a bidirectional medication-optimization tool."
+  },
+  {
+    "id": "geri-lesson-3",
+    "systemKey": "geri",
+    "order": 3,
+    "title": "Dementia, Delirium & Cognitive Considerations",
+    "note": "Why the distinction matters, and how to spot delirium hiding inside a dementia diagnosis."
+  },
+  {
+    "id": "derm-lesson-0",
+    "systemKey": "derm",
+    "order": 0,
+    "title": "Acne & Rosacea",
+    "note": "Four converging mechanisms, isotretinoin’s mandatory safety program, and why rosacea needs a different approach entirely."
+  },
+  {
+    "id": "derm-lesson-1",
+    "systemKey": "derm",
+    "order": 1,
+    "title": "Psoriasis & Atopic Dermatitis",
+    "note": "Th17 vs. Th2 — the single distinction explaining why each disease needs a different biologic."
+  },
+  {
+    "id": "derm-lesson-2",
+    "systemKey": "derm",
+    "order": 2,
+    "title": "Topical Corticosteroid Potency & Skin Infections",
+    "note": "Matching potency to skin thickness, and when tinea needs oral therapy instead of topical."
+  },
+  {
+    "id": "derm-lesson-3",
+    "systemKey": "derm",
+    "order": 3,
+    "title": "Drug Eruptions, Wound Care & Photosensitivity",
+    "note": "Red flags separating a benign rash from SJS/TEN, and silver sulfadiazine’s kernicterus connection."
+  },
+  {
+    "id": "ophtho-lesson-0",
+    "systemKey": "ophtho",
+    "order": 0,
+    "title": "Glaucoma",
+    "note": "The production-vs-outflow balance, and why a timolol eye drop can trigger the same asthma/bradycardia risk as an oral beta-blocker."
+  },
+  {
+    "id": "ophtho-lesson-1",
+    "systemKey": "ophtho",
+    "order": 1,
+    "title": "Conjunctivitis & Ocular Infections",
+    "note": "Discharge-type pattern recognition, and why steroids can be dangerous in herpetic keratitis specifically."
+  },
+  {
+    "id": "ophtho-lesson-2",
+    "systemKey": "ophtho",
+    "order": 2,
+    "title": "Dry Eye, Ocular Allergy & Retinal Conditions",
+    "note": "Why antihistamines can worsen dry eye, and anti-VEGF therapy’s reuse across three different modules."
+  },
+  {
+    "id": "ophtho-lesson-3",
+    "systemKey": "ophtho",
+    "order": 3,
+    "title": "Systemic Drugs with Ocular Effects & Administration Principles",
+    "note": "Punctal occlusion, and why tamsulosin history matters before cataract surgery."
+  },
+  {
+    "id": "uro-lesson-0",
+    "systemKey": "uro",
+    "order": 0,
+    "title": "Benign Prostatic Hyperplasia",
+    "note": "Static vs. dynamic obstruction, and how tamsulosin’s mechanism connects to cataract surgery risk."
+  },
+  {
+    "id": "uro-lesson-1",
+    "systemKey": "uro",
+    "order": 1,
+    "title": "Erectile Dysfunction & Male Hypogonadism",
+    "note": "The absolute nitrate contraindication, and testosterone’s real diagnostic and monitoring requirements."
+  },
+  {
+    "id": "uro-lesson-2",
+    "systemKey": "uro",
+    "order": 2,
+    "title": "Urinary Incontinence & Overactive Bladder",
+    "note": "Classifying incontinence type first, and why antimuscarinics carry the same risks flagged in Geriatrics and Ophthalmology."
+  },
+  {
+    "id": "uro-lesson-3",
+    "systemKey": "uro",
+    "order": 3,
+    "title": "Nephrolithiasis & Urinary Tract Considerations",
+    "note": "Tamsulosin’s third appearance, and why a thiazide \"diuretic\" reduces urinary calcium."
+  },
+  {
+    "id": "calc-lesson-0",
+    "systemKey": "calc",
+    "order": 0,
+    "title": "Renal Dose Adjustment Calculations",
+    "note": "Cockcroft-Gault, the \"triple whammy\" trap, and dosing near a real cutoff."
+  },
+  {
+    "id": "calc-lesson-1",
+    "systemKey": "calc",
+    "order": 1,
+    "title": "IV Infusion & Drip Calculations",
+    "note": "The mcg/kg/min-to-mL/hr chain, and pump vs. gravity-set math."
+  },
+  {
+    "id": "calc-lesson-2",
+    "systemKey": "calc",
+    "order": 2,
+    "title": "Pediatric Weight-Based Dosing",
+    "note": "Calculating a dose AND verifying it against a safe range — sometimes the answer is \"flag this order.\""
+  },
+  {
+    "id": "calc-lesson-3",
+    "systemKey": "calc",
+    "order": 3,
+    "title": "Parenteral Nutrition & Electrolyte Calculations",
+    "note": "TPN calorie sources and mEq conversions for polyvalent ions."
+  },
+  {
+    "id": "calc-lesson-4",
+    "systemKey": "calc",
+    "order": 4,
+    "title": "Alligation & Compounding Math",
+    "note": "The grid method, and converting parts into actual grams or mL."
+  },
+  {
+    "id": "calc-lesson-5",
+    "systemKey": "calc",
+    "order": 5,
+    "title": "Clinical Pharmacokinetics: Vancomycin & Aminoglycoside Dosing",
+    "note": "Calculating half-life from real levels, AUC-guided vancomycin dosing, and red man syndrome vs. true allergy."
+  },
+  {
+    "id": "heme-lesson-0",
+    "systemKey": "heme",
+    "order": 0,
+    "title": "Anemias: Iron, B12/Folate & Anemia of Chronic Disease",
+    "note": "MCV-based sorting, oral vs. IV iron, B12 route selection, and the danger of masking B12 deficiency with folate."
+  },
+  {
+    "id": "heme-lesson-1",
+    "systemKey": "heme",
+    "order": 1,
+    "title": "Anticoagulation & Venous Thromboembolism",
+    "note": "Virchow’s triad, why warfarin needs bridging, duration-of-therapy logic, and heparin-induced thrombocytopenia."
+  },
+  {
+    "id": "heme-lesson-2",
+    "systemKey": "heme",
+    "order": 2,
+    "title": "General Oncology Principles & Chemotherapy Toxicities",
+    "note": "Cell cycle-specific vs. nonspecific dosing logic, the nadir concept, and anthracycline/platinum-specific toxicities."
+  },
+  {
+    "id": "heme-lesson-3",
+    "systemKey": "heme",
+    "order": 3,
+    "title": "Targeted Therapy & Immunotherapy",
+    "note": "On-target/off-tumor toxicity, checkpoint inhibitor irAEs, and CAR-T cytokine release syndrome."
+  },
+  {
+    "id": "heme-lesson-4",
+    "systemKey": "heme",
+    "order": 4,
+    "title": "Oncologic Emergencies",
+    "note": "Tumor lysis syndrome, febrile neutropenia, hypercalcemia of malignancy, and spinal cord compression."
+  },
+  {
+    "id": "repro-lesson-0",
+    "systemKey": "repro",
+    "order": 0,
+    "title": "Contraception",
+    "note": "Estrogen’s VTE mechanism, contraindications by mechanism, and three genuinely distinct emergency contraception timing windows."
+  },
+  {
+    "id": "repro-lesson-1",
+    "systemKey": "repro",
+    "order": 1,
+    "title": "Menopause & Hormone Therapy",
+    "note": "Why progestin must accompany estrogen with an intact uterus, and route-dependent VTE risk."
+  },
+  {
+    "id": "repro-lesson-2",
+    "systemKey": "repro",
+    "order": 2,
+    "title": "Pregnancy-Related Conditions & Drug Safety",
+    "note": "Magnesium sulfate’s real role, the ACE-I/ARB pregnancy exception, and a synthesis of teratogens from across the whole course."
+  },
+  {
+    "id": "repro-lesson-3",
+    "systemKey": "repro",
+    "order": 3,
+    "title": "Endometriosis, PCOS & Abnormal Uterine Bleeding",
+    "note": "GnRH agonists/antagonists, spironolactone’s second identity, and letrozole’s indirect ovulation-induction mechanism."
+  },
+  {
+    "id": "id-lesson-0",
+    "systemKey": "id",
+    "order": 0,
+    "title": "Principles of Antimicrobial Therapy & Antibiotic Classes",
+    "note": "Antibiotics by mechanism, bactericidal vs. bacteriostatic, and concentration- vs. time-dependent dosing."
+  },
+  {
+    "id": "id-lesson-1",
+    "systemKey": "id",
+    "order": 1,
+    "title": "Community-Acquired Pneumonia & Respiratory Infections",
+    "note": "Typical vs. atypical pathogens, severity-based site of care, and empiric regimen escalation."
+  },
+  {
+    "id": "id-lesson-2",
+    "systemKey": "id",
+    "order": 2,
+    "title": "Urinary Tract Infections & Skin/Soft Tissue Infections",
+    "note": "Cystitis vs. pyelonephritis drug selection, pregnancy safety, and purulent vs. non-purulent cellulitis."
+  },
+  {
+    "id": "id-lesson-3",
+    "systemKey": "id",
+    "order": 3,
+    "title": "Sepsis, Multidrug-Resistant Organisms & C. difficile",
+    "note": "Time-critical sepsis bundles, MRSA/VRE/ESBL/CRE by resistance mechanism, and oral vs. IV vancomycin."
+  },
+  {
+    "id": "id-lesson-4",
+    "systemKey": "id",
+    "order": 4,
+    "title": "Antifungals, Antivirals & Immunizations",
+    "note": "Azole interactions, antiviral selectivity mechanisms, and live vs. non-live vaccine rules."
+  },
+  {
+    "id": "id-lesson-5",
+    "systemKey": "id",
+    "order": 5,
+    "title": "HIV Pathophysiology & Antiretroviral Therapy",
+    "note": "The viral life cycle mapped to each drug class, why combination therapy prevents resistance, and boosted-PI drug interactions."
+  },
+  {
+    "id": "id-lesson-6",
+    "systemKey": "id",
+    "order": 6,
+    "title": "Opportunistic Infections & Prophylaxis",
+    "note": "CD4-threshold-driven prophylaxis for PCP, toxoplasmosis, and MAC."
+  },
+  {
+    "id": "id-lesson-7",
+    "systemKey": "id",
+    "order": 7,
+    "title": "PrEP, PEP & Special Populations",
+    "note": "Pre/post-exposure prophylaxis timing and regimens, plus perinatal transmission prevention."
+  },
+  {
+    "id": "rheum-lesson-0",
+    "systemKey": "rheum",
+    "order": 0,
+    "title": "NSAIDs, Acetaminophen & Pain/Inflammation Fundamentals",
+    "note": "The COX-1/COX-2 mechanism behind every NSAID reference elsewhere in the course, plus COX-2 selective cardiovascular risk."
+  },
+  {
+    "id": "rheum-lesson-1",
+    "systemKey": "rheum",
+    "order": 1,
+    "title": "Rheumatoid Arthritis & DMARDs",
+    "note": "Symmetric synovitis and pannus formation, plus a DMARD list that reuses drugs from GI/Hepatic and Hematology/Oncology."
+  },
+  {
+    "id": "rheum-lesson-2",
+    "systemKey": "rheum",
+    "order": 2,
+    "title": "Gout",
+    "note": "Why urate-lowering therapy should never be started during an acute attack — but should be continued if already established."
+  },
+  {
+    "id": "rheum-lesson-3",
+    "systemKey": "rheum",
+    "order": 3,
+    "title": "Osteoporosis",
+    "note": "Bisphosphonates and denosumab reused from the hypercalcemia lesson, and why intermittent PTH builds bone while chronic excess destroys it."
+  },
+  {
+    "id": "compounding-lesson-0",
+    "systemKey": "compounding",
+    "order": 0,
+    "title": "Sterile Compounding, USP Standards & Hazardous Drug Handling",
+    "note": "Why risk level directly determines beyond-use dating, and biological safety cabinets’ dual protection role."
+  },
+  {
+    "id": "compounding-lesson-1",
+    "systemKey": "compounding",
+    "order": 1,
+    "title": "Nonsterile Compounding, Beyond-Use Dating & Compatibility",
+    "note": "Physical vs. chemical incompatibility, and why Y-site compatibility must always be checked, never assumed."
+  },
+  {
+    "id": "medsafety-lesson-0",
+    "systemKey": "medsafety",
+    "order": 0,
+    "title": "Medication Errors & Look-Alike/Sound-Alike Drugs",
+    "note": "The Swiss cheese model, NCC MERP severity classification, and Tall Man lettering."
+  },
+  {
+    "id": "medsafety-lesson-1",
+    "systemKey": "medsafety",
+    "order": 1,
+    "title": "Adverse Drug Reactions & Reporting",
+    "note": "Type A vs. Type B reactions, the Naranjo scale, and how boxed warnings actually get added after approval."
+  },
+  {
+    "id": "druginfo-lesson-0",
+    "systemKey": "druginfo",
+    "order": 0,
+    "title": "Answering Drug Information Questions & Critically Appraising Literature",
+    "note": "The systematic DI framework, matching question type to resource, and internal vs. external validity."
+  },
+  {
+    "id": "pharmops-lesson-0",
+    "systemKey": "pharmops",
+    "order": 0,
+    "title": "REMS Programs, Controlled Substance Scheduling & Storage Requirements",
+    "note": "The general framework behind isotretinoin’s program, DEA schedules and refill rules, and cold-chain storage."
+  },
+  {
+    "id": "pharmops-lesson-1",
+    "systemKey": "pharmops",
+    "order": 1,
+    "title": "Personnel, Workflow & Quality Improvement",
+    "note": "Pharmacist vs. technician scope, and how root cause analysis extends the Swiss cheese model into practice."
+  },
+  {
+    "id": "pharmops-lesson-2",
+    "systemKey": "pharmops",
+    "order": 2,
+    "title": "Financial & Insurance Basics",
+    "note": "PBMs, formulary tiers, prior authorization, and the metrics that keep a pharmacy running."
+  },
+  {
+    "id": "otc-lesson-0",
+    "systemKey": "otc",
+    "order": 0,
+    "title": "Cough/Cold/Allergy & Pain/Fever OTC Therapeutics",
+    "note": "Matching mechanism to symptom, and the red flags that mean referral, not a product recommendation."
+  },
+  {
+    "id": "otc-lesson-1",
+    "systemKey": "otc",
+    "order": 1,
+    "title": "GI & Dermatologic OTC Therapeutics",
+    "note": "The same GI/derm mechanisms from earlier modules, now at OTC strength with referral judgment layered on top."
+  },
+  {
+    "id": "otc-lesson-2",
+    "systemKey": "otc",
+    "order": 2,
+    "title": "Generic Substitution, Dosage Forms & Drug Utilization Review",
+    "note": "Narrow therapeutic index drugs, why you never crush an extended-release tablet, and the DUR categories that catch problems before they happen."
+  },
+  {
+    "id": "ethics-lesson-0",
+    "systemKey": "ethics",
+    "order": 0,
+    "title": "Core Ethical Principles, Confidentiality & Scope of Practice",
+    "note": "Autonomy, beneficence, nonmaleficence, and justice — and which one is actually in tension in a given scenario."
+  },
+  {
+    "id": "ethics-lesson-1",
+    "systemKey": "ethics",
+    "order": 1,
+    "title": "Public Health, Communication & Professional Accountability",
+    "note": "Why error disclosure isn’t the same as admitting liability, and appropriate interpreter use."
+  },
+  {
+    "id": "biostats-lesson-0",
+    "systemKey": "biostats",
+    "order": 0,
+    "title": "Study Design & Measures of Association",
+    "note": "RR, RRR, ARR, and NNT calculated from real 2x2 data — and why identical RRR can mean very different clinical impact."
+  },
+  {
+    "id": "biostats-lesson-1",
+    "systemKey": "biostats",
+    "order": 1,
+    "title": "Diagnostic Testing, Confidence Intervals & Applying Evidence",
+    "note": "SnNout/SpPin, why PPV shifts with prevalence, and reading a confidence interval correctly."
+  },
+  {
+    "id": "tox-lesson-0",
+    "systemKey": "tox",
+    "order": 0,
+    "title": "General Principles & Analgesic/Sedative Overdoses",
+    "note": "Activated charcoal’s real limitations, salicylate’s mixed acid-base pattern, and naloxone/flumazenil’s own risks."
+  },
+  {
+    "id": "tox-lesson-1",
+    "systemKey": "tox",
+    "order": 1,
+    "title": "Cardiovascular & Other Overdoses",
+    "note": "Glucagon, high-dose insulin, DigiFab, sodium bicarbonate, and fomepizole — antidotes that actually make mechanistic sense."
+  },
+  {
+    "id": "nutrition-lesson-0",
+    "systemKey": "nutrition",
+    "order": 0,
+    "title": "Enteral & Parenteral Nutrition: Clinical Considerations",
+    "note": "Phenytoin and warfarin interactions with tube feeds, and why refeeding a malnourished patient too fast is dangerous."
+  }
+]

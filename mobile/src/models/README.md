@@ -1,8 +1,15 @@
 # models/
 
-Domain TypeScript types (M2+). Not implemented in M1 beyond navigation param types, which live
-in `src/navigation/types.ts` since they're navigation-specific, not domain models.
+Domain TypeScript types (M2).
 
-Planned for M2 onward: `Question` (discriminated union on `type: 'single' | 'numeric' | 'sata'`),
-`System`, `Lesson`, `Exam`, `ExamProgress`, `Attempt`, `AccessToken`, `PricingPlan` — see
-`docs/MOBILE_MIGRATION_AUDIT.md` §Q for the intended shapes.
+- `question.ts` — `Question` discriminated union on `type: 'single' | 'numeric' | 'sata'`,
+  plus `SingleAnswerQuestion`/`NumericQuestion`/`SataQuestion`/`QuestionOption`. Every field the
+  raw source carries is preserved — SATA's `correctLabels` (plural, exact-set grading) and
+  numeric's `correctValue`/`tolerance`/`unit` are not dropped in normalization.
+- `system.ts` — `System`, with `isAnatomical` derived from the presence of real `x`/`y`
+  coordinates (not hand-copied from a flag).
+- `lesson.ts` — `Lesson`, metadata-only by design (see the file's doc comment for why).
+- `exam.ts` — `Exam`, `ExamNumber`.
+
+Still planned for later milestones: `ExamProgress`/`Attempt` (M6/M7), `AccessToken`/`PricingPlan`
+(M10) — not needed yet since M2 doesn't touch storage or payments.

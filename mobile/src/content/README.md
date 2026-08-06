@@ -1,16 +1,37 @@
 # content/
 
-The typed content layer (M2). Not implemented in M1 — no QBank questions, exam questions, or
-lesson data are imported yet.
+The typed, production content bundle (M2). Real PharmDPrepped content only — no placeholders.
 
-M2 will:
+```
+content/
+  topicLabelMap.ts     explicit topicLabel -> system-key mapping (resolves the
+                        Infectious Disease mismatch + the orphan Drug Class
+                        Study Guide topic — see the file's own doc comment)
+  generated/            output of `npm run import:content` — committed, versioned,
+                         what the app actually ships with:
+    systems.json         27 entries: 26 real + 1 synthesized (drug-class-study-guide)
+    lessons.json          101 lesson {title, note} records
+    qbank.json            2,000 QBank questions
+    exams.json             3 fixed 225-question exams
+    meta.json              generation timestamp + counts, for quick sanity checks
+```
 
-- Import `mobile-source/content-export/{qbank_questions,exam_question_bank,systems}.json`
-  verbatim (no wording/rationale edits — Phase 4) into a normalized, typed bundle here.
-- Assign stable synthetic IDs (`qbank-{n}`, `exam-{examNum}-{slot}`) since the source JSON has
-  none (audit §L).
-- Resolve the `topicLabel` → system-key mapping explicitly (audit §C), including the
-  `Infectious Disease` → `id` mismatch and the orphan `Drug Class Study Guide` topic — not by
-  naive string matching.
-- Expose a `contentRepository` service (in `src/services/`) as the only way screens read
-  content — this directory holds data + the loader, not UI-facing logic.
+**Nothing reads these files directly except `src/services/contentRepository.ts`.** Screens go
+through the repository, never `require()`/`import` these JSON files themselves (Phase 3).
+
+## Regenerating
+
+```
+npm run import:content     # reads ../mobile-source/content-export, validates, writes generated/
+npm run validate:content   # re-validates the already-generated bundle without re-importing
+```
+
+`import:content` aborts and writes nothing if validation fails — see
+`scripts/validate-content.ts` and `docs/M2_IMPLEMENTATION_NOTES.md` for exactly what's checked.
+
+## Lesson content note
+
+Lesson records here are metadata only (`title` + `note`, ~140 chars max) — there is no full
+lesson-body prose in the source content, confirmed by direct inspection (see
+`docs/M2_IMPLEMENTATION_NOTES.md`, "Lesson body content: confirmed absent"). Do not add a `body`
+field with invented text.

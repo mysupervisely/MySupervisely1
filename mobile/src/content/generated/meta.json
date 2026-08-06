@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-08-06T05:28:58.000Z",
+  "counts": {
+    "systems": 27,
+    "anatomicalSystems": 8,
+    "lessons": 101,
+    "qbank": 2000,
+    "qbankByType": {
+      "single": 1883,
+      "sata": 2,
+      "numeric": 115
+    },
+    "qbankByDomain": {
+      "1": 500,
+      "2": 500,
+      "3": 800,
+      "4": 100,
+      "5": 100
+    },
+    "exams": [
+      {
+        "examNumber": 1,
+        "questionCount": 225,
+        "byType": {
+          "single": 208,
+          "sata": 2,
+          "numeric": 15
+        },
+        "byDomain": {
+          "1": 56,
+          "2": 56,
+          "3": 91,
+          "4": 11,
+          "5": 11
+        }
+      },
+      {
+        "examNumber": 2,
+        "questionCount": 225,
+        "byType": {
+          "single": 212,
+          "numeric": 13
+        },
+        "byDomain": {
+          "1": 56,
+          "2": 56,
+          "3": 91,
+          "4": 11,
+          "5": 11
+        }
+      },
+      {
+        "examNumber": 3,
+        "questionCount": 225,
+        "byType": {
+          "single": 211,
+          "numeric": 14
+        },
+        "byDomain": {
+          "1": 56,
+          "2": 56,
+          "3": 91,
+          "4": 11,
+          "5": 11
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,441 @@
+[
+  {
+    "key": "cardio",
+    "label": "Cardiovascular",
+    "description": "Blood pressure regulation, heart failure, coronary artery disease, arrhythmias, and lipid management — pathophysiology and therapeutics together.",
+    "quizBrief": "Cardiovascular system, covering: (1) hypertension — RAAS cascade, antihypertensive classes (thiazides, ACE-I/ARB, CCBs, beta-blockers, aldosterone antagonists) mapped to CO/SVR mechanism; (2) heart failure — HFrEF vs HFpEF, four pillars of GDMT (RAAS blockade/ARNi, evidence-based beta-blockers, MRAs, SGLT2 inhibitors), loop diuretics, digoxin; (3) ACS — plaque rupture mechanism, unstable angina/NSTEMI/STEMI classification, DAPT (aspirin + clopidogrel/ticagrelor/prasugrel), reperfusion (PCI vs fibrinolytics), secondary prevention; (4) atrial fibrillation — irregularly irregular rhythm, stroke mechanism via left atrial appendage stasis, rate vs rhythm control, CHA2DS2-VASc, DOACs vs warfarin; (5) lipids — LDL-driven atherosclerosis, statin mechanism and intensity, non-statin add-ons (ezetimibe, PCSK9 inhibitors, bempedoic acid).",
+    "isAnatomical": true,
+    "x": 124.9,
+    "y": 190.3,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "cardio-lesson-0",
+      "cardio-lesson-1",
+      "cardio-lesson-2",
+      "cardio-lesson-3",
+      "cardio-lesson-4"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "neuro",
+    "label": "Neuro & Psych",
+    "description": "Seizure disorders, depression, anxiety/bipolar disorder, schizophrenia, Parkinson’s/Alzheimer’s, and pain management/opioid use disorder — pathophysiology and therapeutics together.",
+    "quizBrief": "Neuro & Psych, covering: (1) seizures — excitation/inhibition balance, sodium channel blockers (phenytoin's non-linear kinetics, carbamazepine's CYP induction, lamotrigine's titration/rash risk), GABA enhancers (benzodiazepines, barbiturates), ethosuximide for absence seizures specifically, valproic acid and levetiracetam as broad-spectrum agents, status epilepticus sequencing (benzodiazepine first, then longer-acting AED); (2) depression — monoamine hypothesis, SSRIs (hyponatremia, sexual dysfunction, fluoxetine's long half-life avoiding discontinuation syndrome), SNRIs (duloxetine for neuropathic pain, venlafaxine's BP effect), TCAs (cardiotoxicity in overdose), MAOIs (tyramine reaction), bupropion (no sexual dysfunction, lowers seizure threshold), mirtazapine, 4-6 week onset, boxed suicidality warning, serotonin syndrome triad and triggering combinations (MAOI, triptan, tramadol, linezolid); (3) anxiety/bipolar — benzodiazepine GABA-A mechanism and life-threatening withdrawal risk, opioid combination boxed warning, buspirone's delayed onset, lithium (narrow therapeutic index, renal sodium-linked clearance, NSAID/thiazide interactions, nephrogenic DI, teratogenicity), valproate/lamotrigine roles in acute mania vs maintenance; (4) schizophrenia — dopamine hypothesis and four pathways (mesolimbic-therapeutic, nigrostriatal-EPS, tuberoinfundibular-prolactin), typical vs atypical antipsychotics, tardive dyskinesia vs acute EPS, atypical metabolic monitoring, clozapine's ANC monitoring requirement; (5) Parkinson's/Alzheimer's — nigrostriatal dopamine loss, levodopa/carbidopa mechanism and protein-competition absorption issue, dopamine agonists (impulse control disorders), MAO-B inhibitors (serotonin syndrome risk), COMT inhibitors, anticholinergics in PD vs contraindicated with cholinesterase inhibitors in Alzheimer's, memantine; (6) pain/opioids — nociceptive vs neuropathic pain, mu-receptor mechanism and uneven tolerance development (none for constipation), tramadol's dual mechanism (seizure/serotonin syndrome risk), buprenorphine's ceiling effect, naloxone's short half-life requiring repeat dosing, buprenorphine induction (mild-moderate withdrawal required) vs naltrexone induction (complete abstinence required) timing distinction.",
+    "isAnatomical": true,
+    "x": 150.3,
+    "y": 59.9,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "neuro-lesson-0",
+      "neuro-lesson-1",
+      "neuro-lesson-2",
+      "neuro-lesson-3",
+      "neuro-lesson-4",
+      "neuro-lesson-5"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "respiratory",
+    "label": "Pulmonary",
+    "description": "Asthma (chronic control and exacerbations) and COPD (chronic therapy and exacerbations) — pathophysiology and therapeutics together.",
+    "quizBrief": "Pulmonary, covering: (1) asthma chronic therapy — airway inflammation as root cause driving bronchoconstriction/mucus hypersecretion/hyperresponsiveness, ICS as foundational anti-inflammatory therapy (thrush/dysphonia, rinse mouth), SABA as rescue only (frequent use signals poor control needing controller escalation), LABA never as asthma monotherapy (must combine with ICS), leukotriene antagonists (montelukast, neuropsychiatric warning), biologics matched to phenotype (omalizumab-IgE, IL-5 agents-eosinophilic, dupilumab); (2) asthma exacerbations — acute escalation of same pathophysiology, layered therapy by mechanism (SABA, then ipratropium for distinct muscarinic-blocking additive effect, systemic corticosteroids started early despite delayed onset, IV magnesium sulfate for refractory severe cases), \"silent chest\" as an ominous sign of impending respiratory failure not improvement, short steroid courses not requiring taper, inhaler technique/adherence as underlying contributors to frequent exacerbations; (3) COPD chronic therapy — largely irreversible airflow limitation (contrast with asthma), emphysema (alveolar destruction, air trapping) vs chronic bronchitis (productive cough 3mo x 2yr) overlap, alpha-1 antitrypsin deficiency in young/non-smokers, bronchodilators (LAMA-LABA, e.g. tiotropium) as foundational therapy unlike asthma, ICS added selectively for frequent exacerbators with elevated eosinophils (with increased pneumonia risk specific to COPD), roflumilast (chronic bronchitis phenotype), chronic azithromycin (immunomodulatory not antimicrobial use), alpha-1 antitrypsin augmentation, smoking cessation as the single disease-modifying intervention, home oxygen mortality benefit; (4) COPD exacerbations — antibiotic use only with increased sputum purulence plus volume/dyspnea (direct link to CAP criteria), layered bronchodilator therapy, short corticosteroid courses, critical oxygen titration nuance (hypoxic respiratory drive dependence risking CO2 retention/respiratory acidosis with uncontrolled high-flow oxygen), BiPAP for severe exacerbations with respiratory acidosis, comprehensive discharge management (technique, maintenance reassessment, vaccination, smoking cessation).",
+    "isAnatomical": true,
+    "x": 190,
+    "y": 138.3,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "respiratory-lesson-0",
+      "respiratory-lesson-1",
+      "respiratory-lesson-2",
+      "respiratory-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "gi",
+    "label": "GI & Hepatic",
+    "description": "Acid-peptic disorders, inflammatory bowel disease, nausea/vomiting/motility, cirrhosis/portal hypertension, and drug-induced liver injury/hepatic dosing — pathophysiology and therapeutics together.",
+    "quizBrief": "GI & Hepatic, covering: (1) acid-peptic disorders — acid/mucosal defense balance, PPIs (irreversible H+/K+-ATPase inhibition, long-term fracture/C.diff risk), H2RAs, antacids, sucralfate, H. pylori eradication (triple/quadruple antibiotic therapy), NSAID-induced ulcers via prostaglandin/COX inhibition, misoprostol's pregnancy contraindication; (2) IBD — Crohn's (any GI segment, skip lesions, transmural, fistulas/strictures) vs UC (colon/rectum only, continuous, mucosal, toxic megacolon/cancer risk), 5-ASA agents (UC-predominant), corticosteroids (induction only), thiopurines (TPMT/NUDT15 testing required), anti-TNF biologics (TB/hepatitis B screening required), vedolizumab, ustekinumab, JAK inhibitors, colectomy curative for UC not Crohn's; (3) nausea/motility — CTZ (dopamine/serotonin), vestibular (histamine/muscarinic), vagal afferents (serotonin) as distinct trigger pathways; 5-HT3 antagonists (QT risk), metoclopramide (EPS/tardive dyskinesia risk, prokinetic), NK1 antagonists, antihistamines for motion sickness; laxatives by mechanism (bulk-forming, osmotic, stimulant, secretagogues); PAMORAs (methylnaltrexone, naloxegol) for opioid-induced constipation without reversing analgesia; loperamide contraindicated in bloody/infectious diarrhea; (4) cirrhosis — portal hypertension as root cause of varices (non-selective beta-blocker prophylaxis, octreotide/band ligation for acute bleed), ascites (RAAS-driven retention, spironolactone+furosemide combination, paracentesis with albumin), hepatic encephalopathy (lactulose traps ammonia via colonic acidification, rifaximin as adjunct); (5) DILI/hepatic dosing — intrinsic (acetaminophen, dose-dependent) vs idiosyncratic (isoniazid, valproic acid, amiodarone) liver injury, acetaminophen/NAPQI/glutathione mechanism, N-acetylcysteine timing (8-10 hour window), Rumack-Matthew nomogram, ALT/AST (hepatocellular) vs alkaline phosphatase/bilirubin (cholestatic) patterns, Child-Pugh score as a categorical alternative to CrCl-based renal dosing.",
+    "isAnatomical": true,
+    "x": 150,
+    "y": 268.4,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "gi-lesson-0",
+      "gi-lesson-1",
+      "gi-lesson-2",
+      "gi-lesson-3",
+      "gi-lesson-4"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "endocrine",
+    "label": "Endocrine",
+    "description": "Diabetes (type 1 and 2), insulin therapy, DKA, complications, thyroid disorders, and adrenal disorders — pathophysiology and therapeutics together.",
+    "quizBrief": "Endocrine system, covering: (1) type 2 diabetes — insulin resistance and beta-cell dysfunction, metformin (hepatic glucose production, renal caution), sulfonylureas (glucose-independent insulin release, hypoglycemia risk), DPP-4 inhibitors, GLP-1/GIP agonists (semaglutide, tirzepatide - weight loss, CV benefit), SGLT2 inhibitors (glucosuria, CV/renal benefit), TZDs (contraindicated in heart failure), and comorbidity-based selection (ASCVD/HF/CKD favor SGLT2/GLP-1); (2) type 1 diabetes — autoimmune beta-cell destruction, absolute insulin deficiency, insulin types by onset/duration (rapid/short/intermediate/long-acting), basal-bolus regimens, and DKA pathophysiology (unrestrained lipolysis/ketogenesis, osmotic diuresis, total-body potassium depletion masked by normal serum level) with correct management sequence (fluids, potassium before/with insulin, IV regular insulin until anion gap closes, transition to subcutaneous with overlap); (3) diabetes complications — A1c as 2-3 month average, individualized glycemic targets, hypoglycemia unawareness, diabetic retinopathy/nephropathy/neuropathy, neuropathic pain therapy (pregabalin, gabapentin, duloxetine), gastroparesis (metoclopramide), and macrovascular risk reduction reusing cardiovascular therapy; (4) thyroid — HPA-style TSH/T4 feedback loop, primary vs secondary hypo/hyperthyroidism lab patterns, levothyroxine dosing and absorption interactions (calcium, iron, PPIs), Hashimoto's, Graves' disease, thionamides (methimazole vs PTU, with PTU preferred in first-trimester pregnancy and thyroid storm), beta-blockers for symptom control, and thyroid storm management sequence (beta-blocker, thionamide, then iodine, then corticosteroids); (5) adrenal — HPA axis (CRH-ACTH-cortisol) independent of aldosterone/RAAS regulation, Cushing's syndrome (most commonly exogenous steroids), primary adrenal insufficiency/Addison's (combined cortisol+aldosterone deficiency, hyperkalemia, hyperpigmentation) vs secondary (aldosterone preserved, from abrupt steroid withdrawal), adrenal crisis (immediate IV hydrocortisone), corticosteroid potency/mineralocorticoid activity comparison, and tapering/stress-dosing principles.",
+    "isAnatomical": true,
+    "x": 170.8,
+    "y": 294.7,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "endocrine-lesson-0",
+      "endocrine-lesson-1",
+      "endocrine-lesson-2",
+      "endocrine-lesson-3",
+      "endocrine-lesson-4"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "renal",
+    "label": "Renal",
+    "description": "Kidney physiology, AKI, CKD progression and CKD-mineral bone disorder, anemia and hyperkalemia management, sodium/water balance, and dialysis — pathophysiology and therapeutics together.",
+    "quizBrief": "Renal system, covering: (1) AKI — prerenal/intrinsic/postrenal classification, nephrotoxic mechanisms (NSAIDs constrict afferent arteriole, ACE-I/ARB dilate efferent arteriole, the \"triple whammy\" combination, aminoglycoside/vancomycin tubular toxicity), management by cause; (2) CKD — GFR (G1-G5) and albuminuria (A1-A3) staging, hyperfiltration/proteinuria progression cycle, RAAS blockade/SGLT2 inhibitors/finerenone as renoprotective therapy via intraglomerular pressure reduction, and CKD-MBD cascade (phosphate retention -> hypocalcemia -> secondary hyperparathyroidism) treated with phosphate binders (sevelamer, calcium acetate), vitamin D analogs (calcitriol, paricalcitol), and calcimimetics (cinacalcet, etelcalcetide); (3) anemia of CKD — EPO deficiency, hepcidin-driven functional iron deficiency requiring IV iron before/with ESA therapy (epoetin alfa, darbepoetin alfa), boxed warning against over-correcting hemoglobin; (4) hyperkalemia — reduced renal excretion worsened by RAAS-blocking renoprotective drugs, acute treatment sequence (IV calcium for cardiac stabilization, insulin/dextrose and albuterol to shift potassium intracellularly, diuretics/binders/dialysis to remove it), and chronic potassium binders (patiromer, sodium zirconium cyclosilicate) to preserve renoprotective therapy; (5) sodium/water balance — ADH as central regulator, hyponatremia classified by volume status (hypovolemic/euvolemic/hypervolemic, with SIADH as classic euvolemic cause), correction-rate limits to avoid osmotic demyelination syndrome, vasopressin receptor antagonists (tolvaptan, conivaptan), central vs nephrogenic diabetes insipidus and their differing treatments (desmopressin vs. thiazide/low-sodium diet); (6) dialysis — hemodialysis vs peritoneal dialysis vs CRRT mechanisms, AEIOU indications for urgent dialysis, and predicting drug dialyzability from molecular weight, protein binding, and volume of distribution (digoxin as the classic high-Vd non-dialyzable trap).",
+    "isAnatomical": true,
+    "x": 108.6,
+    "y": 320.8,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "renal-lesson-0",
+      "renal-lesson-1",
+      "renal-lesson-2",
+      "renal-lesson-3",
+      "renal-lesson-4"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "immuno",
+    "label": "Immunology",
+    "description": "Hypersensitivity reactions, anaphylaxis/drug allergy/severe cutaneous reactions, and transplant immunosuppression — pathophysiology and therapeutics together.",
+    "quizBrief": "Immunology, covering: (1) hypersensitivity fundamentals — innate vs adaptive immunity, humoral (B cell/antibody) vs cell-mediated (T cell) arms, Gell-Coombs classification: Type I (IgE-mediated, immediate, anaphylaxis/urticaria), Type II (cytotoxic, antibody targets cell surface antigen, drug-induced cytopenias, HIT), Type III (immune complex deposition, days, serum sickness), Type IV (T-cell-mediated, delayed days-weeks, contact dermatitis, severe cutaneous drug reactions); (2) anaphylaxis/drug allergy — epinephrine as absolute first-line (alpha-1 vasoconstriction, beta-1 cardiac output, beta-2 bronchodilation and reduced mediator release) given IM immediately, antihistamines/corticosteroids as adjunctive only never substitute, biphasic reaction observation, penicillin-cephalosporin cross-reactivity lower than historically believed and side-chain dependent, sulfonamide antibiotic vs non-antibiotic sulfonamide cross-reactivity overstated, SJS/TEN (severity spectrum, mucocutaneous necrolysis, culprits: allopurinol, aromatic anticonvulsants like carbamazepine/phenytoin/lamotrigine, sulfonamides, NSAIDs; immediate drug discontinuation as key management), DRESS syndrome (longer delay, eosinophilia, organ involvement, overlapping culprits), HLA-B*5801 (allopurinol) and HLA-B*1502 (carbamazepine) pharmacogenomic screening; (3) transplant immunosuppression — hyperacute (pre-formed antibodies, rare) vs acute (T-cell-mediated, most treatable) vs chronic (fibrotic, less reversible) rejection, T-cell activation cascade (antigen recognition/costimulation -> calcineurin/NFAT-driven IL-2 production -> IL-2 receptor binding -> mTOR-driven proliferation -> purine synthesis) mapped to drug classes: calcineurin inhibitors (tacrolimus/cyclosporine, trough monitoring, direct vasoconstrictive nephrotoxicity distinct from NSAID/aminoglycoside mechanisms, major CYP3A4 interactions e.g. grapefruit juice), basiliximab (IL-2 receptor antagonist), sirolimus/mTOR inhibitor (non-nephrotoxic calcineurin-sparing option, impaired wound healing), mycophenolate (IMPDH inhibition, lymphocyte-selective via purine synthesis dependence) and azathioprine (same thiopurine class as GI/Rheum modules, TPMT testing), combination maintenance therapy rationale paralleling HIV combination therapy logic; (4) vaccine immunology — active immunity (patient's own response, slow onset, durable, memory-forming) vs passive immunity (pre-formed antibodies, immediate, temporary, no memory), primary vs secondary/memory immune response explaining why booster doses work faster and stronger, vaccine platform mechanisms (live attenuated mimicking natural infection, inactivated/subunit/conjugate requiring multi-dose series, mRNA directing patient cells to transiently produce target protein, toxoid targeting bacterial toxins), herd immunity as a population-level consequence of individual active immunity; (5) specific vaccines/schedule — influenza (annual, high-dose/adjuvanted for older adults, egg allergy no longer a significant contraindication), Tdap every pregnancy for newborn passive protection, pneumococcal conjugate/polysaccharide sequencing by age and risk factors, recombinant (non-live) zoster vaccine replacing the old live version and enabling use in immunocompromised patients, MMR/varicella (live, pregnancy/immunocompromise contraindicated, 4-week spacing), HPV, meningococcal (ACWY routine, B shared decision, both prioritized in asplenia/complement deficiency), hepatitis A/B, RSV vaccine including maternal immunization strategy, special population patterns (pregnancy and immunocompromise both avoid live vaccines, asplenia prioritizes encapsulated-organism vaccines), pharmacist's practical immunizer responsibilities (screening, VIS, administration, adverse event reporting); (6) transplant infection prophylaxis — CMV risk stratified by donor/recipient serostatus (D+/R- highest risk), valganciclovir (UL97 kinase activation, myelosuppression toxicity distinct from acyclovir's renal crystallization risk) with risk-adjusted duration, TMP-SMX PJP prophylaxis reused from the HIV opportunistic infection lesson, antifungal prophylaxis, calcineurin inhibitor target troughs shifting from higher (early, peak rejection risk) to lower (later, cumulative toxicity/infection risk) over the post-transplant timeline, anticipatory (not reactive) dose adjustment when starting/stopping CYP3A4-interacting drugs, vaccination ideally completed pre-transplant, live vaccines avoided indefinitely post-transplant, household contact precautions around live vaccine shedding.",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "immuno-lesson-0",
+      "immuno-lesson-1",
+      "immuno-lesson-2",
+      "immuno-lesson-3",
+      "immuno-lesson-4",
+      "immuno-lesson-5"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "peds",
+    "label": "Pediatrics",
+    "description": "Pediatric pharmacokinetics/dosing, common infections and antimicrobial safety, the full pediatric immunization schedule, and weight-based emergency care — pathophysiology and therapeutics together.",
+    "quizBrief": "Pediatrics, covering: (1) PK/dosing principles — age classifications (neonate/infant/child/adolescent), higher neonatal gastric pH affecting absorption, proportionally higher total body water increasing volume of distribution for water-soluble drugs in neonates/infants, altered protein binding increasing free drug fraction, immature hepatic enzyme systems (gray baby syndrome from chloramphenicol as classic example), immature GFR at birth maturing over ~1-2 years requiring renal dose/interval adjustment distinct from adult renal impairment; (2) pediatric infections/antimicrobial safety — otitis media and strep pharyngitis reusing adult pathogens/first-line therapy, viral predominance requiring antimicrobial stewardship, RSV bronchiolitis (supportive care), Mycoplasma prominence in school-age CAP, recurrent pediatric UTI warranting vesicoureteral reflux evaluation, fluoroquinolone cartilage toxicity caution, tetracycline avoidance under age 8 (dental staining, bone growth effects), aspirin avoidance in viral illness given Reye syndrome risk (acetaminophen/ibuprofen preferred), sulfonamide kernicterus risk in young infants (bilirubin displacement plus immature blood-brain barrier), codeine/tramadol contraindication under 12 given CYP2D6 ultra-rapid metabolizer risk (notably post-tonsillectomy); (3) immunization schedule — front-loaded schedule through 15 months (birth hepatitis B, 2/4/6 month DTaP/IPV/Hib/PCV/rotavirus, 12-15 month MMR/varicella/HepA/boosters, 4-6 year boosters, adolescent Tdap/HPV/MenACWY), live (MMR, varicella, rotavirus) vs non-live (DTaP, IPV, Hib, PCV, HepA/B) vaccines and immunocompromise precautions, rotavirus vaccine's strict age-restricted initiation window given intussusception risk (not simply caught up later unlike other missed vaccines), combination vaccines reducing injection burden; (4) pediatric emergencies — weight-based dosing as the default for pediatric emergency drugs (contrast with adult fixed dosing), length-based tools for estimating weight when unknown, febrile seizures as generally benign not requiring chronic AED therapy (antipyretics don't prevent recurrence), pediatric asthma exacerbation with spacer/nebulizer preference given MDI coordination limitations, pediatric anaphylaxis with weight-based epinephrine dosing and pediatric-specific auto-injector strengths, oral rehydration therapy first-line for mild-moderate dehydration with IV fluids/cautious ondansetron reserved for severe cases.",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "peds-lesson-0",
+      "peds-lesson-1",
+      "peds-lesson-2",
+      "peds-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "geri",
+    "label": "Geriatrics",
+    "description": "Aging pharmacokinetics/pharmacodynamics and polypharmacy, the Beers Criteria, falls/fractures/deprescribing, and dementia/delirium — pathophysiology and therapeutics together.",
+    "quizBrief": "Geriatrics, covering: (1) aging PK/PD/polypharmacy — decreased lean mass/increased fat increasing Vd for lipophilic drugs and decreasing Vd for hydrophilic drugs (opposite pattern from pediatric body composition), serum creatinine underestimating renal impairment given age-related reduced muscle mass (requiring Cockcroft-Gault calculated CrCl instead), reduced albumin increasing free fraction of protein-bound drugs, increased pharmacodynamic sensitivity to CNS-active drugs independent of PK changes (\"start low, go slow\"), polypharmacy and the prescribing cascade (treating a drug's side effect as a new condition); (2) Beers Criteria — cumulative anticholinergic burden across multiple drugs (antihistamines, TCAs, oxybutynin, PD anticholinergics) associated with long-term dementia risk, benzodiazepines and Z-drugs carrying similar fall/cognitive risk despite Z-drugs' safer reputation, antipsychotics carrying a boxed mortality warning when used for dementia behavioral symptoms (non-pharmacologic approaches preferred first), amplified NSAID risk, sliding-scale-only insulin hypoglycemia risk, glyburide's prolonged hypoglycemia risk via reduced renal clearance (shorter-acting sulfonylureas preferred), muscle relaxants' anticholinergic/sedating burden; (3) falls/fractures/deprescribing — orthostatic hypotension from alpha blockers/diuretics/TCAs, sedating medications, polypharmacy as an independent fall risk factor, the two-hit model combining osteoporotic bone fragility with fall risk for fracture risk, deprescribing as a structured patient-centered process, STOPP (discontinuation guidance) and START (under-prescribing detection) as a paired bidirectional tool, addressing prescribing cascades, gradual tapering required for benzodiazepines and other dependence-forming drugs rather than abrupt discontinuation, shared decision-making; (4) dementia/delirium — delirium (acute onset, fluctuating course, attention/consciousness-predominant, often reversible) vs dementia (chronic, progressive, memory-predominant, generally irreversible), UTI as a classic delirium precipitant with minimal typical symptoms, medications (anticholinergics, benzodiazepines, opioids) as reversible delirium causes, delirium superimposed on dementia as a commonly missed combined scenario, non-pharmacologic management preferred first-line for both delirium and dementia behavioral symptoms with antipsychotics reserved for safety-driven circumstances.",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "geri-lesson-0",
+      "geri-lesson-1",
+      "geri-lesson-2",
+      "geri-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "derm",
+    "label": "Dermatology",
+    "description": "Acne/rosacea, psoriasis/atopic dermatitis, topical corticosteroid potency/skin infections, and drug eruptions/wound care/photosensitivity — pathophysiology and therapeutics together.",
+    "quizBrief": "Dermatology, covering: (1) acne/rosacea — sebum overproduction, follicular hyperkeratinization, C. acnes overgrowth, and inflammation as four converging acne mechanisms; topical retinoids, benzoyl peroxide (bactericidal without promoting resistance, combined with antibiotics), oral tetracyclines' anti-inflammatory role, combined contraceptives and spironolactone (antiandrogen, reused from Women's Health PCOS lesson) for hormonal acne; isotretinoin's mandatory pregnancy prevention program, hepatotoxicity, hypertriglyceridemia, and mood monitoring; rosacea's distinct vascular/inflammatory mechanism treated with topical metronidazole/azelaic acid and low-dose doxycycline; (2) psoriasis/atopic dermatitis — psoriasis as Th17/IL-17/IL-23-driven keratinocyte hyperproliferation (days not weeks turnover), topical vitamin D analogs (calcipotriene) and topical calcineurin inhibitors (same mechanism as oral tacrolimus from Immunology, without systemic immunosuppression), systemic therapy reusing methotrexate/anti-TNF from RA/IBD plus new IL-17 (secukinumab, ixekizumab) and IL-23 (guselkumab, upstream of IL-17) inhibitors and apremilast (PDE4 inhibitor, same target as roflumilast); atopic dermatitis as barrier dysfunction (filaggrin mutations) plus Th2/IL-4/IL-13 inflammation, moisturizers as foundational therapy, dupilumab reused from the Pulmonary asthma lesson via the shared Th2 pathway, crisaborole and JAK inhibitors; (3) topical corticosteroids/skin infections — potency selection by skin thickness (low potency for face/skin folds, higher potency for palms/soles), vehicle effects on absorption, permanent striae risk, systemic HPA axis suppression risk with high potency/large surface area/occlusion (same mechanism as Endocrine module), tachyphylaxis and pulse dosing; impetigo (topical mupirocin vs oral for extensive disease), tinea infections (topical antifungals first-line except tinea capitis and onychomycosis requiring oral therapy given inadequate topical penetration), permethrin mechanism for scabies/lice; (4) drug eruptions/wound care/photosensitivity — simple morbilliform eruptions vs SJS/TEN/DRESS red flags (mucosal involvement, blistering, systemic symptoms, cross-referencing the Immunology module), phototoxic (dose-dependent, sunburn-like) vs photoallergic (immune-mediated, can spread, delayed onset) reactions and their common culprit drugs, neomycin contact dermatitis risk, silver sulfadiazine contraindications in sulfa allergy and near-term pregnancy/young infants (kernicterus mechanism from the Pediatrics module), chemical vs physical/mineral sunscreen mechanisms, and UVA/UVB broad-spectrum protection rationale.",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "derm-lesson-0",
+      "derm-lesson-1",
+      "derm-lesson-2",
+      "derm-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "ophtho",
+    "label": "Ophthalmology",
+    "description": "Glaucoma, conjunctivitis/ocular infections, dry eye/retinal conditions, and systemic drugs with ocular effects — pathophysiology and therapeutics together.",
+    "quizBrief": "Ophthalmology, covering: (1) glaucoma — intraocular pressure as aqueous humor production (ciliary body) vs outflow (trabecular meshwork, uveoscleral pathway) balance, prostaglandin analogs (latanoprost, increase uveoscleral outflow, iris pigmentation/eyelash growth), beta-blockers (timolol, reduce production, genuine systemic absorption via nasolacrimal duct carrying the same asthma/COPD and bradycardia contraindications as oral beta-blockers), alpha-2 agonists (brimonidine, dual mechanism), carbonic anhydrase inhibitors (dorzolamide/acetazolamide, sulfonamide-related), acute angle-closure glaucoma as an ophthalmic emergency (rapid IOP reduction, laser iridotomy); (2) conjunctivitis/ocular infections — bacterial (purulent, topical antibiotics), viral (watery, highly contagious, supportive only), allergic (itching hallmark, antihistamine/mast cell stabilizer drops) conjunctivitis distinguished by discharge/symptom/laterality; keratitis as vision-threatening, contact lens-associated Pseudomonas risk (fluoroquinolone coverage, hygiene counseling), herpetic keratitis (dendritic corneal ulcer, antiviral therapy) with topical corticosteroids specifically contraindicated given HSV replication worsening risk; (3) dry eye/retinal conditions — reduced production or increased evaporation causing dry eye, anticholinergics and paradoxically antihistamines worsening symptoms, artificial tears (preservative-free for frequent use) vs cyclosporine/lifitegrast (T-cell-mediated inflammation reduction, weeks for benefit, paralleling Dermatology's topical calcineurin inhibitors), dry AMD (drusen, AREDS vitamins) vs wet/neovascular AMD (anti-VEGF injections: ranibizumab, aflibercept, bevacizumab, same mechanism reused from Endocrine diabetic retinopathy and Hematology/Oncology targeted therapy); (4) systemic drugs/administration — punctal occlusion reducing systemic absorption, multi-drop spacing and drops-before-ointment sequencing, amiodarone corneal deposits, hydroxychloroquine irreversible retinal toxicity requiring annual screening, corticosteroid-induced posterior subcapsular cataracts and steroid-induced glaucoma, topiramate's secondary angle-closure glaucoma via ciliary body swelling, tamsulosin and Intraoperative Floppy Iris Syndrome requiring disclosure before cataract surgery.",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "ophtho-lesson-0",
+      "ophtho-lesson-1",
+      "ophtho-lesson-2",
+      "ophtho-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "uro",
+    "label": "Urology",
+    "description": "BPH, erectile dysfunction/male hypogonadism, urinary incontinence/overactive bladder, and nephrolithiasis — pathophysiology and therapeutics together.",
+    "quizBrief": "Urology, covering: (1) BPH — static (prostate size) vs dynamic (alpha-1-mediated smooth muscle tone) obstruction, uroselective (tamsulosin, alfuzosin, silodosin) vs non-uroselective (doxazosin, terazosin, dual antihypertensive use) alpha-1 blockers, tamsulosin's IFIS connection to the Ophthalmology module, 5-alpha reductase inhibitors (finasteride, dutasteride, DHT reduction, months-long onset, pregnant-partner tablet handling precaution despite male-only indication), combination therapy, tadalafil's dual BPH/ED indication; (2) ED/hypogonadism — nitric oxide/cGMP erectile physiology, vascular ED as a cardiovascular risk marker, PDE5 inhibitors (sildenafil, tadalafil, vardenafil) enhancing natural response, absolute nitrate contraindication (profound hypotension), additive alpha-1 blocker hypotension caution, sildenafil's blue-vision PDE6 cross-reactivity, priapism as a urologic emergency, testosterone replacement requiring confirmed hypogonadism (not age-related decline alone), hematocrit/polycythemia monitoring (opposite-direction parallel to Renal module ESA over-correction), PSA monitoring, fertility suppression via HPG axis feedback; (3) incontinence/OAB — stress (structural, non-pharmacologic, off-label duloxetine) vs urge/OAB (detrusor overactivity) vs overflow (often BPH-related, treat underlying cause not with antimuscarinics) incontinence classification, antimuscarinics (oxybutynin, tolterodine, solifenacin) reusing Geriatrics anticholinergic burden and Ophthalmology dry eye/narrow-angle glaucoma contraindication concerns, urinary retention risk with concurrent BPH, mirabegron (beta-3 agonist, avoids anticholinergic burden, requires BP monitoring) preferred in older adults, onabotulinumtoxinA for refractory OAB; (4) nephrolithiasis — calcium oxalate (most common), uric acid (acidic urine, hyperuricosuria, connects to Rheumatology gout lesson), struvite (infection stones, alkaline urine, staghorn calculi), and cystine stone types; NSAIDs first-line for renal colic; tamsulosin as medical expulsive therapy (third appearance of the same alpha-1 mechanism); thiazide diuretics' paradoxical reduction of urinary calcium excretion for stone prevention; allopurinol for uric acid stone prevention (reused from gout/TLS); potassium citrate's dual urine-alkalinization/calcium-binding mechanism; paradoxical risk of aggressive dietary calcium restriction increasing oxalate absorption.",
+    "isAnatomical": true,
+    "x": 150.1,
+    "y": 370.2,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "uro-lesson-0",
+      "uro-lesson-1",
+      "uro-lesson-2",
+      "uro-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "calc",
+    "label": "Calculations Toolkit",
+    "description": "Renal dosing, IV infusion, pediatric dosing, TPN/electrolytes, alligation, and clinical PK for vancomycin/aminoglycosides — the Domain 1 foundational math underlying every other module.",
+    "quizBrief": "Calculations Toolkit, covering: (1) renal dosing — Cockcroft-Gault equation (actual/ideal/adjusted body weight), efferent/afferent arteriole mechanisms behind ACE-I/ARB and NSAID renal effects, the \"triple whammy\" combination, precision near real dosing cutoffs; (2) IV infusion — mcg/kg/min to mL/hr conversion chains for weight-based infusions, gravity drip rate calculation (volume x drop factor / time), macrodrip vs microdrip sets, unit-tracking traps; (3) pediatric dosing — mg/kg and mg/kg/day to mg/kg/dose conversion, safe range verification (not just calculation), adult dose ceiling, weight source selection; (4) TPN/electrolytes — dextrose/protein/lipid kcal/g values, grams from percentage concentration, mEq conversion via valence (Na/K vs Ca/Mg), non-protein calorie concepts; (5) alligation/compounding — the tic-tac-toe grid method, parts-to-actual-quantity conversion, ratio strength to percentage conversion, C1V1=C2V2 dilution math; (6) clinical PK — one-compartment model (C=Dose/Vd, t1/2=0.693/ke), calculating half-life from two measured levels, extended-interval aminoglycoside dosing exploiting concentration-dependent killing (reused from Infectious Disease), AUC-guided vancomycin dosing replacing trough-only monitoring, loading dose rationale given vancomycin's large Vd, vancomycin plus piperacillin-tazobactam nephrotoxicity risk, and red man syndrome (infusion-rate-related histamine release) correctly distinguished from true IgE-mediated allergy.",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "calc-lesson-0",
+      "calc-lesson-1",
+      "calc-lesson-2",
+      "calc-lesson-3",
+      "calc-lesson-4",
+      "calc-lesson-5"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "heme",
+    "label": "Hematology & Oncology",
+    "description": "Anemias, anticoagulation/VTE, chemotherapy principles and toxicities, targeted therapy/immunotherapy, and oncologic emergencies — pathophysiology and therapeutics together.",
+    "quizBrief": "Hematology & Oncology, covering: (1) anemias — MCV-based sorting (microcytic/iron deficiency, macrocytic/B12-folate, normocytic/chronic disease-CKD), oral vs IV iron, B12 replacement route based on cause (dietary vs pernicious anemia/malabsorption), danger of treating B12 deficiency with folate alone (masks neurologic damage), anemia of chronic disease (inflammation-driven hepcidin) vs anemia of CKD (erythropoietin deficiency) and differing ESA indication; (2) anticoagulation/VTE — Virchow's triad (stasis, endothelial injury, hypercoagulability), UFH vs LMWH vs warfarin vs DOACs, warfarin's protein C half-life mechanism requiring bridging therapy and explaining skin necrosis, provoked vs unprovoked vs cancer-associated VTE duration, heparin-induced thrombocytopenia (paradoxical thrombosis despite low platelets, switch to non-heparin anticoagulant, avoid standalone warfarin); (3) chemotherapy principles — cell cycle-specific (antimetabolites, vinca alkaloids/taxanes) vs nonspecific (alkylators, platinum, anthracyclines) dosing strategy, toxicity to rapidly-dividing normal tissue (myelosuppression, mucositis, alopecia), nadir timing, filgrastim/pegfilgrastim (G-CSF) prophylaxis, anthracycline cumulative cardiotoxicity, cisplatin nephro/neuro/ototoxicity vs carboplatin, vesicant extravasation risk; (4) targeted therapy/immunotherapy — TKIs (\"-tinib\": imatinib/BCR-ABL, erlotinib/EGFR with rash) and monoclonal antibodies (\"-mab\": trastuzumab/HER2 reversible cardiotoxicity, rituximab/CD20 hepatitis B reactivation, bevacizumab/VEGF hypertension-bleeding-GI perforation) via on-target/off-tumor toxicity logic, checkpoint inhibitors (pembrolizumab/nivolumab-PD-1, ipilimumab-CTLA-4) and immune-related adverse events across any organ system including endocrinopathies, management via holding therapy plus corticosteroids, CAR-T cell therapy and cytokine release syndrome (tocilizumab) and ICANS neurotoxicity; (5) oncologic emergencies — tumor lysis syndrome (hyperkalemia, hyperphosphatemia/hypocalcemia, hyperuricemia-driven AKI, allopurinol vs rasburicase with G6PD contraindication), febrile neutropenia (immediate empiric antibiotics without awaiting cultures, antipseudomonal coverage), hypercalcemia of malignancy (osteolytic vs PTHrP-mediated, fluids then bisphosphonate/denosumab with denosumab preferred in renal impairment, calcitonin as rapid bridge), spinal cord compression (urgent high-dose corticosteroids as a bridge to definitive treatment).",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "heme-lesson-0",
+      "heme-lesson-1",
+      "heme-lesson-2",
+      "heme-lesson-3",
+      "heme-lesson-4"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "repro",
+    "label": "Women's Health",
+    "description": "Contraception, menopause/hormone therapy, pregnancy-related conditions and drug safety, and endometriosis/PCOS/abnormal uterine bleeding — pathophysiology and therapeutics together.",
+    "quizBrief": "Women's Health, covering: (1) contraception — combined hormonal contraceptives suppressing ovulation, estrogen's clotting-factor-synthesis mechanism underlying VTE risk and contraindications (smoking plus age 35+, migraine with aura specifically not without aura, VTE history), progestin-only pills and IUDs (copper: local spermicidal/inflammatory; hormonal: local progestin), emergency contraception by mechanism and timing window (levonorgestrel-shorter window, ulipristal-longer window, copper IUD-most effective and mechanism-independent of ovulation timing); (2) menopause/hormone therapy — declining estrogen causing elevated FSH/LH, vasomotor symptoms (hypothalamic thermoregulatory dysregulation), genitourinary syndrome, bone loss; progestin required with intact uterus to prevent unopposed-estrogen endometrial hyperplasia/cancer; oral vs transdermal estrogen VTE risk via first-pass hepatic clotting factor synthesis; timing hypothesis for cardiovascular risk-benefit; non-hormonal vasomotor options (SSRIs/SNRIs, gabapentin, clonidine as repurposed drugs; fezolinetant as novel NK3 receptor antagonist); (3) pregnancy conditions/safety — narrative PLLR labeling replacing letter categories, gestational hypertension/preeclampsia/eclampsia spectrum, labetalol/nifedipine/methyldopa as safe antihypertensives, magnesium sulfate for seizure prophylaxis specifically (not primary antihypertensive), ACE-I/ARB contraindication (fetal renal effects, oligohydramnios), insulin first-line for gestational diabetes over metformin, doxylamine-pyridoxine first-line for nausea/vomiting of pregnancy, synthesis of teratogens (valproic acid, warfarin, methotrexate, isotretinoin, third-trimester NSAIDs and ductus arteriosus closure); (4) endometriosis/PCOS/AUB — ectopic endometrial tissue responding to cyclic hormones, GnRH agonist flare-then-suppression mechanism with add-back therapy, GnRH antagonists (elagolix) avoiding the flare, PCOS insulin-resistance-driven hyperandrogenism and elevated LH:FSH ratio, combined contraceptives raising SHBG to reduce free testosterone, metformin improving ovulation via insulin sensitization, spironolactone's antiandrogen use for hirsutism requiring contraception given fetal risk, letrozole's aromatase-inhibition mechanism indirectly inducing ovulation via reduced estrogen negative feedback, tranexamic acid's antifibrinolytic mechanism for non-hormonal abnormal uterine bleeding management.",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "repro-lesson-0",
+      "repro-lesson-1",
+      "repro-lesson-2",
+      "repro-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "id",
+    "label": "Infectious Disease & Immunology",
+    "description": "Antimicrobial principles, CAP/respiratory infections, UTIs/skin infections, sepsis/MDROs/C. diff, and antifungals/antivirals/immunizations — pathophysiology and therapeutics together.",
+    "quizBrief": "Infectious Disease, covering: (1) antibiotic classes by mechanism — cell wall synthesis inhibitors (beta-lactams, vancomycin), protein synthesis inhibitors (aminoglycosides, tetracyclines, macrolides, clindamycin, linezolid), nucleic acid synthesis inhibitors (fluoroquinolones, metronidazole), folate synthesis inhibitors (TMP-SMX); bactericidal vs bacteriostatic selection; concentration-dependent (aminoglycosides, fluoroquinolones - large infrequent doses) vs time-dependent (beta-lactams - frequent dosing/extended infusion) killing; empiric vs definitive therapy; (2) CAP — typical pathogens (S. pneumoniae) vs atypical (Mycoplasma, Chlamydophila, Legionella, requiring macrolide/doxycycline/fluoroquinolone since no cell wall), severity-based site of care, empiric regimen escalation with risk factors (Pseudomonas, MRSA coverage), strep pharyngitis (penicillin/amoxicillin), COPD exacerbation antibiotic triggers; (3) UTI/skin infections — E. coli-driven ascending UTI, cystitis (nitrofurantoin - urine only, not for pyelonephritis; TMP-SMX; fosfomycin) vs pyelonephritis (fluoroquinolones, IV options with tissue penetration), asymptomatic bacteriuria (treat only in pregnancy/pre-procedure), pregnancy drug safety (avoid TMP-SMX, fluoroquinolones, nitrofurantoin near term), purulent (staph/MRSA) vs non-purulent (strep) cellulitis, I&D as primary abscess therapy; (4) sepsis — dysregulated cytokine response, sepsis vs septic shock (vasopressor need, lactate), time-critical antibiotics, source control, MRSA (altered PBP2a: vancomycin/linezolid/daptomycin/ceftaroline), VRE (altered cell wall target: linezolid/daptomycin, not for pneumonia), ESBL (enzymatic: carbapenems), CRE (limited options: polymyxins), C. diff (toxin-mediated colitis from antibiotic-disrupted flora, oral not IV vancomycin/fidaxomicin, avoid antimotility agents); (5) antifungals/antivirals/vaccines — azoles (ergosterol synthesis inhibition via CYP450, major drug interactions), echinocandins (beta-glucan synthase inhibition), amphotericin B (direct ergosterol binding, nephrotoxicity), oseltamivir (neuraminidase inhibitor, 48-hour window), acyclovir (viral thymidine kinase-dependent activation, crystalline nephropathy risk), live vs non-live vaccines (pregnancy/immunocompromise contraindications for live, 4-week spacing rule); (6) HIV/ART — viral life cycle (attachment/fusion, reverse transcription, integration, protease maturation) mapped to drug classes (entry/fusion inhibitors, NRTIs, NNRTIs, INSTIs like dolutegravir - preferred first-line anchor, boosted protease inhibitors with major CYP3A4 interactions), combination therapy preventing resistance, CD4 count vs viral load as complementary monitoring markers; (7) opportunistic infections — CD4 <200 triggers PCP prophylaxis (TMP-SMX), CD4 <100 triggers toxoplasmosis prophylaxis (TMP-SMX, dual coverage), CD4 <50 triggers MAC prophylaxis (azithromycin/clarithromycin), discontinuation criteria after sustained CD4 recovery; (8) PrEP/PEP — oral (tenofovir/emtricitabine) and injectable (cabotegravir) PrEP requiring confirmed HIV-negative status before starting, PEP within 72 hours using a three-drug regimen for 28 days, universal ART in pregnancy regardless of CD4/viral load, and layered perinatal transmission prevention (maternal ART, intrapartum zidovudine in specific scenarios, neonatal prophylaxis).",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [
+      "id-lesson-0",
+      "id-lesson-1",
+      "id-lesson-2",
+      "id-lesson-3",
+      "id-lesson-4",
+      "id-lesson-5",
+      "id-lesson-6",
+      "id-lesson-7"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "rheum",
+    "label": "Rheumatology",
+    "description": "NSAIDs and acetaminophen fundamentals, rheumatoid arthritis/DMARDs, gout, and osteoporosis — pathophysiology and therapeutics together. (Pain management and opioids are covered in Neuro & Psych.)",
+    "quizBrief": "Rheumatology, covering: (1) NSAIDs/acetaminophen — COX-1 (constitutive, GI/renal/platelet protective) vs COX-2 (inducible, inflammatory) explaining therapeutic effect (COX-2) vs toxicity (COX-1: GI ulcers, AKI/triple whammy, lithium interaction, bleeding risk), COX-2 selective agents (celecoxib) trading GI safety for cardiovascular risk via prostacyclin/thromboxane imbalance, acetaminophen's distinct central mechanism avoiding COX-1 toxicity but with its own dose-dependent hepatotoxicity; (2) RA/DMARDs — autoimmune synovitis/pannus formation causing irreversible joint destruction, symmetric pattern (vs gout's asymmetry), treat-to-target early aggressive therapy since NSAIDs don't alter disease course, methotrexate (immunomodulatory at RA doses vs antiproliferative at oncology doses, folic acid co-prescribed), hydroxychloroquine (retinal toxicity monitoring), leflunomide (long half-life requiring washout), anti-TNF agents and rituximab (TB/hepatitis B screening), tocilizumab (same IL-6 mechanism as CRS management, now chronic), JAK inhibitors (shared boxed warning); (3) gout — hyperuricemia (usually underexcretion) causing urate crystal deposition and neutrophil-mediated acute arthritis, asymmetric/monoarticular presentation (podagra), acute treatment (NSAIDs, colchicine with severe CYP3A4/P-gp interaction risk e.g. clarithromycin, corticosteroids), critical timing principle (never start urate-lowering therapy during an acute attack, but continue if already established), allopurinol/febuxostat (xanthine oxidase inhibitors, reducing production) vs probenecid (uricosuric, increasing excretion, avoided with kidney stones/renal impairment), HLA-B*5801 testing before allopurinol; (4) osteoporosis — resorption exceeding formation from estrogen loss/aging, secondary causes including chronic corticosteroids, bisphosphonates (osteoclast inhibition, esophagitis-prevention administration counseling, rare atypical fracture/osteonecrosis of jaw risk with prolonged use), denosumab (RANKL inhibitor, rebound fracture risk if stopped without transition unlike bisphosphonates' residual bone-matrix effect), teriparatide (anabolic via intermittent PTH dosing, opposite effect of chronic PTH excess, osteosarcoma boxed warning), raloxifene (SERM, bone agonist/breast antagonist reducing breast cancer risk, VTE risk).",
+    "isAnatomical": true,
+    "x": 180.8,
+    "y": 477.2,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "rheum-lesson-0",
+      "rheum-lesson-1",
+      "rheum-lesson-2",
+      "rheum-lesson-3"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "compounding",
+    "label": "Sterile & Nonsterile Compounding",
+    "description": "USP <795>/<797>/<800>, risk-stratified beyond-use dating, hazardous drug handling, and IV compatibility.",
+    "quizBrief": "Sterile & Nonsterile Compounding, covering: (1) sterile compounding/USP standards — USP <795> (nonsterile), <797> (sterile), <800> (hazardous drugs) scope, with hazardous sterile products requiring both <797> and <800> simultaneously; sterile compounding risk levels driven by manipulation complexity and environmental control directly determining beyond-use dating (higher risk = shorter BUD), immediate-use preparations as a limited category; aseptic technique, primary engineering controls (laminar airflow workbenches), biological safety cabinets providing dual protection (preparation sterility plus personnel exposure) for hazardous sterile compounding; USP <800> scope across receiving, storage, compounding, administration, disposal, and spill management; (2) nonsterile compounding/BUD/compatibility — USP <795> default BUD as the shorter of a maximum period or percentage of shortest ingredient expiration absent specific stability data; physical incompatibility (visible: precipitation, particulates, color change) vs chemical incompatibility (not necessarily visible, degradation); Y-site compatibility requiring confirmation against a reliable reference before combining any two IV medications in the same line, given routine need for multiple simultaneous IV drugs in critically ill patients.",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "compounding-lesson-0",
+      "compounding-lesson-1"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "medsafety",
+    "label": "Medication Safety",
+    "description": "Medication errors, LASA drugs, and adverse drug reaction classification/reporting — the systems and frameworks behind safe medication use.",
+    "quizBrief": "Medication Safety, covering: (1) medication errors/LASA — Swiss cheese model (serious errors require multiple system-layer failures aligning, not just individual mistakes), NCC MERP-style severity classification (near-miss/no-harm through permanent harm/death), LASA drug pairs and Tall Man lettering, system-level prevention (independent double-checks, barcode scanning, smart infusion pumps with dose-range limits, standardized order sets); (2) ADRs/reporting — Type A (augmented, predictable, dose-related, mechanism-explainable, the majority of side effects covered throughout this course) vs Type B (bizarre, idiosyncratic, immune-mediated, not dose-related, includes SJS/TEN/DRESS/anaphylaxis from the Immunology module) reactions and their differing management (dose reduction vs discontinuation), Naranjo scale causality assessment (temporal relationship, dechallenge/rechallenge, alternative causes), FDA MedWatch as the post-marketing surveillance reporting system, and how boxed warnings get added to already-approved drugs through this exact surveillance mechanism.",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "medsafety-lesson-0",
+      "medsafety-lesson-1"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "druginfo",
+    "label": "Drug Information & Literature Evaluation",
+    "description": "A systematic framework for answering drug information questions and critically appraising literature for bias, confounding, and generalizability.",
+    "quizBrief": "Drug Information & Literature Evaluation, covering: systematic drug information response framework (clarify requester context, define the precise question, select resources, critically evaluate, communicate tailored response, follow up), matching question type to resource category (dosing to tertiary references, interactions to interaction-checking databases, identification to specialized ID resources, generic equivalence to bioequivalence resources, comparative efficacy to primary literature/systematic reviews), internal validity threats (selection bias, recall bias especially in case-control studies, performance bias, confounding addressed by randomization, blinding addressing performance/assessment bias), and external validity/generalizability as a distinct question from internal validity, illustrated by how a rigorous RCT in young healthy adults may not generalize to an elderly polypharmacy patient.",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "druginfo-lesson-0"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "pharmops",
+    "label": "Pharmacy Operations & REMS",
+    "description": "REMS/DEA scheduling/storage, personnel/workflow/quality improvement, and financial/insurance basics — full Domain 5 coverage.",
+    "quizBrief": "Pharmacy Operations & REMS, covering: (1) REMS general framework (Medication Guide, communication plan, Elements to Assure Safe Use/ETASU exemplified by isotretinoin's mandatory pregnancy prevention program from the Dermatology module, implementation system, periodic assessment timetable), DEA controlled substance schedules I-V (abuse potential and accepted medical use, Schedule II opioids/stimulants with no refills permitted, Schedule III-V with progressively more permissive refill rules, benzodiazepines/Z-drugs as Schedule IV examples), temperature-controlled storage requirements for insulin/biologics/vaccines and cold-chain failure risk not being visually apparent, controlled substance physical security and inventory tracking most stringent for Schedule II; (2) personnel/workflow/quality improvement — pharmacist clinical judgment functions vs technician technical functions (state-variable scope), multiple verification points as complementary Swiss cheese model layers (LASA/barcode scanning), medication use evaluation and continuous quality improvement as proactive systems-level review, root cause analysis investigating underlying systemic factors rather than stopping at individual blame; (3) financial/insurance basics — PBM role in formulary tier management (lower cost-sharing for preferred/generic drugs) and claims processing, prior authorization as a formulary management tool, copay/coinsurance/deductible cost-sharing structures, inventory turnover and wholesaler purchasing relationships, expired product management (same beyond-use principle as compounding), key performance metrics (prescription volume, generic dispensing rate, gross margin).",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "pharmops-lesson-0",
+      "pharmops-lesson-1",
+      "pharmops-lesson-2"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "otc",
+    "label": "OTC & Self-Care Therapeutics",
+    "description": "Cough/cold/allergy, pain/fever, GI, and dermatologic OTC therapeutics, plus generic substitution and drug utilization review.",
+    "quizBrief": "OTC & Self-Care Therapeutics, covering: (1) cough/cold/allergy/pain-fever — antihistamines (first vs second-generation, anticholinergic burden in older adults), decongestants (cardiovascular caution), dextromethorphan (serotonin syndrome risk), guaifenesin, acetaminophen/NSAID OTC use and combination-product duplication risk, red-flag symptoms requiring referral; (2) GI/dermatologic OTC — antacid/H2RA/PPI heartburn hierarchy at OTC strength, bulk-forming/osmotic/stimulant laxatives, loperamide contraindication in bloody/infectious diarrhea, OTC hydrocortisone and topical antifungals for classic self-limited presentations, GI and dermatologic red flags requiring referral; (3) generic substitution/DUR — Orange Book therapeutic equivalence ratings, narrow therapeutic index drugs (warfarin, levothyroxine, phenytoin, digoxin) and substitution caution, why extended-release/enteric-coated formulations must never be crushed/split/chewed, appropriate formulations for feeding tube/swallowing difficulty patients, drug utilization review categories (drug-drug interaction, therapeutic duplication, drug-disease contraindication, dose/duration, age-appropriateness).",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "otc-lesson-0",
+      "otc-lesson-1",
+      "otc-lesson-2"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "ethics",
+    "label": "Professional Practice & Ethics",
+    "description": "Core ethical principles, confidentiality, scope of practice, public health roles, communication, and error disclosure.",
+    "quizBrief": "Professional Practice & Ethics, covering: (1) core principles/confidentiality/scope — autonomy, beneficence, nonmaleficence, and justice as the core ethical framework and identifying which principle is in tension in a scenario, patient confidentiality permitted disclosures (treatment, payment, healthcare operations, legally mandated reporting) vs inappropriate disclosure, minor consent/confidentiality nuance, expanding pharmacist scope of practice (collaborative practice agreements, immunization authority, specific prescribing authority) as a general trend, recognizing when a situation exceeds scope and requires referral; (2) public health/communication/accountability — pharmacist public health roles (immunization, smoking cessation counseling, naloxone/harm reduction) as population-level extensions of clinical interventions, health literacy and the teach-back method, appropriate professional interpreter use and specifically avoiding minor children as interpreters for sensitive health information, the ethical obligation to disclose medication errors as distinct from legal liability admission, professional accountability regarding impaired colleagues.",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "ethics-lesson-0",
+      "ethics-lesson-1"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "biostats",
+    "label": "Biostatistics & Evidence-Based Medicine",
+    "description": "Study design, measures of association, diagnostic testing, and confidence intervals — the statistical foundation behind every outcome claim in this course.",
+    "quizBrief": "Biostatistics & EBM, covering: (1) study design/measures of association — evidence hierarchy (RCTs via randomization controlling confounding, prospective vs retrospective cohort studies, case-control studies for rare outcomes with recall bias risk, case reports/series lacking a control group), relative risk (RR) and relative risk reduction (RRR) calculation, odds ratio as the case-control measure, absolute risk reduction (ARR) and number needed to treat (NNT=1/ARR) preserving baseline risk context, number needed to harm (NNH), why identical RRR produces very different NNT depending on baseline risk, statistical significance (p-value) vs clinical significance (effect magnitude); (2) diagnostic testing/CI/EBM — sensitivity (SnNout) and specificity (SpPin) as largely test-intrinsic properties, positive/negative predictive value calculation, why PPV and NPV shift with disease prevalence even when sensitivity/specificity stay fixed (rationale for targeted vs universal screening), 95% confidence interval interpretation (crossing 1.0 for relative measures or 0 for absolute measures indicates non-significance, interval width reflecting precision), primary vs secondary vs tertiary literature and systematic reviews/meta-analyses, matching resource type to clinical question.",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "biostats-lesson-0",
+      "biostats-lesson-1"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "tox",
+    "label": "Toxicology & Poison Management",
+    "description": "Decontamination principles, and antidote selection for analgesic, sedative, cardiovascular, and other major overdoses.",
+    "quizBrief": "Toxicology & Poison Management, covering: (1) general principles/analgesic-sedative overdoses — activated charcoal timing window and ineffectiveness against alcohols/iron/lithium, whole bowel irrigation for sustained-release products, salicylate toxicity's mixed respiratory alkalosis/metabolic acidosis pattern and urinary alkalinization via ion trapping, naloxone's short half-life causing re-sedation risk, flumazenil's seizure-precipitation risk in chronic benzodiazepine users; (2) cardiovascular/other overdoses — glucagon bypassing blocked beta-receptors via cAMP for beta-blocker overdose, high-dose insulin euglycemia therapy for calcium channel blocker overdose, calcium supplementation, digoxin toxicity worsened by hypokalemia (shared Na/K-ATPase binding site) with DigiFab preferred over dialysis given digoxin's large Vd, sodium bicarbonate's dual mechanism (sodium load plus alkalinization) for TCA cardiotoxicity via sodium channel blockade, fomepizole's alcohol dehydrogenase inhibition preventing toxic methanol/ethylene glycol metabolite formation, deferoxamine iron chelation (with iron not adsorbed by charcoal).",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "tox-lesson-0",
+      "tox-lesson-1"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "nutrition",
+    "label": "Nutrition Support",
+    "description": "Enteral drug-nutrient interactions, refeeding syndrome, and parenteral nutrition complications beyond the underlying calculation.",
+    "quizBrief": "Nutrition Support, covering: enteral feeding drug-nutrient interactions (phenytoin absorption significantly reduced by feeds requiring feed-holding around dosing, vitamin K in enteral formulas antagonizing warfarin, fluoroquinolone absorption reduced by mineral content), refeeding syndrome (insulin-mediated intracellular shift of phosphate/potassium/magnesium when nutritional support is reintroduced too aggressively in severely malnourished patients, same insulin-shift mechanism as DKA/hyperkalemia management, cardiac/respiratory risk, prevention via cautious gradual advancement and proactive electrolyte monitoring), long-term parenteral nutrition complications (catheter-related bloodstream infection, hyperglycemia, hepatic complications) distinct from the underlying TPN calculation already covered in the Calculations Toolkit.",
+    "isAnatomical": false,
+    "chip": false,
+    "available": true,
+    "lessonIds": [
+      "nutrition-lesson-0"
+    ],
+    "source": "content-export"
+  },
+  {
+    "key": "drug-class-study-guide",
+    "label": "Drug Class Study Guide",
+    "description": "Cross-system drug-class quick-reference questions (mechanism, side effects, black box warnings, monitoring) — not tied to a single body system.",
+    "isAnatomical": false,
+    "chip": true,
+    "available": true,
+    "lessonIds": [],
+    "source": "synthesized"
+  }
+]

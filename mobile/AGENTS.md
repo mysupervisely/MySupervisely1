@@ -21,21 +21,33 @@ directly against that file if `expo install` fails with a proxy/network error.
 src/
   api/            typed clients for the existing Netlify functions (M9/M10)
   components/     presentational, reusable, no data-fetching
-  content/        typed content layer over mobile-source/content-export (M2)
-  models/         domain TypeScript types (M2+)
+  content/        typed, production content bundle — generated/ is committed output,
+                   topicLabelMap.ts is the hand-maintained topicLabel -> system-key table (M2)
+  models/         domain TypeScript types (M2)
   navigation/     typed React Navigation param lists + navigators
   screens/        one folder per section (onboarding, home, qbank, exam, progress, pricing)
   storage/        AsyncStorage repositories (M6)
-  services/       business logic / repository pattern, no UI (M2+)
+  services/       business logic / repository pattern, no UI — contentRepository lives here (M2)
   utils/          stateless helpers
   hooks/          shared hooks wrapping services/
   theme/          brand tokens (colors, typography, spacing) + font loading
   constants/      cross-milestone constants, e.g. body-map geometry
+scripts/          build-time only, not part of the app bundle: import-content.ts (reads
+                   ../mobile-source/content-export, validates, writes src/content/generated/)
+                   and validate-content.ts (the validation rules + a standalone re-check CLI).
+                   Run via `npm run import:content` / `npm run validate:content`.
 ```
 
 Repository/service pattern: screens never parse raw content JSON directly — they go through
-`services/contentRepository` once it exists (M2). Don't scatter `AsyncStorage` calls in
-components — go through `storage/` once it exists (M6).
+`services/contentRepository`. Don't scatter `AsyncStorage` calls in components — go through
+`storage/` once it exists (M6).
+
+## Content changes
+
+If `mobile-source/content-export/` changes, re-run `npm run import:content` — don't hand-edit
+anything under `src/content/generated/`, it's generated output. If a new `topicLabel` shows up
+in the source data that isn't in `src/content/topicLabelMap.ts`, the import fails loudly rather
+than silently dropping or miscategorizing questions — add the mapping entry first.
 
 ## Source materials
 
