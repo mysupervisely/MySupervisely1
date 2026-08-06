@@ -90,4 +90,11 @@ describe('contentRepository — content statistics (M2 validation requirement)',
     expect(lessons.length).toBeGreaterThan(0);
     expect(contentRepository.getLesson(lessons[0].id)).toEqual(lessons[0]);
   });
+
+  test('getQuestionById also resolves exam questions, not just QBank ones (M5 fix)', () => {
+    const exam = contentRepository.getExam(1);
+    const examQuestion = exam?.questions[0];
+    expect(examQuestion).toBeDefined();
+    expect(contentRepository.getQuestionById(examQuestion!.id)).toEqual(examQuestion);
+  });
 });

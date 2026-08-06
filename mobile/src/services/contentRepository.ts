@@ -36,8 +36,20 @@ for (const list of lessonsBySystemKey.values()) {
   list.sort((a, b) => a.order - b.order);
 }
 
-const qbankById = new Map(qbank.map((q) => [q.id, q]));
 const examsByNumber = new Map(exams.map((e) => [e.examNumber, e]));
+
+// Global by-ID index across BOTH sources — a question's `id` is unique
+// regardless of whether it came from the QBank or a fixed exam (M2's
+// import assigns `qbank-{index}` vs `exam-{examNumber}-{slot}`, so there's
+// no collision risk), and callers resolving a question from an Attempt
+// (M5's Progress dashboard, M7's exam review) shouldn't have to know or
+// care which source it came from to look it up.
+const allQuestionsById = new Map<string, Question>(qbank.map((q) => [q.id, q]));
+for (const exam of exams) {
+  for (const question of exam.questions) {
+    allQuestionsById.set(question.id, question);
+  }
+}
 
 export type QuestionFilter = {
   systemKey?: string;
@@ -80,8 +92,9 @@ export const contentRepository = {
         (filter.type === undefined || q.type === filter.type)
     );
   },
+  /** Resolves a question by ID regardless of source — QBank or any fixed exam. */
   getQuestionById(questionId: string): Question | undefined {
-    return qbankById.get(questionId);
+    return allQuestionsById.get(questionId);
   },
   /** NAPLEX domain breakdown (question counts per domain 1-5) for one system's questions. */
   getDomainDistribution(systemKey: string): Partial<Record<Question['domain'], number>> {
