@@ -4,19 +4,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { colors, radius, spacing, typeScale } from '../../theme';
+import { onboardingStorage } from '../../storage/onboardingStorage';
 import type { RootStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
 /**
- * M1 stub. Real asset (logo_full_lockup.png from the content export), real
- * copy, real brand styling — but the name field below does not persist
- * anywhere yet. Persisting the onboarding name is explicitly M6 scope
- * (docs/MOBILE_MIGRATION_AUDIT.md §N); this screen just establishes the
- * route and the visual entry point into the app.
+ * Real asset (logo_full_lockup.png from the content export), real copy,
+ * real brand styling. The name field now persists (M3, via
+ * src/storage/onboardingStorage.ts) so the Home screen's greeting is real
+ * rather than decorative — see docs/M3_IMPLEMENTATION_NOTES.md for why
+ * this one field was scoped in ahead of the full M6 storage layer.
  */
 export function OnboardingScreen({ navigation }: Props) {
   const [name, setName] = useState('');
+
+  const handleGetStarted = async () => {
+    await onboardingStorage.setFirstName(name);
+    navigation.replace('Main', { screen: 'HomeTab', params: { screen: 'Home' } });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -44,10 +50,10 @@ export function OnboardingScreen({ navigation }: Props) {
 
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Get started"
+          hitSlop={8}
           style={styles.cta}
-          onPress={() =>
-            navigation.replace('Main', { screen: 'HomeTab', params: { screen: 'Home' } })
-          }
+          onPress={handleGetStarted}
         >
           <Text style={styles.ctaText}>Get started</Text>
         </Pressable>

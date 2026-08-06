@@ -3,7 +3,7 @@
     "name": "PharmDPrepped",
     "slug": "pharmdprepped-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/brand/logo_mark.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F2F4F3",

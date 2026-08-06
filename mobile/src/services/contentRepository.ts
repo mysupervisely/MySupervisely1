@@ -83,6 +83,14 @@ export const contentRepository = {
   getQuestionById(questionId: string): Question | undefined {
     return qbankById.get(questionId);
   },
+  /** NAPLEX domain breakdown (question counts per domain 1-5) for one system's questions. */
+  getDomainDistribution(systemKey: string): Partial<Record<Question['domain'], number>> {
+    const counts: Partial<Record<Question['domain'], number>> = {};
+    for (const q of this.getQuestions({ systemKey })) {
+      counts[q.domain] = (counts[q.domain] ?? 0) + 1;
+    }
+    return counts;
+  },
 
   // ---- Exams ----
   getExam(examNumber: ExamNumber): Exam | undefined {

@@ -1,72 +1,108 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { ScreenContainer } from '../../components/ScreenContainer';
-import { ScreenTitle } from '../../components/ScreenTitle';
-import { PlaceholderNotice } from '../../components/PlaceholderNotice';
-import { colors, radius, spacing, typeScale } from '../../theme';
-import { BODY_MAP_ANATOMICAL_SYSTEM_KEYS } from '../../constants/bodyMap';
+import { BodyMapView } from '../../components/bodyMap/BodyMapView';
+import { TopicCard } from '../../components/TopicCard';
+import { useFirstName } from '../../hooks/useFirstName';
+import { buildGreeting } from '../../utils/greeting';
+import { contentRepository } from '../../services/contentRepository';
+import { colors, spacing, typeScale } from '../../theme';
 import type { HomeStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Home'>;
 
 /**
- * M1 stub. Renders the real body-map illustration (not a placeholder image)
- * statically, with no interactive hotspots yet — M3 builds the real,
- * coordinate-driven interactive map per docs/MOBILE_MIGRATION_AUDIT.md §F
- * and src/constants/bodyMap.ts. The button below exists only to prove the
- * Home -> System -> Lesson navigation path works end-to-end.
+ * The app's primary navigation surface (Phase 6): greeting -> real body map
+ * with real hotspots -> More Topics for the non-anatomical systems.
+ * Content comes exclusively from contentRepository — no raw JSON here.
  */
 export function HomeScreen({ navigation }: Props) {
-  const previewSystemKey = BODY_MAP_ANATOMICAL_SYSTEM_KEYS[0];
+  const { firstName } = useFirstName();
+  const greeting = useMemo(() => buildGreeting(new Date(), firstName), [firstName]);
+
+  // contentRepository already indexes internally; these calls are cheap
+  // (array filters over 27 systems, not the 2,000-question bank), but
+  // still memoized so Home's re-renders (e.g. the greeting refreshing)
+  // don't re-filter on every render.
+  const anatomicalSystems = useMemo(() => contentRepository.getAnatomicalSystems(), []);
+  const nonAnatomicalSystems = useMemo(() => contentRepository.getNonAnatomicalSystems(), []);
+
+  const openSystem = (systemKey: string) => {
+    navigation.navigate('System', { systemKey });
+  };
 
   return (
     <ScreenContainer>
-      <ScreenTitle eyebrow="Home">Body Map</ScreenTitle>
-
-      <View style={styles.imageWrap}>
+      <View style={styles.header}>
         <Image
-          source={require('../../../assets/brand/body_map_diagram.png')}
-          style={styles.bodyImage}
+          source={require('../../../assets/brand/logo_mark.png')}
+          style={styles.logo}
           resizeMode="contain"
-          accessibilityLabel="PharmDPrepped body map illustration"
+          accessibilityLabel="PharmDPrepped"
         />
+        <Text style={styles.greeting} accessibilityRole="header">
+          {greeting}
+        </Text>
       </View>
 
-      <PlaceholderNotice
-        milestone="M3"
-        description="Interactive hotspots for the 8 anatomical systems, scaled from the real 300x640 coordinate system (see src/constants/bodyMap.ts), plus a 'More Topics' list for the 18 non-anatomical systems."
-      />
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        Body Map
+      </Text>
+      <Text style={styles.sectionSubtitle}>Tap a system to open its lessons and practice questions.</Text>
+      <BodyMapView systems={anatomicalSystems} onSelectSystem={openSystem} />
 
-      <Pressable
-        accessibilityRole="button"
-        style={styles.link}
-        onPress={() => navigation.navigate('System', { systemKey: previewSystemKey })}
-      >
-        <Text style={styles.linkText}>Preview: open a System screen →</Text>
-      </Pressable>
+      <Text style={[styles.sectionTitle, styles.moreTopicsTitle]} accessibilityRole="header">
+        More Topics
+      </Text>
+      <View style={styles.topicGrid}>
+        {nonAnatomicalSystems.map((system) => (
+          <TopicCard
+            key={system.key}
+            title={system.label}
+            lessonCount={contentRepository.getLessonsForSystem(system.key).length}
+            questionCount={contentRepository.getQuestions({ systemKey: system.key }).length}
+            onPress={() => openSystem(system.key)}
+          />
+        ))}
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  imageWrap: {
-    backgroundColor: colors.paperRaised,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  bodyImage: {
-    width: '100%',
-    height: 340,
+  logo: {
+    width: 36,
+    height: 36,
   },
-  link: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
+  greeting: {
+    ...typeScale.h1,
+    color: colors.ink,
+    flexShrink: 1,
   },
-  linkText: {
-    ...typeScale.bodyMedium,
-    color: colors.teal,
+  sectionTitle: {
+    ...typeScale.h2,
+    color: colors.ink,
+    marginBottom: spacing.xs,
+  },
+  sectionSubtitle: {
+    ...typeScale.caption,
+    color: colors.inkSoft,
+    marginBottom: spacing.md,
+  },
+  moreTopicsTitle: {
+    marginTop: spacing.xl,
+  },
+  topicGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
 });

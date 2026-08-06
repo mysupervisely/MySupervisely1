@@ -1,39 +1,37 @@
 /**
- * Body-map coordinate system — DOCUMENTED HERE FOR M3, NOT IMPLEMENTED YET.
+ * Body-map coordinate system — implemented in M3.
  *
- * This file intentionally contains geometry constants only. It does not
- * import `mobile-source/content-export/systems.json` or render anything —
- * that's M3's job (real body-map + system/topic navigation). Per the M1
- * scope, this milestone documents and preserves the coordinate system so
- * M3 has a settled contract to build against, without importing content or
- * building the interactive map itself.
+ * Source: docs/MOBILE_MIGRATION_AUDIT.md §F, and a direct check of the SVG
+ * markup in mobile-source/web-reference/index.html:
  *
- * Source: docs/MOBILE_MIGRATION_AUDIT.md §F, verified against the SVG in
- * `mobile-source/web-reference/index.html` and against
- * `mobile-source/content-export/systems.json`.
+ *   <svg class="body" viewBox="0 0 300 640" ...>
+ *     <image x="0" y="0" width="300" height="640" preserveAspectRatio="none" .../>
+ *     <circle cx={system.x} cy={system.y} r={8} />
  *
- * How the web app positions hotspots:
- *   <svg class="body" viewBox="0 0 300 640">
- *     <circle cx={system.x} cy={system.y} r={8} />   // pulse ring
- *     <circle cx={system.x} cy={system.y} r={6} />   // solid dot
+ * CORRECTED FINDING (M1's version of this file guessed wrong — recorded
+ * here so nobody re-introduces the mistake): `preserveAspectRatio="none"`
+ * means the web app does NOT letterbox/contain-fit the body illustration.
+ * It deliberately STRETCHES the 808x1964 source image, non-uniformly, to
+ * exactly fill the 300x640 viewBox. The x/y hotspot coordinates in
+ * systems.json were authored against that stretched rendering, not against
+ * the image's native aspect ratio.
  *
- * Each of the 8 anatomical systems in systems.json carries `x`/`y` in that
- * 300x640 viewBox space. The real illustration asset
- * (`mobile-source/content-export/assets/body_map_diagram.png`, copied here
- * to `assets/brand/body_map_diagram.png`) is 808x1964px — NOT the same
- * aspect ratio as the viewBox (300/640 ≈ 0.469 vs 808/1964 ≈ 0.411), so
- * naively scaling x by (renderedWidth / 300) and y by (renderedHeight / 640)
- * independently is correct ONLY if the image is rendered at the viewBox's
- * own aspect ratio (e.g. via `resizeMode: 'contain'` with letterboxing, or
- * by sizing the container to match 300:640). M3 must not stretch the image
- * to fill an arbitrary container and then apply the naive scale — that will
- * visibly misalign hotspots against the illustration.
+ * The correct (and simplest) way to reproduce this exactly in React Native
+ * is to do the same thing: render the image with `resizeMode="stretch"`
+ * inside a container locked to the same 300:640 aspect ratio (via the
+ * `aspectRatio` style, independent of screen width), then scale each
+ * point by the container's own *measured* width/height. Because the image
+ * fills that container exactly (no letterboxing), the container's
+ * measured box IS the image's rendered box — no separate "where did the
+ * letterboxing put the image" calculation is needed.
  */
 
 export const BODY_MAP_VIEWBOX = {
   width: 300,
   height: 640,
 } as const;
+
+export const BODY_MAP_ASPECT_RATIO = BODY_MAP_VIEWBOX.width / BODY_MAP_VIEWBOX.height;
 
 export const BODY_MAP_IMAGE_NATURAL_SIZE = {
   width: 808,
@@ -42,11 +40,12 @@ export const BODY_MAP_IMAGE_NATURAL_SIZE = {
 
 /**
  * The 8 system keys that carry real x/y hotspot coordinates in
- * systems.json, i.e. the ones that render directly on the anatomical body
- * (vs. the 18 "chip: true" systems that only ever render in a list — see
- * audit §C). Listed here, without their coordinates or lesson content, so
- * M3 knows which keys to expect without this milestone importing the full
- * dataset.
+ * systems.json — i.e. the ones that render directly on the anatomical
+ * body (vs. the 18 "chip: true" systems, plus the synthesized
+ * `drug-class-study-guide` bucket, that only ever render in "More
+ * Topics"). Kept here as a documented reference list; the actual source of
+ * truth at runtime is `contentRepository.getAnatomicalSystems()`
+ * (`System.isAnatomical`, derived from real x/y presence — not this list).
  */
 export const BODY_MAP_ANATOMICAL_SYSTEM_KEYS = [
   'cardio',
@@ -62,18 +61,19 @@ export const BODY_MAP_ANATOMICAL_SYSTEM_KEYS = [
 export type BodyMapAnatomicalSystemKey = (typeof BODY_MAP_ANATOMICAL_SYSTEM_KEYS)[number];
 
 /**
- * Scales a viewBox-space coordinate to a rendered pixel position, given the
- * on-screen size the illustration is actually rendered at (i.e. after
- * `resizeMode: 'contain'` letterboxing has been accounted for — pass the
- * *rendered image's* box, not the outer container's box).
- *
- * Stubbed here for M3 to implement against; not called anywhere in M1.
+ * Scales a viewBox-space coordinate (as authored in systems.json, 0-300 /
+ * 0-640) to a pixel position within a container that is rendering the body
+ * image at `resizeMode="stretch"` and is itself locked to
+ * BODY_MAP_ASPECT_RATIO. `containerSize` must be that container's own
+ * measured box (e.g. from `onLayout`) — since the image is stretched to
+ * fill it exactly, the container's box and the image's rendered box are
+ * the same rectangle.
  */
 export function scaleBodyMapPoint(
   point: { x: number; y: number },
-  renderedImageSize: { width: number; height: number }
+  containerSize: { width: number; height: number }
 ): { x: number; y: number } {
-  const scaleX = renderedImageSize.width / BODY_MAP_VIEWBOX.width;
-  const scaleY = renderedImageSize.height / BODY_MAP_VIEWBOX.height;
+  const scaleX = containerSize.width / BODY_MAP_VIEWBOX.width;
+  const scaleY = containerSize.height / BODY_MAP_VIEWBOX.height;
   return { x: point.x * scaleX, y: point.y * scaleY };
 }
