@@ -54,9 +54,10 @@ combining `NativeStackScreenProps<HomeStackParamList, 'System'>` and
 `BottomTabScreenProps<MainTabParamList>`, because "Start Practice" needs to navigate to a
 sibling tab (`QBankTab`) from inside the nested `HomeStack` — React Navigation resolves an
 unmatched route name by delegating up to the parent navigator at runtime, but that only
-typechecks if the navigation prop's type says so. "Continue" navigates within `HomeStack` to the
-existing `Lesson` route (`systemKey`, `lessonIndex: 0`) — real params, still an M1-era stub
-screen on the receiving end.
+typechecks if the navigation prop's type says so. "View Lessons" navigates within `HomeStack` to
+the existing `Lesson` route (`systemKey`, `lessonIndex: 0`) — real params, still an M1-era stub
+screen on the receiving end. (Labeled "Continue" until this milestone's follow-up request asked
+for "View Lessons" specifically — renamed for accuracy, no behavior change.)
 
 ## Hotspot implementation
 
@@ -123,9 +124,35 @@ inside the container bounds).
 Real `system.label`/`description`, real lesson count, real question count, a NAPLEX domain
 distribution bar (`contentRepository.getDomainDistribution`, only rendered when the system has
 any classified questions — true for all 27 today, but coded defensively per "if available"),
-`ProgressStats` (see below), and Continue/Start Practice buttons — both real navigation, both
+`ProgressStats` (see below), and View Lessons/Start Practice buttons — both real navigation, both
 into still-stub destinations, per the instruction not to build the question engine or lesson
 reader yet.
+
+## UI decisions
+
+- **Brand tokens only, no new colors introduced.** Every color used in M3 components
+  (`Hotspot`, `TopicCard`, `ProgressStats`, the domain-distribution bar) comes from
+  `src/theme/colors.ts` — no one-off hex values in a screen or component's `StyleSheet`.
+- **Card styling is one shared pattern**, not per-component: `TopicCard` and `ProgressStats`
+  both use `colors.paperRaised` background + `colors.line` hairline border + `radius.md` — the
+  same "raised card" language used across the app, not two different conventions.
+- **Amber, not teal, for hotspots.** `colors.amber` was chosen for the pulsing marker to match
+  the web app's `.hotspot.available` styling exactly (audit §J/§F) rather than reusing the
+  primary teal accent, so hotspots read as a distinct "tap target" layer from primary actions
+  (buttons, the domain bar fill) elsewhere on screen.
+- **Time-of-day greeting over a static one.** `buildGreeting()` picks morning/afternoon/evening
+  by the device clock rather than a fixed "Good morning" regardless of when the app is opened —
+  a small, low-cost decision that reads as more considered/production-quality than a hardcoded
+  string, and was easy to make fully unit-testable as a pure function.
+- **`accuracyPct: null` renders as `—`, not `0%`.** A deliberate choice in `ProgressStats` to
+  keep "no attempts yet" visually and semantically distinct from "attempted, and got everything
+  wrong" — the two are different facts and collapsing them to the same `0%` would be misleading
+  once real data exists.
+- **Domain distribution as a bar, not a pie/donut.** A horizontal bar per domain was chosen over
+  a single stacked/pie chart because the task calls the domains out as discrete, comparable
+  quantities ("Domain 1: 56, Domain 2: 56, ..."), and 5 individually-labeled bars read faster at
+  a glance than a 5-slice pie at this screen's size — no chart library was added for this
+  (Phase 13), it's a plain `View` width percentage.
 
 ## Progress placeholders
 
@@ -225,19 +252,65 @@ was already set in M1.
 ## Screenshots
 
 Not available — this environment has no iOS/Android simulator or device to render against (same
-constraint as M1). Recommend a real Expo Go / dev-client run on your end to visually confirm
-hotspot alignment against the real illustration before M4.
+constraint as M1). Confirmed instead: `npx expo export` builds cleanly for both platforms
+(real assets bundled, verified via `--dump-assetmap`), and the real Metro dev server was started
+and its live bundle fetched over HTTP (200 OK, containing the real compiled app code) — the
+project **builds and its bundle loads successfully**; only the visual render is unverified. Full
+writeup, exact local capture commands, and a per-screen shot list live in
+`docs/demo/README.md` and `docs/screenshots/M3/README.md`.
 
-## Things to improve during polish (M11)
+## Known limitations
 
-- Add `@testing-library/react-native` (or similar) for real navigation/interaction integration
-  tests — deferred per the dependency-minimalism note above.
-- The pulsing hotspot animation duration/easing was chosen to visually match the web app's CSS
-  animation by eye, not pixel-measured from it — worth a side-by-side comparison once there's a
-  simulator available.
-- `TopicCard`'s 2-column `width: '48%'` grid is a reasonable phone default but hasn't been tuned
-  for tablet widths (Home screen doesn't currently render more columns on a wider `HomeStack`
-  view) — likely worth a responsive column count once M12's device testing is underway.
-- `SystemScreen`'s domain-distribution bar has no accessible text alternative to the visual bar
-  fill percentage beyond the `{pct}%` label already shown as text (this is fine, just noting it
-  as the thing to re-check once VoiceOver is tested on a real device rather than reasoned about).
+- **No simulator/device in this environment** — see "Screenshots" above; nothing rendered here
+  has been visually confirmed by a human or a screenshot, only by static analysis, unit tests,
+  and a live bundle fetch.
+- **Hotspot color contrast measures below WCAG minimums.** Directly sampling
+  `body_map_diagram.png`'s real pixels at all 8 real hotspot coordinates and computing contrast
+  against the amber (`colors.amber`) marker gives 1.62–2.40:1 at every single one — below the
+  3:1 non-text/UI-component minimum. See `docs/M3_QA_REVIEW.md` finding #1 for the full
+  per-system table.
+- **Two hotspots' touch targets can overlap.** Computed from the real `systems.json`
+  coordinates: GI and Endocrine's 44×44pt touch targets are only 35.8pt apart at iPhone SE width
+  and 41.9pt apart at standard iPhone width — both under the 44pt minimum needed to stay
+  non-overlapping. See `docs/M3_QA_REVIEW.md` finding #7.
+- **Hotspots have no "selected/active" visual state.** A tap navigates away immediately with no
+  visual acknowledgment first; the web app has one (`.hotspot.selected`, using `colors.flag`)
+  that wasn't ported. Surfaced while mapping the screenshot walkthrough's "hotspot highlighted"
+  shot to the actual code — see `docs/screenshots/M3/README.md`.
+- **"Start Practice" drops system context.** It navigates to the generic `QBankTab` stub with no
+  way to indicate which system the user came from, since that screen doesn't accept a filter
+  parameter yet (M1 stub, unchanged in M3). See `docs/M3_QA_REVIEW.md` finding #20.
+- **Lesson body content still doesn't exist.** Re-confirmed in M2, unchanged in M3 — `Lesson`
+  has no `body` field, and `LessonScreen` remains the M1 stub. This blocks a real lesson reader
+  until real long-form content is provided.
+- **All tracked progress is `0`/`null`.** `progressRepository` is an intentional stub (see
+  above) — no attempt/completion data exists until M6.
+- **Onboarding lacks `KeyboardAvoidingView`**, so the keyboard can cover the "Get started" button
+  on small devices while the name field is focused; the keyboard's "done" key also isn't wired
+  to submit. See `docs/M3_QA_REVIEW.md` findings #17–18.
+- 24 further, lower-priority findings (spacing/typography/alignment/animation) are catalogued in
+  full in `docs/M3_QA_REVIEW.md` and not repeated here.
+
+## Recommendations for M4
+
+Per `docs/MOBILE_IMPLEMENTATION_PLAN.md`, M4 is the lesson reader. Before starting it:
+
+1. **Get a product decision on lesson-body content** (again — this has now been flagged in M2
+   and M3). `LessonScreen` can't become a real reader without real long-form lesson prose, which
+   doesn't exist in any provided material. If it's not coming, M4 should be explicitly re-scoped
+   to "real lesson list + completion tracking, linking into practice" rather than a reader, so
+   the milestone isn't blocked indefinitely on content that may never arrive.
+2. **Consider fixing the two computed, evidence-backed defects before adding more UI on top of
+   the Body Map**: the hotspot contrast failure and the GI/Endocrine touch-target overlap (both
+   above) are real usability defects on the app's signature screen, not stylistic nitpicks — cheap
+   to fix now, more disruptive to fix later once more screens depend on the same `Hotspot`
+   component and coordinate data.
+3. **Add a hotspot "selected" state** before recording any real demo video/screenshots — it
+   makes the body map's core interaction legible in a still image or slow walkthrough, not just
+   in live use.
+4. **Decide whether `QBankScreen` should accept a system-filter param now** (a small, additive
+   navigation-types change) so "Start Practice" can stop silently dropping context ahead of M5's
+   real QBank engine, rather than that gap surfacing again as a bigger rework once M5 is
+   underway.
+5. Everything else in `docs/M3_QA_REVIEW.md`'s 26-finding list remains valid and is reasonable
+   to defer to M11 polish, per that document's own prioritization.

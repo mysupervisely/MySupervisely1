@@ -99,12 +99,12 @@ export function SystemScreen({ route, navigation }: Props) {
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Continue lessons for ${system.label}`}
+          accessibilityLabel={`View lessons for ${system.label}`}
           style={[styles.button, styles.secondaryButton, lessons.length === 0 && styles.buttonDisabled]}
           disabled={lessons.length === 0}
           onPress={() => navigation.navigate('Lesson', { systemKey, lessonIndex: 0 })}
         >
-          <Text style={styles.secondaryButtonText}>Continue</Text>
+          <Text style={styles.secondaryButtonText}>View Lessons</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
