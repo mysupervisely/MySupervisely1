@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "PharmDPrepped",
+    "slug": "pharmdprepped-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/brand/logo_mark.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F2F4F3",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F2F4F3",
+        "foregroundImage": "./assets/brand/logo_mark.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/brand/logo_mark.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/logo_mark.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#F2F4F3"
+        }
+      ]
+    ]
+  }
+}
