@@ -1,8 +1,8 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { HomeStackNavigator } from './HomeStackNavigator';
+import { ExamStackNavigator } from './ExamStackNavigator';
 import { QBankScreen } from '../screens/qbank/QBankScreen';
-import { ExamScreen } from '../screens/exam/ExamScreen';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
 import { PricingScreen } from '../screens/pricing/PricingScreen';
 import { colors, fontFamily } from '../theme';
@@ -34,7 +34,7 @@ export function MainTabNavigator() {
     >
       <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: 'Home' }} />
       <Tab.Screen name="QBankTab" component={QBankScreen} options={{ title: 'QBank' }} />
-      <Tab.Screen name="ExamTab" component={ExamScreen} options={{ title: 'Exams' }} />
+      <Tab.Screen name="ExamTab" component={ExamStackNavigator} options={{ title: 'Exams' }} />
       <Tab.Screen
         name="ProgressTab"
         component={ProgressScreen}

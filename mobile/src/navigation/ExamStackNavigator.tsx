@@ -1,0 +1,34 @@
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+import { ExamListScreen } from '../screens/exam/ExamListScreen';
+import { ExamTakingScreen } from '../screens/exam/ExamTakingScreen';
+import { ExamReviewScreen } from '../screens/exam/ExamReviewScreen';
+import { ExamResultsScreen } from '../screens/exam/ExamResultsScreen';
+import { colors, fontFamily } from '../theme';
+import type { ExamStackParamList } from './types';
+
+const Stack = createNativeStackNavigator<ExamStackParamList>();
+
+/**
+ * ExamList -> ExamTaking -> ExamReview -> ExamResults (M6). ExamTaking
+ * manages its own in-screen header (timer, palette button) so it hides
+ * the default native-stack header; the other 3 screens use the same
+ * brand-styled default header as HomeStackNavigator.
+ */
+export function ExamStackNavigator() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.paper },
+        headerTintColor: colors.ink,
+        headerTitleStyle: { fontFamily: fontFamily.displaySemiBold },
+        headerShadowVisible: false,
+      }}
+    >
+      <Stack.Screen name="ExamList" component={ExamListScreen} options={{ title: 'Exams' }} />
+      <Stack.Screen name="ExamTaking" component={ExamTakingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ExamReview" component={ExamReviewScreen} options={{ title: 'Review' }} />
+      <Stack.Screen name="ExamResults" component={ExamResultsScreen} options={{ title: 'Results' }} />
+    </Stack.Navigator>
+  );
+}
