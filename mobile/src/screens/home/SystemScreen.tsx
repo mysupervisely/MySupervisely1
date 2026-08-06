@@ -8,8 +8,9 @@ import { ScreenContainer } from '../../components/ScreenContainer';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { ProgressStats } from '../../components/ProgressStats';
 import { contentRepository } from '../../services/contentRepository';
-import { progressRepository } from '../../services/progressRepository';
+import { useSystemProgress } from '../../hooks/useSystemProgress';
 import { colors, radius, spacing, typeScale } from '../../theme';
+import { domainLabel } from '../../constants/domains';
 import type { HomeStackParamList, MainTabParamList } from '../../navigation/types';
 
 // Composite type: this screen lives inside HomeStack, which itself lives
@@ -20,14 +21,6 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<HomeStackParamList, 'System'>,
   BottomTabScreenProps<MainTabParamList>
 >;
-
-const DOMAIN_LABELS: Record<number, string> = {
-  1: 'Domain 1',
-  2: 'Domain 2',
-  3: 'Domain 3',
-  4: 'Domain 4',
-  5: 'Domain 5',
-};
 
 export function SystemScreen({ route, navigation }: Props) {
   const { systemKey } = route.params;
@@ -42,7 +35,10 @@ export function SystemScreen({ route, navigation }: Props) {
     () => contentRepository.getDomainDistribution(systemKey),
     [systemKey]
   );
-  const progress = useMemo(() => progressRepository.getSystemProgress(systemKey), [systemKey]);
+  // Real, attempt-backed data as of M4 (src/services/progressRepository.ts)
+  // — refreshes on screen focus, so a QBank session's just-recorded
+  // attempts show up immediately on returning here.
+  const progress = useSystemProgress(systemKey);
 
   if (!system) {
     // Defensive only — every systemKey reaching this screen comes from
@@ -83,7 +79,7 @@ export function SystemScreen({ route, navigation }: Props) {
               const pct = Math.round((count / domainTotal) * 100);
               return (
                 <View key={domain} style={styles.domainRow}>
-                  <Text style={styles.domainLabel}>{DOMAIN_LABELS[Number(domain)] ?? `Domain ${domain}`}</Text>
+                  <Text style={styles.domainLabel}>{domainLabel(Number(domain))}</Text>
                   <View style={styles.domainTrack}>
                     <View style={[styles.domainFill, { width: `${pct}%` }]} />
                   </View>
@@ -94,7 +90,7 @@ export function SystemScreen({ route, navigation }: Props) {
         </View>
       ) : null}
 
-      <ProgressStats progress={progress} />
+      {progress ? <ProgressStats progress={progress} /> : null}
 
       <View style={styles.actions}>
         <Pressable

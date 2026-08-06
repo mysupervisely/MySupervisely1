@@ -42,7 +42,10 @@
     "validate:content": "tsx scripts/validate-content.ts"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "setupFiles": [
+      "./jest.setup.js"
+    ]
   },
   "private": true
 }
