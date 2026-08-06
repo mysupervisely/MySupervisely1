@@ -38,13 +38,30 @@ export type ExamStackParamList = {
   ExamTaking: { examNumber: ExamNumber };
   ExamReview: { examNumber: ExamNumber };
   ExamResults: { examNumber: ExamNumber; resultId: string };
+  /** M7.3 — post-exam, read-only question review. `questionIndex` optional, defaults to 0 (the first question). */
+  ExamQuestionReview: { examNumber: ExamNumber; resultId: string; questionIndex?: number };
+};
+
+/**
+ * M7: Progress becomes a nested stack (was a single screen through M6) —
+ * Progress -> StudyRecommendations -> StudySession (M7.5) and
+ * Progress -> ExamHistory (M7.7). `questionIds` travels through
+ * navigation params rather than a store, same as `examNumber` elsewhere —
+ * a plain, serializable string array, nothing React Navigation needs
+ * special handling for.
+ */
+export type ProgressStackParamList = {
+  Progress: undefined;
+  StudyRecommendations: undefined;
+  StudySession: { title: string; questionIds: string[] };
+  ExamHistory: undefined;
 };
 
 export type MainTabParamList = {
   HomeTab: NavigatorScreenParams<HomeStackParamList>;
   QBankTab: undefined;
   ExamTab: NavigatorScreenParams<ExamStackParamList>;
-  ProgressTab: undefined;
+  ProgressTab: NavigatorScreenParams<ProgressStackParamList>;
   PricingTab: undefined;
 };
 

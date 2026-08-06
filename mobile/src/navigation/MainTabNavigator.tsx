@@ -2,8 +2,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { HomeStackNavigator } from './HomeStackNavigator';
 import { ExamStackNavigator } from './ExamStackNavigator';
+import { ProgressStackNavigator } from './ProgressStackNavigator';
 import { QBankScreen } from '../screens/qbank/QBankScreen';
-import { ProgressScreen } from '../screens/progress/ProgressScreen';
 import { PricingScreen } from '../screens/pricing/PricingScreen';
 import { colors, fontFamily } from '../theme';
 import type { MainTabParamList } from './types';
@@ -37,7 +37,7 @@ export function MainTabNavigator() {
       <Tab.Screen name="ExamTab" component={ExamStackNavigator} options={{ title: 'Exams' }} />
       <Tab.Screen
         name="ProgressTab"
-        component={ProgressScreen}
+        component={ProgressStackNavigator}
         options={{ title: 'Progress' }}
       />
       <Tab.Screen name="PricingTab" component={PricingScreen} options={{ title: 'Pricing' }} />

@@ -37,6 +37,10 @@ export type SystemStat = {
 export type DomainStat = {
   domain: QuestionDomain;
   questionsAnswered: number;
+  /** M7 addition — raw correct count, alongside the pre-existing rounded accuracyPct, so
+   * weaknessDetectionService.ts can combine this with exam domain performance (which is
+   * already raw counts, not just a percentage) without reverse-engineering one from the other. */
+  correctCount: number;
   accuracyPct: number | null;
 };
 
@@ -180,6 +184,7 @@ export function computeDomainStats(attempts: Attempt[]): DomainStat[] {
     return {
       domain,
       questionsAnswered: latest.length,
+      correctCount: latest.filter((a) => a.isCorrect).length,
       accuracyPct: accuracyOf(latest),
     };
   });

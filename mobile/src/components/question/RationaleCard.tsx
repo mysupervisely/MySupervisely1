@@ -6,19 +6,34 @@ import type { Question } from '../../models';
 type RationaleCardProps = {
   question: Question;
   isCorrect: boolean;
+  /**
+   * M7.3 addition — when explicitly false, renders a neutral "Not
+   * Answered" banner instead of Correct/Incorrect (post-exam review of a
+   * question the student skipped, where `isCorrect` would otherwise
+   * misleadingly read as "you got this wrong"). Defaults to true, so
+   * every pre-M7 call site (QBank, live exam question feedback) is
+   * unaffected without passing anything new.
+   */
+  isAnswered?: boolean;
 };
 
-/** Shown after submission: correct/incorrect banner, restated correct answer(s), and the real rationale text. */
-export function RationaleCard({ question, isCorrect }: RationaleCardProps) {
+/** Shown after submission: correct/incorrect (or not-answered) banner, restated correct answer(s), and the real rationale text. */
+export function RationaleCard({ question, isCorrect, isAnswered = true }: RationaleCardProps) {
+  const bannerText = !isAnswered ? 'Not Answered' : isCorrect ? 'Correct' : 'Incorrect';
+  const containerStyle = !isAnswered
+    ? styles.containerNeutral
+    : isCorrect
+      ? styles.containerCorrect
+      : styles.containerIncorrect;
+  const bannerStyle = !isAnswered ? styles.bannerNeutral : isCorrect ? styles.bannerCorrect : styles.bannerIncorrect;
+
   return (
     <View
-      style={[styles.container, isCorrect ? styles.containerCorrect : styles.containerIncorrect]}
+      style={[styles.container, containerStyle]}
       accessible
-      accessibilityLabel={`${isCorrect ? 'Correct.' : 'Incorrect.'} ${correctAnswerSummary(question)} ${question.rationale}`}
+      accessibilityLabel={`${bannerText}. ${correctAnswerSummary(question)} ${question.rationale}`}
     >
-      <Text style={[styles.banner, isCorrect ? styles.bannerCorrect : styles.bannerIncorrect]}>
-        {isCorrect ? 'Correct' : 'Incorrect'}
-      </Text>
+      <Text style={[styles.banner, bannerStyle]}>{bannerText}</Text>
       <Text style={styles.answerLine}>{correctAnswerSummary(question)}</Text>
       <Text style={styles.rationale}>{question.rationale}</Text>
     </View>
@@ -55,6 +70,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(174, 59, 69, 0.08)',
     borderColor: colors.flag,
   },
+  containerNeutral: {
+    backgroundColor: colors.paperRaised,
+    borderColor: colors.line,
+  },
   banner: {
     ...typeScale.h3,
   },
@@ -63,6 +82,9 @@ const styles = StyleSheet.create({
   },
   bannerIncorrect: {
     color: colors.flag,
+  },
+  bannerNeutral: {
+    color: colors.inkSoft,
   },
   answerLine: {
     ...typeScale.bodyMedium,

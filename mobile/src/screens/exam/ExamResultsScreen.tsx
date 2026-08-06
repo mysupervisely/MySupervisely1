@@ -6,6 +6,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { useExamResult } from '../../hooks/useExamResult';
 import { contentRepository } from '../../services/contentRepository';
 import { domainLabel } from '../../constants/domains';
+import { formatDuration } from '../../utils/formatDuration';
 import { colors, radius, spacing, typeScale } from '../../theme';
 import type { DomainBreakdown, SystemBreakdown } from '../../models/examResult';
 import type { ExamStackParamList } from '../../navigation/types';
@@ -58,7 +59,35 @@ export function ExamResultsScreen({ route, navigation }: Props) {
         <ScoreTile label="Accuracy" value={`${result.accuracyPct}%`} sub={`of ${result.answeredCount} answered`} />
       </View>
 
+      <View style={styles.scoreRow}>
+        <ScoreTile label="Time Used" value={formatDuration(result.totalTimeSpentSeconds)} sub="total exam time" />
+        <ScoreTile
+          label="Avg / Question"
+          value={formatDuration(result.averageTimePerQuestionSeconds)}
+          sub={`over ${result.totalQuestions} questions`}
+        />
+      </View>
+
       <Text style={styles.sectionTitle} accessibilityRole="header">
+        Question Breakdown
+      </Text>
+      <View style={styles.breakdownGrid}>
+        <BreakdownTile label="Correct" value={result.correctCount} color={colors.teal} />
+        <BreakdownTile label="Incorrect" value={result.incorrectCount} color={colors.flag} />
+        <BreakdownTile label="Unanswered" value={result.unansweredCount} color={colors.inkSoft} />
+        <BreakdownTile label="Flagged" value={result.flaggedQuestionIds.length} color={colors.amber} />
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Review every question"
+        style={styles.reviewButton}
+        onPress={() => navigation.navigate('ExamQuestionReview', { examNumber, resultId: result.id, questionIndex: 0 })}
+      >
+        <Text style={styles.reviewButtonText}>Review Questions</Text>
+      </Pressable>
+
+      <Text style={[styles.sectionTitle, styles.laterSection]} accessibilityRole="header">
         Domain Breakdown
       </Text>
       <View style={styles.breakdownCard}>
@@ -120,20 +149,38 @@ function ScoreTile({ label, value, sub }: { label: string; value: string; sub: s
   );
 }
 
+function BreakdownTile({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <View style={styles.breakdownTile}>
+      <Text style={[styles.breakdownTileValue, { color }]}>{value}</Text>
+      <Text style={styles.breakdownTileLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function BreakdownRow({ label, breakdown }: { label: string; breakdown: DomainBreakdown | SystemBreakdown }) {
   const pct = breakdown.accuracyPct ?? 0;
   return (
-    <View style={styles.breakdownRow}>
-      <Text style={styles.breakdownLabel} numberOfLines={1}>
-        {label}
-      </Text>
-      <View style={styles.breakdownTrack}>
-        <View style={[styles.breakdownFill, { width: `${pct}%` }]} />
+    <View
+      style={styles.breakdownRow}
+      accessible
+      accessibilityLabel={`${label}: ${breakdown.answered} questions attempted, ${breakdown.correct} correct, ${
+        breakdown.accuracyPct === null ? 'no accuracy yet' : `${breakdown.accuracyPct}% accuracy`
+      }`}
+    >
+      <View style={styles.breakdownMain}>
+        <Text style={styles.breakdownLabel} numberOfLines={1}>
+          {label}
+        </Text>
+        <View style={styles.breakdownTrack}>
+          <View style={[styles.breakdownFill, { width: `${pct}%` }]} />
+        </View>
+        <Text style={styles.breakdownPct}>{breakdown.accuracyPct === null ? '—' : `${breakdown.accuracyPct}%`}</Text>
       </View>
-      <Text style={styles.breakdownCount}>
-        {breakdown.correct}/{breakdown.total}
+      {/* "questions attempted / correct" — the M7.2 example format ("Cardiology / 18 questions / 15 correct / 83%"), split across two lines since the label already owns the top row. */}
+      <Text style={styles.breakdownCaption}>
+        {breakdown.answered} question{breakdown.answered === 1 ? '' : 's'} attempted / {breakdown.correct} correct
       </Text>
-      <Text style={styles.breakdownPct}>{breakdown.accuracyPct === null ? '—' : `${breakdown.accuracyPct}%`}</Text>
     </View>
   );
 }
@@ -186,6 +233,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   breakdownRow: {
+    gap: spacing.xs / 2,
+  },
+  breakdownMain: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -207,11 +257,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.teal,
     borderRadius: radius.pill,
   },
-  breakdownCount: {
-    ...typeScale.monoLabel,
+  breakdownCaption: {
+    ...typeScale.caption,
     color: colors.inkSoft,
-    width: 40,
-    textAlign: 'right',
+    marginLeft: 96 + spacing.sm,
   },
   breakdownPct: {
     ...typeScale.monoLabel,
@@ -222,6 +271,42 @@ const styles = StyleSheet.create({
   summaryText: {
     ...typeScale.body,
     color: colors.inkSoft,
+  },
+  breakdownGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  breakdownTile: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: colors.paperRaised,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    padding: spacing.md,
+    gap: spacing.xs / 2,
+  },
+  breakdownTileValue: {
+    ...typeScale.display,
+  },
+  breakdownTileLabel: {
+    ...typeScale.bodyMedium,
+    color: colors.ink,
+  },
+  reviewButton: {
+    marginBottom: spacing.xl,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.teal,
+  },
+  reviewButtonText: {
+    ...typeScale.h3,
+    color: colors.teal,
   },
   backButton: {
     marginTop: spacing.xl,

@@ -167,6 +167,14 @@ export type PaletteEntry = {
   isAnswered: boolean;
   isFlagged: boolean;
   isCurrent: boolean;
+  /**
+   * M7 addition — undefined during a live exam (no correctness feedback
+   * pre-submission, per M6/M7's "no correctness feedback during exam"
+   * rule; getPaletteEntries below never sets it). Only ever set by
+   * examResultService.ts's getReviewPaletteEntries, for the post-exam
+   * review palette (M7.3), where correctness is real and permanent.
+   */
+  isIncorrect?: boolean;
 };
 
 /** Palette state for all 225 questions — answered/flagged/current are independent, not mutually exclusive. */

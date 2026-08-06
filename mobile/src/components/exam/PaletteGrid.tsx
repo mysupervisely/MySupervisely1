@@ -26,6 +26,8 @@ const CELL_SIZE = 56;
  * through `headerContent`, not a wrapping container.
  */
 export function PaletteGrid({ entries, onSelect, showLegend = true, headerContent }: PaletteGridProps) {
+  const hasIncorrectEntries = entries.some((entry) => entry.isIncorrect);
+
   return (
     <FlatList
       data={entries}
@@ -39,6 +41,7 @@ export function PaletteGrid({ entries, onSelect, showLegend = true, headerConten
             <View style={styles.legend}>
               <LegendItem swatchStyle={styles.swatchUnanswered} label="Unanswered" />
               <LegendItem swatchStyle={styles.swatchAnswered} label="Answered" />
+              {hasIncorrectEntries ? <LegendItem swatchStyle={styles.swatchIncorrect} label="Incorrect" /> : null}
               <LegendItem swatchStyle={styles.swatchFlagged} label="Flagged" />
               <LegendItem swatchStyle={styles.swatchCurrent} label="Current" />
             </View>
@@ -50,11 +53,12 @@ export function PaletteGrid({ entries, onSelect, showLegend = true, headerConten
           accessibilityRole="button"
           accessibilityLabel={`Question ${item.index + 1}${item.isCurrent ? ', current' : ''}${
             item.isAnswered ? ', answered' : ', unanswered'
-          }${item.isFlagged ? ', flagged for review' : ''}`}
+          }${item.isIncorrect ? ', incorrect' : ''}${item.isFlagged ? ', flagged for review' : ''}`}
           onPress={() => onSelect(item.index)}
           style={[
             styles.cell,
             item.isAnswered ? styles.cellAnswered : styles.cellUnanswered,
+            item.isIncorrect && styles.cellIncorrect,
             item.isFlagged && styles.cellFlagged,
             item.isCurrent && styles.cellCurrent,
           ]}
@@ -103,6 +107,9 @@ const styles = StyleSheet.create({
   swatchAnswered: {
     backgroundColor: colors.teal,
   },
+  swatchIncorrect: {
+    backgroundColor: colors.flag,
+  },
   swatchFlagged: {
     backgroundColor: colors.paperRaised,
     borderWidth: 2,
@@ -140,6 +147,10 @@ const styles = StyleSheet.create({
   cellAnswered: {
     backgroundColor: colors.teal,
     borderColor: colors.teal,
+  },
+  cellIncorrect: {
+    backgroundColor: colors.flag,
+    borderColor: colors.flag,
   },
   cellFlagged: {
     borderWidth: 2,

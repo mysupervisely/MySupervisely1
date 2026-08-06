@@ -7,9 +7,12 @@ import {
   computeSystemStats,
   getRecentActivity,
 } from '../services/progressAnalyticsService';
+import { computeReadinessScore } from '../services/readinessScoreService';
 import { contentRepository } from '../services/contentRepository';
 import { attemptsStorage } from '../storage/attemptsStorage';
+import { examResultsStorage } from '../storage/examResultsStorage';
 import type { Attempt } from '../models/attempt';
+import type { ExamResult } from '../models/examResult';
 
 const RECENT_ACTIVITY_LIMIT = 20;
 
@@ -24,13 +27,18 @@ const RECENT_ACTIVITY_LIMIT = 20;
  */
 export function useProgressDashboard() {
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
+  const [examResults, setExamResults] = useState<ExamResult[] | null>(null);
   const systems = useMemo(() => contentRepository.getAllSystems(), []);
 
   const load = useCallback(() => {
     let cancelled = false;
-    attemptsStorage.getAllAttempts().then((result) => {
-      if (!cancelled) setAttempts(result);
-    });
+    Promise.all([attemptsStorage.getAllAttempts(), examResultsStorage.getAllResults()]).then(
+      ([loadedAttempts, loadedResults]) => {
+        if (cancelled) return;
+        setAttempts(loadedAttempts);
+        setExamResults(loadedResults);
+      }
+    );
     return () => {
       cancelled = true;
     };
@@ -54,12 +62,19 @@ export function useProgressDashboard() {
     () => (attempts ? getRecentActivity(attempts, RECENT_ACTIVITY_LIMIT) : null),
     [attempts]
   );
+  // M7.6 — "PharmDPrepped Readiness Score," computed alongside the rest of the dashboard's
+  // stats from the same already-loaded attempts + exam results (see readinessScoreService.ts).
+  const readiness = useMemo(
+    () => (attempts && examResults ? computeReadinessScore(attempts, examResults) : null),
+    [attempts, examResults]
+  );
 
   return {
-    isLoading: attempts === null,
+    isLoading: attempts === null || examResults === null,
     overallStats,
     systemStats,
     domainStats,
     recentActivity,
+    readiness,
   };
 }

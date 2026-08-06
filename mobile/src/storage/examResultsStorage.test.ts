@@ -9,12 +9,17 @@ function makeResult(overrides: Partial<ExamResult> = {}): ExamResult {
     totalQuestions: 225,
     answeredCount: 200,
     correctCount: 150,
+    incorrectCount: 50,
+    unansweredCount: 25,
     accuracyPct: 75,
     scorePct: 67,
+    totalTimeSpentSeconds: 14400,
+    averageTimePerQuestionSeconds: 64,
     domainBreakdown: [],
     systemBreakdown: [],
     flaggedQuestionIds: [],
     incorrectQuestionIds: [],
+    questionAnswers: [],
     ...overrides,
   };
 }
