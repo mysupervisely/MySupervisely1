@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, radius, spacing, typeScale } from '../../theme';
+import { colors, radius, spacing, typeScale } from '../theme';
 
 type SelectChipProps = {
   label: string;
@@ -8,7 +8,11 @@ type SelectChipProps = {
   onPress: () => void;
 };
 
-/** A single selectable pill — used for the Domain and Difficulty pickers in AIQuestionSetupScreen. */
+/**
+ * A single selectable pill. Originally built for AIQuestionSetupScreen's
+ * Domain/Difficulty pickers (M8); reused as-is by M9's paywall duration
+ * picker — generic enough that no per-screen variant was needed.
+ */
 export function SelectChip({ label, selected, onPress }: SelectChipProps) {
   return (
     <Pressable

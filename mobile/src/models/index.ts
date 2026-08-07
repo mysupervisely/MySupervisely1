@@ -13,3 +13,4 @@ export type { Exam, ExamNumber } from './exam';
 export type { Attempt, AttemptAnswer } from './attempt';
 export type { ExamResult, DomainBreakdown, SystemBreakdown } from './examResult';
 export type { StudentAnalyticsSnapshot } from './studentAnalyticsSnapshot';
+export type { AccessPlan, AccessRecord, AccessState } from './access';

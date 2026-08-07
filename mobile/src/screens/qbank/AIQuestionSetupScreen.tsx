@@ -4,7 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { SelectChip } from '../../components/ai/SelectChip';
+import { SelectChip } from '../../components/SelectChip';
 import { AIGenerationErrorNotice } from '../../components/ai/AIGenerationErrorNotice';
 import { useAIQuestionGeneration } from '../../hooks/useAIQuestionGeneration';
 import { contentRepository } from '../../services/contentRepository';

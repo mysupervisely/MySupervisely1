@@ -1,14 +1,20 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { useExamListStatuses } from '../../hooks/useExamListStatuses';
+import { useAccessState } from '../../hooks/useAccessState';
 import { examSessionStorage } from '../../storage/examSessionStorage';
 import { colors, radius, spacing, typeScale } from '../../theme';
-import type { ExamStackParamList } from '../../navigation/types';
+import type { ExamStackParamList, MainTabParamList } from '../../navigation/types';
 
-type Props = NativeStackScreenProps<ExamStackParamList, 'ExamList'>;
+// Composite type: ExamList lives inside its own stack, but a gated
+// Start/Resume/Retake needs to jump to a sibling tab (PricingTab) — same
+// cross-tab pattern SystemScreen.tsx/QBankScreen.tsx already use.
+type Props = CompositeScreenProps<NativeStackScreenProps<ExamStackParamList, 'ExamList'>, BottomTabScreenProps<MainTabParamList>>;
 
 const STATUS_LABEL: Record<string, string> = {
   not_started: 'Not started',
@@ -16,15 +22,40 @@ const STATUS_LABEL: Record<string, string> = {
   completed: 'Completed',
 };
 
-/** The exam hub — the 3 real fixed exams, each showing real status from local storage. */
+/**
+ * The exam hub — the 3 real fixed exams, each showing real status from
+ * local storage. This list itself stays fully browsable (M9's "browse"
+ * allowance — a student can see all 3 exams and their status without
+ * being entitled); only actually starting/resuming/retaking an exam is
+ * gated behind `'qbank'` access (exams ship with QBank access, not
+ * Course — docs/MOBILE_PAYMENT_ARCHITECTURE.md §4/§9). Viewing results
+ * of an already-completed exam stays ungated — reviewing something
+ * already earned isn't new premium content.
+ */
 export function ExamListScreen({ navigation }: Props) {
   const items = useExamListStatuses();
+  const access = useAccessState();
+
+  const requireAccess = (): boolean => {
+    if (access.hasAccess('qbank')) return true;
+    Alert.alert(
+      'QBank Access Required',
+      'Full-length exams are included with QBank access. Unlock access to start or resume an exam.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'View Pricing', onPress: () => navigation.navigate('PricingTab') },
+      ]
+    );
+    return false;
+  };
 
   const startOrResume = (examNumber: 1 | 2 | 3) => {
+    if (!requireAccess()) return;
     navigation.navigate('ExamTaking', { examNumber });
   };
 
   const retake = async (examNumber: 1 | 2 | 3) => {
+    if (!requireAccess()) return;
     await examSessionStorage.clear(examNumber);
     navigation.navigate('ExamTaking', { examNumber });
   };
