@@ -57,9 +57,31 @@ export type ProgressStackParamList = {
   ExamHistory: undefined;
 };
 
+/**
+ * M8: QBank becomes a nested stack (was a single flat tab screen through
+ * M7) — QBank -> AIQuestionSetup -> AIQuestionSession, the AI-generated-
+ * practice entry point living inside QBank rather than its own tab (per
+ * docs/MOBILE_MIGRATION_AUDIT.md / MainTabNavigator.tsx's existing
+ * comment: "AI-generated practice doesn't get its own tab... it's an
+ * entry point reached from within QBank/Home, not a standalone
+ * destination").
+ */
+export type QBankStackParamList = {
+  QBank: undefined;
+  AIQuestionSetup: undefined;
+  /**
+   * No params: `navigation.push` (not `navigate`) is used to get here so
+   * a fresh generation always mounts a new screen instance with the
+   * current cache — see useAIQuestionSession.ts. The engine orders
+   * cached questions newest-first, so the just-generated one is always
+   * what shows first; there's no separate "which question" param needed.
+   */
+  AIQuestionSession: undefined;
+};
+
 export type MainTabParamList = {
   HomeTab: NavigatorScreenParams<HomeStackParamList>;
-  QBankTab: undefined;
+  QBankTab: NavigatorScreenParams<QBankStackParamList>;
   ExamTab: NavigatorScreenParams<ExamStackParamList>;
   ProgressTab: NavigatorScreenParams<ProgressStackParamList>;
   PricingTab: undefined;

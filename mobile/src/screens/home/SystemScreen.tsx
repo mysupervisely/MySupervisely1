@@ -107,7 +107,7 @@ export function SystemScreen({ route, navigation }: Props) {
           accessibilityLabel={`Start practice questions for ${system.label}`}
           style={[styles.button, styles.primaryButton, questionCount === 0 && styles.buttonDisabled]}
           disabled={questionCount === 0}
-          onPress={() => navigation.navigate('QBankTab')}
+          onPress={() => navigation.navigate('QBankTab', { screen: 'QBank' })}
         >
           <Text style={styles.primaryButtonText}>Start Practice</Text>
         </Pressable>

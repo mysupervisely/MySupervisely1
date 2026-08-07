@@ -211,5 +211,9 @@ function questionLabelFor(
 ): string {
   if (!question) return attempt.questionId; // defensive — content is validated at import time (M2), shouldn't happen
   if (question.source.kind === 'qbank') return `QBank Q${question.source.index + 1}`;
+  // M8: AI-generated questions aren't registered in contentRepository's indices at all (they're
+  // never committed content — see aiQuestionCacheStorage.ts), so getQuestionById can never
+  // actually return one here in practice; handled explicitly anyway rather than assumed away.
+  if (question.source.kind === 'ai') return 'AI Practice Question';
   return `Exam ${question.source.examNumber} Q${question.source.slot + 1}`;
 }

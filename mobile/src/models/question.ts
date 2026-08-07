@@ -21,7 +21,9 @@ export type QuestionDomain = 1 | 2 | 3 | 4 | 5;
 /** Where a question came from — kept for debugging/traceability, not shown to users. */
 export type QuestionSource =
   | { kind: 'qbank'; index: number }
-  | { kind: 'exam'; examNumber: 1 | 2 | 3; slot: number };
+  | { kind: 'exam'; examNumber: 1 | 2 | 3; slot: number }
+  /** M8 addition — AI-generated via generate-question.mts, never committed content (no index/slot to speak of). `generatedAt` is an ISO timestamp, for the same debugging/traceability purpose as the other two variants. */
+  | { kind: 'ai'; generatedAt: string };
 
 type QuestionBase = {
   id: string;
