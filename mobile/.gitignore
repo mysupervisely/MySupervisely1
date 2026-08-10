@@ -30,8 +30,17 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files — the named per-environment files below ARE committed on
+# purpose (EXPO_PUBLIC_* values are inlined into the client bundle regardless
+# of where they're stored, so there's no secret in them — see
+# docs/M10_IMPLEMENTATION_NOTES.md "Environment configuration"); the
+# repo-root .gitignore's broader `.env.*` rule would otherwise also catch
+# these, so they're explicitly un-ignored here, same pattern as that file's
+# own `!.env.example` exception.
 .env*.local
+!.env.development
+!.env.preview
+!.env.production
 
 # typescript
 *.tsbuildinfo

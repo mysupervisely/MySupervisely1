@@ -32,7 +32,8 @@ type Props = CompositeScreenProps<
  * Score card and links into Recommended Study and Exam History.
  */
 export function ProgressScreen({ navigation }: Props) {
-  const { isLoading, overallStats, systemStats, domainStats, recentActivity, readiness } = useProgressDashboard();
+  const { isLoading, overallStats, systemStats, domainStats, recentActivity, readiness, hasActivity } =
+    useProgressDashboard();
   const now = useMemo(() => new Date(), []);
 
   const openSystem = (systemKey: string) => {
@@ -80,7 +81,7 @@ export function ProgressScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.readinessSection}>
-        <ReadinessScoreCard readiness={readiness} />
+        <ReadinessScoreCard readiness={readiness} hasActivity={hasActivity} />
       </View>
 
       <View style={styles.linkRow}>

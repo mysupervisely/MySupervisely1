@@ -68,6 +68,10 @@ export function useProgressDashboard() {
     () => (attempts && examResults ? computeReadinessScore(attempts, examResults) : null),
     [attempts, examResults]
   );
+  // M10 polish: a brand-new student's readiness score is 0 for the same reason a real 0% score
+  // would be — the component scores can't tell those two cases apart on their own. This flag lets
+  // ReadinessScoreCard show "not enough data yet" instead of a stark, possibly-discouraging 0.
+  const hasActivity = (attempts?.length ?? 0) > 0 || (examResults?.length ?? 0) > 0;
 
   return {
     isLoading: attempts === null || examResults === null,
@@ -76,5 +80,6 @@ export function useProgressDashboard() {
     domainStats,
     recentActivity,
     readiness,
+    hasActivity,
   };
 }

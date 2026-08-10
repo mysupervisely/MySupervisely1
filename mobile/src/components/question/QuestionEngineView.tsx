@@ -105,7 +105,7 @@ export function QuestionEngineView({ engine }: QuestionEngineViewProps) {
             onPress={engine.next}
             style={[styles.button, styles.primaryButton, !canGoNext && styles.buttonDisabled]}
           >
-            <Text style={styles.primaryButtonText}>{canGoNext ? 'Next Question' : 'End of QBank'}</Text>
+            <Text style={styles.primaryButtonText}>Next Question</Text>
           </Pressable>
         ) : (
           <Pressable

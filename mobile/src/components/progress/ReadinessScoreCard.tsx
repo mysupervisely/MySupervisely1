@@ -5,6 +5,8 @@ import type { ReadinessResult } from '../../services/readinessScoreService';
 
 type ReadinessScoreCardProps = {
   readiness: ReadinessResult;
+  /** M10 — false for a brand-new student with zero attempts/exams, so the card can explain a 0 rather than let it read as a discouraging real score. */
+  hasActivity: boolean;
 };
 
 const TREND_TEXT: Record<ReadinessResult['trend'], string> = {
@@ -18,8 +20,26 @@ const TREND_TEXT: Record<ReadinessResult['trend'], string> = {
  * M7.6 — always labeled "PharmDPrepped Readiness Score," never framed as
  * a NAPLEX pass/fail prediction (see readinessScoreService.ts's own
  * doc comment and docs/M7_IMPLEMENTATION_NOTES.md).
+ *
+ * M10 (zero-data state): with no attempts and no exams, every component
+ * score is 0 — indistinguishable, by the numbers alone, from a real,
+ * badly-performing score. `hasActivity` (computed by the caller directly
+ * from the raw attempt/exam counts, not guessed from the score) lets this
+ * card say "not enough data yet" instead of presenting a bare 0 as if it
+ * were a real result.
  */
-export function ReadinessScoreCard({ readiness }: ReadinessScoreCardProps) {
+export function ReadinessScoreCard({ readiness, hasActivity }: ReadinessScoreCardProps) {
+  if (!hasActivity) {
+    return (
+      <View style={styles.card} accessible accessibilityLabel="PharmDPrepped Readiness Score: not enough data yet">
+        <Text style={styles.title}>PharmDPrepped Readiness Score</Text>
+        <Text style={styles.emptyText}>
+          Answer some QBank questions or complete a practice exam to see your Readiness Score.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View
       style={styles.card}
@@ -78,6 +98,10 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typeScale.caption,
+    color: colors.inkSoft,
+  },
+  emptyText: {
+    ...typeScale.body,
     color: colors.inkSoft,
   },
   score: {

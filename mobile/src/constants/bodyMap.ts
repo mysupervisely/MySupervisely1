@@ -60,6 +60,9 @@ export const BODY_MAP_ANATOMICAL_SYSTEM_KEYS = [
 
 export type BodyMapAnatomicalSystemKey = (typeof BODY_MAP_ANATOMICAL_SYSTEM_KEYS)[number];
 
+/** Touch targets must be >= 44pt (accessibility requirement) even though the visible hotspot dot is much smaller. Shared by Hotspot.tsx (touch area sizing) and separateOverlappingTouchTargets below (the minimum distance two targets must clear). */
+export const MIN_HOTSPOT_TOUCH_TARGET = 44;
+
 /**
  * Scales a viewBox-space coordinate (as authored in systems.json, 0-300 /
  * 0-640) to a pixel position within a container that is rendering the body
@@ -76,4 +79,54 @@ export function scaleBodyMapPoint(
   const scaleX = containerSize.width / BODY_MAP_VIEWBOX.width;
   const scaleY = containerSize.height / BODY_MAP_VIEWBOX.height;
   return { x: point.x * scaleX, y: point.y * scaleY };
+}
+
+/**
+ * M10 polish — docs/M3_QA_REVIEW.md #7: at real phone widths (320-375pt),
+ * the GI and Endocrine hotspots' 44x44pt touch targets are close enough
+ * together (center distance 35.8-41.9pt, computed from the real
+ * `systems.json` coordinates) to genuinely overlap, so a tap aimed at one
+ * can register on the other. "Do not change the underlying coordinate
+ * system unless necessary" (M10) — so this doesn't touch `systems.json`
+ * or `scaleBodyMapPoint`. Instead, given the already-scaled on-screen
+ * positions, it nudges any pair of points closer together than
+ * `minDistance` apart along the line connecting them (splitting the
+ * deficit evenly) until they clear it — a few points of movement, only
+ * engaging at the narrow width range where it's actually needed (above
+ * ~414pt the real coordinates already clear 44pt on their own and this
+ * is a no-op), and generic rather than a hardcoded "gi vs endocrine"
+ * special case (so it stays correct if content coordinates ever change).
+ */
+export function separateOverlappingTouchTargets<T extends { x: number; y: number }>(
+  points: T[],
+  minDistance: number
+): T[] {
+  const result = points.map((p) => ({ ...p }));
+
+  for (let i = 0; i < result.length; i++) {
+    for (let j = i + 1; j < result.length; j++) {
+      const a = result[i];
+      const b = result[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      // Exactly-coincident points (distance 0) aren't real content today and
+      // have no well-defined separation direction — leave them as-is rather
+      // than dividing by zero.
+      if (distance === 0 || distance >= minDistance) continue;
+
+      const deficit = minDistance - distance;
+      const unitX = dx / distance;
+      const unitY = dy / distance;
+      const push = deficit / 2;
+
+      a.x -= unitX * push;
+      a.y -= unitY * push;
+      b.x += unitX * push;
+      b.y += unitY * push;
+    }
+  }
+
+  return result;
 }

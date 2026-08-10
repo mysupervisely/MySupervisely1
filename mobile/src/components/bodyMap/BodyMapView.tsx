@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { Hotspot } from './Hotspot';
-import { BODY_MAP_ASPECT_RATIO, scaleBodyMapPoint } from '../../constants/bodyMap';
+import { BODY_MAP_ASPECT_RATIO, MIN_HOTSPOT_TOUCH_TARGET, scaleBodyMapPoint, separateOverlappingTouchTargets } from '../../constants/bodyMap';
 import type { System } from '../../models';
 
 type BodyMapViewProps = {
@@ -33,9 +33,12 @@ export function BodyMapView({ systems, onSelectSystem }: BodyMapViewProps) {
 
   // Recomputed only when the system list or the measured width changes —
   // not on every render (e.g. not when a sibling's greeting re-fetches).
+  // M10 (docs/M3_QA_REVIEW.md #7): touch targets are separated to clear
+  // MIN_HOTSPOT_TOUCH_TARGET after scaling — a no-op everywhere except the
+  // GI/Endocrine pair at narrow phone widths, see separateOverlappingTouchTargets's doc comment.
   const hotspots = useMemo(() => {
     if (containerWidth === 0) return [];
-    return systems
+    const scaled = systems
       .filter((s) => typeof s.x === 'number' && typeof s.y === 'number')
       .map((s) => {
         const { x, y } = scaleBodyMapPoint(
@@ -44,6 +47,7 @@ export function BodyMapView({ systems, onSelectSystem }: BodyMapViewProps) {
         );
         return { systemKey: s.key, label: s.label, x, y };
       });
+    return separateOverlappingTouchTargets(scaled, MIN_HOTSPOT_TOUCH_TARGET);
   }, [systems, containerWidth, containerHeight]);
 
   return (
