@@ -1134,6 +1134,20 @@ helper was changed to build it.
   (`pnpm db:seed` is the reset mechanism); no public URL (local-only by
   explicit instruction for this milestone).
 
+## Remote demo deployment (M6.1 — readiness preparation only)
+
+M6.1 investigated putting Demo Mode on a public HTTPS URL so it can be
+shown from a laptop or phone, without touching the core clinical
+architecture. **Nothing has been deployed** — this was an explicit
+"produce a readiness report and stop" milestone; a paid hosting account,
+domain, or deploy requires separate approval.
+
+Two deployment artifacts were added: `apps/api/Dockerfile` and
+`.dockerignore`. Everything else — the recommended architecture (Vercel +
+Render + Neon), the full public/server-only environment variable split,
+the database and demo-reset procedure, and the security review — is
+documented in **[`docs/doseprepped/DEPLOYMENT.md`](../docs/doseprepped/DEPLOYMENT.md)**.
+
 ## Security notes for this milestone
 
 - No real patient data anywhere in this repo or its seed data — synthetic
@@ -1223,6 +1237,12 @@ helper was changed to build it.
   or can reuse it. The two seeded "canned" scenarios are never mutated
   by any Demo Mode code path; the one live action always creates a new,
   disposable record.
+- **M6.1 additions:** none to the running application — this pass added
+  only a Dockerfile and deployment documentation (see
+  `docs/doseprepped/DEPLOYMENT.md`). Confirmed by scanning the actual
+  built client bundle: no `DATABASE_URL`, session secret, `ANTHROPIC_API_KEY`,
+  or demo password anywhere in `apps/patient/.next/static/`. Nothing has
+  been deployed; no new infrastructure exists yet.
 - Not implemented yet, and out of scope for this milestone: audit logging,
   account lockout after repeated failures, password reset, email
   verification, multi-factor auth, account deletion, and consent tracking.

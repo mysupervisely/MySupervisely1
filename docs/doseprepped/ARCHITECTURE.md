@@ -4150,6 +4150,52 @@ records described in §2. No existing seed data was modified.
 
 ---
 
+## M6.1 — Remote Demo Deployment Preparation (readiness only — not deployed)
+
+M6.1 was a deployment-*readiness* pass, run under an explicit stop
+condition: investigate and prepare, produce a report, and stop before
+any account is created, any domain purchased, or anything actually
+deployed. Nothing in this repository's runtime behavior changed.
+
+**What was added:** `apps/api/Dockerfile` (builds and runs the Fastify
+API from the pnpm workspace; documented and validated in
+`docs/doseprepped/DEPLOYMENT.md` §10) and `.dockerignore`. Both are
+inert until someone points a hosting platform at them — neither is
+referenced by any existing build/test/dev command, so `pnpm build`,
+`pnpm test`, `pnpm dev`, etc. are all unaffected.
+
+**Recommended architecture** (not provisioned): Next.js patient app on
+Vercel, the Fastify API on Render (via the new Dockerfile), and a
+dedicated demo-only PostgreSQL database on Neon — isolated from the
+`doseprepped_dev` database this repository's tests and local dev already
+use, and from any future production database. Full reasoning, cost
+estimate, environment-variable split (public vs. server-only secrets),
+and the demo-reset procedure are in `docs/doseprepped/DEPLOYMENT.md`.
+
+**Key finding, verified rather than assumed:** M6.0's Demo Mode
+authentication design (see §1 above) already works correctly across two
+unrelated hosting domains, because it never sets a cookie on the
+visitor's browser in the first place — every Demo Mode read/write is a
+Next.js-server-to-Fastify-API call. This was re-confirmed directly
+against the running API in this pass (cross-org authorization checks,
+RBAC boundary checks), not just reasoned about from the M6.0 design.
+The stop condition that would have required halting this milestone — "if
+automatic demo authentication cannot safely work with the selected
+hosting architecture, stop and explain the issue" — did not trigger.
+
+**Also confirmed in this pass:** the actual built client bundle
+(`apps/patient/.next/static/`) contains no `DATABASE_URL`, session
+secret, `ANTHROPIC_API_KEY`, or demo password — only the deliberately
+public `NEXT_PUBLIC_API_URL`. Two real from-scratch-build problems were
+found and fixed in the Dockerfile before they could break a cloud build:
+pnpm's newer versions silently skip native postinstall scripts unless
+explicitly approved, and `pnpm prune --prod` was found to empty each
+workspace package's `node_modules` entirely rather than trim it (fixed by
+using a fresh `--prod` install pass instead) — see the Dockerfile's
+inline comments for the detail.
+
+---
+
 ## Next Step
 
 M0, M1, M2, M3 Phase 1 (question intake), M3 Phase 2 (deterministic safety
@@ -4200,4 +4246,10 @@ authenticate through the real, unmodified login flow (never a new auth
 system, never real pilot credentials, never Meridian's or Northstar's
 data) and a small amount of read-only seeded/synthetic activity. No
 production route, schema, or authorization rule was touched to build it.
-Awaiting direction on M6.1.
+**As of M6.1, a concrete path to a public, remotely-reachable demo URL
+has been prepared and documented** (Vercel + Render + a dedicated Neon
+Postgres database, a validated `apps/api/Dockerfile`, a full
+environment-variable and security review) — but nothing has been
+deployed, no account or domain has been created, and no cost has been
+incurred; see `docs/doseprepped/DEPLOYMENT.md`. Awaiting approval of the
+recommended architecture before any deployment step is taken.

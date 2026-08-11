@@ -1,0 +1,23 @@
+# DosePrepped — Docker build context excludes (M6.1)
+# Keeps the `docker build -f apps/api/Dockerfile .` context small and
+# avoids ever baking local secrets or generated artifacts into an image
+# layer (they're regenerated inside the build anyway).
+
+node_modules
+.pnpm-store
+**/.next
+**/out
+**/dist
+**/build
+**/coverage
+packages/db/generated
+
+# Local env files — real values are passed to `docker run`/the hosting
+# platform as environment variables, never baked into the image.
+.env
+.env.local
+.env.*.local
+
+.git
+.DS_Store
+*.log
