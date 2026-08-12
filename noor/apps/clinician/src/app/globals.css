@@ -1,42 +1,355 @@
+/* Noor clinician app — design tokens & shared component classes.
+   Same brand system as apps/patient (see docs/noor/M2-IMPLEMENTATION.md
+   "Brand" for the sourcing note — an original interpretation, not a
+   verified match to real Noor Therapy Group assets), deliberately denser:
+   smaller type scale, tighter spacing, list/table-style rows instead of
+   the patient app's spacious cards — M4 brief §23: "more information-
+   dense than the patient experience." No Tailwind: class-based rules over
+   CSS custom properties, same approach as the patient app. */
+
 :root {
-  --noor-bg: #faf7f2;
-  --noor-surface: #ffffff;
-  --noor-ink: #2b2620;
-  --noor-muted: #6b6459;
-  --noor-accent: #7c6a58;
-  --noor-border: #e7ddcf;
-  --noor-error: #b3432b;
-  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --noor-cream: #faf5ea;
+  --noor-cream-deep: #f2e9d8;
+  --noor-white: #fffdf9;
+
+  --noor-ink: #23252b;
+  --noor-ink-soft: #3a3d45;
+  --noor-muted: #6f6a60;
+
+  --noor-gold: #b3823f;
+  --noor-gold-deep: #96692f;
+  --noor-gold-tint: #f1e3c8;
+
+  --noor-border: #e7dcc4;
+  --noor-border-strong: #d9c9a3;
+
+  --noor-error: #a6432b;
+  --noor-error-tint: #f6e3dd;
+  --noor-flag: #8a3b2c;
+  --noor-flag-tint: #f6e1da;
+
+  --ff-display: "Cormorant Garamond", Georgia, serif;
+  --ff-body: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --radius-card: 14px;
+  --radius-field: 10px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgba(35, 37, 43, 0.04), 0 6px 16px rgba(35, 37, 43, 0.05);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
+  padding: 0;
   margin: 0;
-  background: var(--noor-bg);
+}
+
+body {
+  background: var(--noor-cream);
   color: var(--noor-ink);
-  font-family: var(--font-body);
-  line-height: 1.5;
+  font-family: var(--ff-body), sans-serif;
+  line-height: 1.45;
+  font-size: 0.95rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.noor-display {
+  font-family: var(--ff-display), serif;
+  font-weight: 600;
+  color: var(--noor-ink);
+  line-height: 1.15;
+  margin: 0 0 0.4rem 0;
+}
+
+h1 {
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+}
+
+h2 {
+  font-size: clamp(1.15rem, 2.4vw, 1.35rem);
+}
+
+p {
+  margin: 0 0 0.75rem 0;
 }
 
 a {
-  color: var(--noor-accent);
+  color: var(--noor-gold-deep);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Layout ---------- */
+
+.noor-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .noor-shell {
-  max-width: 640px;
+  width: 100%;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 2.5rem 1.5rem;
+  padding: 1.75rem 1.25rem 3rem;
 }
 
-.noor-card {
-  background: var(--noor-surface);
-  border: 1px solid var(--noor-border);
-  border-radius: 12px;
-  padding: 1.75rem;
+.noor-shell--narrow {
+  max-width: 640px;
 }
+
+.noor-center {
+  text-align: center;
+}
+
+/* ---------- Persistent nav ---------- */
+
+.noor-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--noor-border);
+  background: var(--noor-white);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.noor-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.noor-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-field);
+  color: var(--noor-ink-soft);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.noor-nav-link:hover {
+  background: var(--noor-cream-deep);
+  text-decoration: none;
+}
+
+.noor-nav-link[aria-current="page"] {
+  background: var(--noor-gold-tint);
+  color: var(--noor-gold-deep);
+}
+
+.noor-nav-link--disabled {
+  color: var(--noor-muted);
+  cursor: default;
+  opacity: 0.65;
+}
+
+.noor-nav-link--disabled:hover {
+  background: none;
+  text-decoration: none;
+}
+
+.noor-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.85rem;
+  color: var(--noor-muted);
+  flex-wrap: nowrap;
+}
+
+.noor-nav-actions .noor-link-button {
+  white-space: nowrap;
+}
+
+/* ---------- Cards & lists ---------- */
+
+.noor-card {
+  background: var(--noor-white);
+  border: 1px solid var(--noor-border);
+  border-radius: var(--radius-card);
+  padding: 1.25rem 1.4rem;
+  box-shadow: var(--shadow-card);
+}
+
+.noor-card--muted {
+  background: var(--noor-cream-deep);
+  border-color: var(--noor-border);
+  box-shadow: none;
+}
+
+.noor-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .noor-card-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .noor-card-grid--three {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.noor-stat {
+  font-family: var(--ff-display), serif;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1;
+  margin: 0.15rem 0 0.5rem;
+}
+
+.noor-row-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--noor-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--noor-white);
+}
+
+.noor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--noor-border);
+  min-height: 44px;
+}
+
+.noor-row:last-child {
+  border-bottom: none;
+}
+
+.noor-row-main {
+  min-width: 0;
+}
+
+.noor-row-title {
+  font-weight: 600;
+  color: var(--noor-ink);
+}
+
+.noor-row-meta {
+  font-size: 0.82rem;
+  color: var(--noor-muted);
+  margin-top: 0.15rem;
+}
+
+.noor-row-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ---------- Badges (never color-only — always paired with text) ---------- */
+
+.noor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--noor-gold-tint);
+  color: var(--noor-gold-deep);
+}
+
+.noor-badge--muted {
+  background: var(--noor-cream-deep);
+  color: var(--noor-muted);
+}
+
+.noor-badge--flag {
+  background: var(--noor-flag-tint);
+  color: var(--noor-flag);
+}
+
+.noor-badge--flag::before {
+  content: "▲"; /* shape, not color, carries the "attention" signal */
+  font-size: 0.65rem;
+}
+
+/* ---------- Buttons ---------- */
+
+.noor-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  background: var(--noor-gold);
+  color: var(--noor-white);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.55rem 1.2rem;
+  font-family: var(--ff-body), sans-serif;
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.noor-button:hover {
+  background: var(--noor-gold-deep);
+  text-decoration: none;
+}
+
+.noor-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.noor-button--secondary {
+  background: transparent;
+  color: var(--noor-ink);
+  border: 1px solid var(--noor-border-strong);
+}
+
+.noor-button--secondary:hover {
+  background: var(--noor-cream-deep);
+}
+
+.noor-button--small {
+  min-height: 34px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+.noor-link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--noor-gold-deep);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------- Forms ---------- */
 
 .noor-field {
   display: block;
@@ -45,43 +358,103 @@ a {
 
 .noor-field label {
   display: block;
-  font-size: 0.875rem;
-  margin-bottom: 0.375rem;
-  color: var(--noor-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 0.35rem;
+  color: var(--noor-ink-soft);
 }
 
 .noor-field input,
-.noor-field select {
+.noor-field select,
+.noor-field textarea {
   width: 100%;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--noor-border);
-  border-radius: 8px;
-  font-size: 1rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--noor-border-strong);
+  border-radius: var(--radius-field);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--noor-white);
+  color: var(--noor-ink);
 }
 
-.noor-button {
-  display: inline-block;
-  background: var(--noor-accent);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.65rem 1.25rem;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-.noor-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.noor-field input:focus,
+.noor-field select:focus,
+.noor-field textarea:focus {
+  outline: 2px solid var(--noor-gold);
+  outline-offset: 1px;
 }
 
 .noor-error {
   color: var(--noor-error);
-  font-size: 0.9rem;
+  background: var(--noor-error-tint);
+  border-radius: var(--radius-field);
+  padding: 0.6rem 0.85rem;
+  font-size: 0.88rem;
   margin-bottom: 1rem;
 }
 
 .noor-muted {
   color: var(--noor-muted);
-  font-size: 0.9rem;
+}
+
+.noor-section {
+  margin-top: 1.75rem;
+}
+
+/* ---------- Answer list (check-in detail) ---------- */
+
+.noor-answer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.noor-answer-row {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--noor-border);
+  border-radius: var(--radius-field);
+  background: var(--noor-cream-deep);
+}
+
+.noor-answer-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--noor-muted);
+  margin-bottom: 0.25rem;
+}
+
+.noor-answer-value {
+  font-size: 1rem;
+  color: var(--noor-ink);
+}
+
+/* ---------- Focus visibility ---------- */
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--noor-gold-deep);
+  outline-offset: 2px;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 640px) {
+  .noor-nav {
+    flex-wrap: wrap;
+  }
+
+  .noor-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .noor-row-actions {
+    width: 100%;
+  }
 }

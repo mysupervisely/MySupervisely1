@@ -93,4 +93,17 @@ describe("CheckInDetailPage", () => {
     expect(screen.queryByText(/improved/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/diagnos/i)).not.toBeInTheDocument();
   });
+
+  it("shows 'Reviewed by your Noor care team' when status is REVIEWED, with no clinician note or metadata exposed (#reviewed status derived from server field)", async () => {
+    apiFetchMock.mockResolvedValueOnce({ roles: ["PATIENT"] });
+    apiFetchMock.mockResolvedValueOnce({ ...detail, status: "REVIEWED" });
+    const { default: CheckInDetailPage } = await import("../page");
+    render(<CheckInDetailPage />);
+
+    expect(await screen.findByText("Reviewed by your Noor care team")).toBeInTheDocument();
+    // No clinician identity or review note is ever rendered — the DTO
+    // doesn't even carry those fields to a patient-facing route.
+    expect(screen.queryByText(/reviewed by dr\./i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/reviewed on/i)).not.toBeInTheDocument();
+  });
 });

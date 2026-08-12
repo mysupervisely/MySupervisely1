@@ -3,46 +3,44 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import type { ClinicianDashboardSummaryDTO } from "@noor/types";
 import { apiFetch, ApiError } from "../../lib/api";
+import { ClinicianNav } from "../../components/ClinicianNav";
 
 interface Me {
-  email: string;
   roles: string[];
 }
 
-interface AssignedPatient {
-  careRelationshipId: string;
-  patientId: string;
-  relationshipType: string;
-  relationshipStatus: string;
-  firstName: string | null;
-  lastName: string | null;
+function timeOfDayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
-// Ownership-scoped by construction: this page renders exactly what
-// GET /clinicians/me/patients returns, which the API derives entirely from
-// the authenticated clinician's ACTIVE CareRelationship rows (M1
-// requirement #5). There is no "view all patients" affordance anywhere in
-// this app.
+// The clinician Home dashboard (M4 brief §2): a greeting, then two real
+// operational cards derived from authorization-scoped counts (never an
+// organization-wide number — see GET /clinicians/me/dashboard), plus a
+// "Today" section that is an honest, static empty state until real
+// scheduling exists. No fake appointment data is ever rendered here.
 export default function ClinicianDashboardPage() {
   const router = useRouter();
-  const [me, setMe] = useState<Me | null>(null);
-  const [patients, setPatients] = useState<AssignedPatient[] | null>(null);
+  const [summary, setSummary] = useState<ClinicianDashboardSummaryDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const meResult = await apiFetch<Me>("/auth/me");
+        const me = await apiFetch<Me>("/auth/me");
         if (cancelled) return;
-        if (!meResult.roles.includes("CLINICIAN")) {
+        if (!me.roles.includes("CLINICIAN")) {
           setError("This account is not a clinician account.");
           return;
         }
-        setMe(meResult);
-        const list = await apiFetch<AssignedPatient[]>("/clinicians/me/patients");
-        if (!cancelled) setPatients(list);
+        const result = await apiFetch<ClinicianDashboardSummaryDTO>("/clinicians/me/dashboard");
+        if (cancelled) return;
+        setSummary(result);
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.status === 401) {
@@ -61,42 +59,64 @@ export default function ClinicianDashboardPage() {
   if (error) {
     return (
       <main className="noor-shell">
-        <p className="noor-error">{error}</p>
+        <p className="noor-error" role="alert">
+          {error}
+        </p>
       </main>
     );
   }
 
-  if (!me || !patients) {
+  if (!summary) {
     return (
-      <main className="noor-shell">
-        <p className="noor-muted">Loading...</p>
-      </main>
+      <div className="noor-page">
+        <ClinicianNav active="home" />
+        <main className="noor-shell">
+          <p className="noor-muted">Loading...</p>
+        </main>
+      </div>
     );
   }
 
   return (
-    <main className="noor-shell">
-      <h1>Assigned patients</h1>
-      <p className="noor-muted">Signed in as {me.email}</p>
-      {patients.length === 0 ? (
-        <p className="noor-muted">
-          No patients are currently assigned to you. Assignment is admin-managed in M1 — see the
-          admin dashboard.
-        </p>
-      ) : (
-        <ul>
-          {patients.map((p) => (
-            <li key={p.careRelationshipId}>
-              <Link href={`/dashboard/patients/${p.patientId}`}>
-                {p.firstName ?? "(no name on file)"} {p.lastName ?? ""} — {p.relationshipType} · {p.relationshipStatus}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="noor-muted">
-        The check-in review queue (docs/noor/ARCHITECTURE.md §10) is M4 — not built yet.
-      </p>
-    </main>
+    <div className="noor-page">
+      <ClinicianNav active="home" />
+      <main className="noor-shell">
+        <h1>
+          {timeOfDayGreeting()}, {summary.displayName}.
+        </h1>
+
+        <div className="noor-card-grid noor-card-grid--three noor-section">
+          <div className="noor-card">
+            <h2>Check-Ins to Review</h2>
+            <p className="noor-muted" style={{ marginBottom: 0 }}>
+              {summary.checkInsToReviewCount} check-in{summary.checkInsToReviewCount === 1 ? "" : "s"} need
+              {summary.checkInsToReviewCount === 1 ? "s" : ""} your attention.
+            </p>
+            <div className="noor-stat">{summary.checkInsToReviewCount}</div>
+            <Link href="/check-ins" className="noor-button">
+              Review Check-Ins
+            </Link>
+          </div>
+
+          <div className="noor-card">
+            <h2>My Patients</h2>
+            <p className="noor-muted" style={{ marginBottom: 0 }}>
+              {summary.activePatientCount} active patient{summary.activePatientCount === 1 ? "" : "s"}.
+            </p>
+            <div className="noor-stat">{summary.activePatientCount}</div>
+            <Link href="/patients" className="noor-button noor-button--secondary">
+              View Patients
+            </Link>
+          </div>
+
+          <div className="noor-card noor-card--muted">
+            <h2>Today</h2>
+            <p className="noor-muted" style={{ marginBottom: 0 }}>
+              No appointments scheduled here yet. Scheduling is coming to Noor in a future release.
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

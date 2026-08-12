@@ -34,6 +34,12 @@ function renderAnswer(response: CheckInResponseDTO): string {
 // so this view has no edit controls anywhere on it — only the wizard at
 // /check-in can create or modify a DRAFT, and the API itself refuses any
 // write to a non-draft check-in regardless of what this page renders.
+//
+// The "Reviewed by your Noor care team" badge (M4 brief §6) is derived
+// entirely from the server-authoritative `status` field — never a
+// promised response, never a clinician's internal note (no such note is
+// ever returned to a patient-facing route at all), never clinician-only
+// metadata like who reviewed it or when.
 export default function CheckInDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -100,6 +106,11 @@ export default function CheckInDetailPage() {
           ← Back to check-in history
         </Link>
         <h1 className="noor-section">{formatDate(checkIn.submittedAt)}</h1>
+        {checkIn.status === "REVIEWED" && (
+          <p className="noor-badge" style={{ marginTop: "-0.5rem", marginBottom: "1.5rem" }}>
+            Reviewed by your Noor care team
+          </p>
+        )}
 
         <div className="noor-stack">
           {checkIn.responses.map((response) => (

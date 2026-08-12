@@ -190,3 +190,66 @@ platform are recorded here, in addition to the standard git history.
   out/in → persistence), plus a 375px mobile viewport (44×44px touch
   targets confirmed) and keyboard-only navigation (Logo → scale radio
   group → Back → Continue) — no bugs found.
+
+## M4 — Clinician Care Dashboard + Check-In Review
+
+- Completed the first end-to-end Noor care-continuity workflow: patient
+  submits a Check-In (M3) → authorized clinician sees it in a review
+  queue → opens it → marks it reviewed → patient sees a plain "Reviewed
+  by your Noor care team" status. Full details, the M0-vs-M3-foundation
+  design decision, and known limitations in `M4-IMPLEMENTATION.md`.
+- Database: **no new migration.** Reused `CheckIn.reviewedAt`/
+  `reviewedByClinicianId` and the `CheckInStatus.REVIEWED` enum value,
+  all of which already existed from M3's migration — explicitly chosen
+  over the M0-sketched separate `ClinicianReview` table (which had
+  additionally modeled a draft "response" field shaped for future
+  messaging, out of scope here) and over adding any clinician free-text
+  note field (deliberately not added — "if not necessary, don't add it
+  yet").
+- API: `GET /clinicians/me/dashboard` (authorization-scoped counts, no
+  organization-wide numbers), `GET /clinicians/me/check-ins` (the
+  cross-patient review queue, minimal fields only, no free text), `POST
+  .../check-ins/:id/review` (marks reviewed; clinician identity always
+  from the session, never the request body; the patient's submitted
+  answers are never touched), and an extended `GET
+  /clinicians/me/patients/:patientId` carrying care-relationship context.
+  Every route reuses the M1 `assertClinicianHasActiveCareRelationship`
+  function — an ended/paused relationship immediately removes queue,
+  dashboard, and review access. Admin remains permanently denied
+  `VIEW_CLINICAL_CONTENT`, tested explicitly on all three new routes.
+- Frontend: a real clinician application for the first time — a
+  persistent nav (Home/Patients/Check-Ins real; Schedule/Resources
+  visibly "Soon," never fake links), a Home dashboard with honest
+  operational cards and no fabricated appointments, the review queue
+  (with a `Flagged` badge surfacing M3's *existing* deterministic safety
+  state, never a new classification, and never shown on the patient
+  side), a read-only check-in detail with a Mark Reviewed action, a
+  patient list, and a patient care view — deliberately not a full
+  medical chart (no diagnosis/medication/treatment-plan/billing field
+  anywhere). The clinician app's design was brought onto the same Noor
+  brand tokens as the patient app, denser to suit clinician workflows.
+- No patient-clinician messaging, no scheduling, no AI, no real EHR/
+  payment integration, no new escalation protocol — all explicitly out
+  of scope, none invented.
+- 39 new automated tests (245 total across the monorepo) — care-
+  relationship enforcement (including ended-relationship access removal
+  and cross-clinician denial), queue scoping and draft-invisibility,
+  the review action's authorization/idempotency/no-client-controlled-
+  identity/response-immutability behavior, admin non-access on every new
+  route, dashboard count scoping across two separate clinicians, and the
+  patient-facing reviewed-status display.
+- Manual Playwright verification walked the complete patient-submits →
+  clinician-reviews → patient-sees-status loop end to end against live
+  dev servers, plus security checks (an unrelated clinician's queue stays
+  empty and a direct URL attempt at the exact check-in id fails; an
+  admin's direct API call to the clinician dashboard returns 403) and
+  mobile/tablet viewport checks — no bugs found (one cosmetic nav-wrap
+  fix applied at tablet width).
+- Reviewed M1–M4's patient-facing API surface for future React
+  Native/Expo compatibility (no RN work done): already client-agnostic
+  (JSON-only, no PHI in URLs, CORS is Origin-header-based and doesn't
+  block a typical native HTTP client); the one concrete adaptation a
+  future native milestone will need is session auth, since httpOnly
+  cookies aren't automatically persisted by a bare `fetch` the way a
+  browser does — documented as an engineering decision for that
+  milestone, not resolved here.

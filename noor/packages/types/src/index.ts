@@ -31,3 +31,11 @@ export type {
   CheckInDetailDTO,
   CheckInAnswers,
 } from "./checkins";
+export type {
+  CareRelationshipType,
+  CareRelationshipStatus,
+  ClinicianDashboardSummaryDTO,
+  ClinicianCheckInQueueItemDTO,
+  ClinicianPatientListItemDTO,
+  ClinicianPatientDetailDTO,
+} from "./clinicians";

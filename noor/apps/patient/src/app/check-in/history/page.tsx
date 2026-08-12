@@ -99,6 +99,7 @@ export default function CheckInHistoryPage() {
               <Link href={`/check-in/history/${checkIn.id}`} className="noor-entry-card" key={checkIn.id}>
                 <div className="noor-entry-card-head">
                   <h3>{formatDate(checkIn.submittedAt)}</h3>
+                  {checkIn.status === "REVIEWED" && <span className="noor-badge">Reviewed by your Noor care team</span>}
                 </div>
                 <p>
                   Overall wellbeing {checkIn.scores.overallWellbeing ?? "—"}/10 · Mood {checkIn.scores.mood ?? "—"}/10

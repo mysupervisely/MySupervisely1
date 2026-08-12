@@ -28,6 +28,9 @@ export const AuditAction = {
   CLINICIAN_CHECK_IN_LIST_READ: "clinician.check_in.list_read",
   CLINICIAN_CHECK_IN_DETAIL_READ: "clinician.check_in.detail_read",
   CLINICIAN_CHECK_IN_DETAIL_DENIED: "clinician.check_in.access_denied",
+  CLINICIAN_DASHBOARD_READ: "clinician.dashboard.read",
+  CLINICIAN_CHECK_IN_QUEUE_READ: "clinician.check_in.queue_read",
+  CLINICIAN_CHECK_IN_REVIEWED: "clinician.check_in.reviewed",
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

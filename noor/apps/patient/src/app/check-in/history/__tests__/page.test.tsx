@@ -62,4 +62,21 @@ describe("CheckInHistoryPage", () => {
     expect(screen.queryByText(/depression/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/diagnos/i)).not.toBeInTheDocument();
   });
+
+  it("shows 'Reviewed by your Noor care team' for a REVIEWED check-in, and nothing extra for a merely SUBMITTED one (#reviewed status, #no promised response for unreviewed)", async () => {
+    apiFetchMock.mockResolvedValueOnce({ roles: ["PATIENT"] });
+    apiFetchMock.mockResolvedValueOnce([
+      summary, // SUBMITTED — no badge
+      { ...summary, id: "checkin-2", status: "REVIEWED", submittedAt: "2026-08-05T00:00:00.000Z" },
+    ]);
+    const { default: CheckInHistoryPage } = await import("../page");
+    render(<CheckInHistoryPage />);
+
+    expect(await screen.findByText("Reviewed by your Noor care team")).toBeInTheDocument();
+    // Only one of the two rows is reviewed.
+    expect(screen.getAllByText("Reviewed by your Noor care team")).toHaveLength(1);
+    // Never a promised response time or clinician-authored text anywhere.
+    expect(screen.queryByText(/will respond/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/within \d+ (hour|day)/i)).not.toBeInTheDocument();
+  });
 });
