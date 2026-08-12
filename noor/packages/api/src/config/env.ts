@@ -28,6 +28,12 @@ const envSchema = z.object({
   EHR_PROVIDER: z.string().min(1).default("mock"),
   PAYMENT_PROVIDER: z.string().min(1).default("mock"),
   AI_PROVIDER: z.string().min(1).default("mock"),
+  // Deterministic check-in safety-routing policy — see
+  // packages/safety-policy and docs/noor/M3-IMPLEMENTATION.md "Safety
+  // policy architecture". "default-placeholder" is the only value
+  // implemented in M3 and is explicitly NOT a clinically-validated
+  // protocol — see that package's default-policy.ts.
+  SAFETY_POLICY_PROVIDER: z.string().min(1).default("default-placeholder"),
 });
 
 function loadEnv() {

@@ -13,7 +13,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma, RoleName, CareRelationshipStatus, CareRelationshipType } from "@noor/db";
 import { hashPassword } from "@noor/auth";
 import { buildApp } from "../src/app.js";
-import { ensureRolesSeeded } from "../src/lib/bootstrap.js";
+import { ensureRolesSeeded, ensureCheckInQuestionsSeeded } from "../src/lib/bootstrap.js";
 
 export async function resetDatabase(): Promise<void> {
   const url = process.env["DATABASE_URL"] ?? "";
@@ -25,9 +25,10 @@ export async function resetDatabase(): Promise<void> {
   }
 
   await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE audit_events, sessions, care_relationships, patient_profiles, patients, clinician_profiles, clinicians, user_roles, users, roles RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE audit_events, check_in_responses, check_ins, check_in_questions, sessions, care_relationships, patient_profiles, patients, clinician_profiles, clinicians, user_roles, users, roles RESTART IDENTITY CASCADE`,
   );
   await ensureRolesSeeded();
+  await ensureCheckInQuestionsSeeded();
 }
 
 export function makeApp(): FastifyInstance {

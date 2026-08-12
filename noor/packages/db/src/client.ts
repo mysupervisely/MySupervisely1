@@ -29,6 +29,9 @@ export {
   CareType,
   CareFormatPreference,
   NoorInterest,
+  CheckInResponseType,
+  CheckInStatus,
+  CheckInSafetyStatus,
 } from "../generated/client/client.js";
 export type {
   User,
@@ -40,6 +43,9 @@ export type {
   Clinician,
   ClinicianProfile,
   CareRelationship,
+  CheckInQuestion,
+  CheckIn,
+  CheckInResponse,
   AuditEvent,
   Prisma,
 } from "../generated/client/client.js";

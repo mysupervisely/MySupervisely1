@@ -127,9 +127,15 @@ export default function HomePage() {
         <section className="noor-section" aria-labelledby="your-journey-heading">
           <h2 id="your-journey-heading">Your Noor journey</h2>
           <div className="noor-card noor-card--muted">
-            <p style={{ margin: 0 }}>Your care continues between sessions.</p>
-            <p className="noor-muted" style={{ marginTop: "0.5rem", marginBottom: 0, fontSize: "0.9rem" }}>
-              Check-ins, goals, and resources will appear here as they become available.
+            <h3 style={{ fontFamily: "var(--ff-display)", fontSize: "1.1rem" }}>How are things going?</h3>
+            <p className="noor-muted" style={{ marginBottom: "1rem" }}>
+              Take a few minutes to check in with how you&apos;ve been doing.
+            </p>
+            <Link href="/check-in" className="noor-button">
+              Begin Check-In
+            </Link>
+            <p className="noor-muted" style={{ fontSize: "0.85rem", marginTop: "1rem", marginBottom: 0 }}>
+              <Link href="/check-in/history">View your check-in history →</Link>
             </p>
           </div>
         </section>

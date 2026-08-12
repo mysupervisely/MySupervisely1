@@ -178,6 +178,9 @@ importers:
       '@noor/payments-adapter':
         specifier: workspace:*
         version: link:../payments-adapter
+      '@noor/safety-policy':
+        specifier: workspace:*
+        version: link:../safety-policy
       '@noor/types':
         specifier: workspace:*
         version: link:../types
@@ -288,6 +291,18 @@ importers:
         version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(jsdom@30.0.1)(tsx@4.23.8)
 
   packages/payments-adapter:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(jsdom@30.0.1)(tsx@4.23.8)
+
+  packages/safety-policy:
     devDependencies:
       '@types/node':
         specifier: ^20

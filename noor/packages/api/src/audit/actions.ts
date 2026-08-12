@@ -18,6 +18,16 @@ export const AuditAction = {
   ADMIN_CARE_RELATIONSHIP_CREATE: "admin.care_relationships.create",
   ADMIN_CARE_RELATIONSHIP_STATUS_UPDATE: "admin.care_relationships.status_update",
   ADMIN_AUDIT_LOG_READ: "admin.audit_log.read",
+  CHECK_IN_CREATED: "check_in.created",
+  CHECK_IN_RESPONSES_SAVED: "check_in.responses_saved",
+  CHECK_IN_SUBMITTED: "check_in.submitted",
+  CHECK_IN_ABANDONED: "check_in.abandoned",
+  CHECK_IN_SELF_READ: "check_in.self_read",
+  CHECK_IN_HISTORY_LIST_READ: "check_in.history_list_read",
+  SAFETY_WORKFLOW_TRIGGERED: "safety_workflow.triggered",
+  CLINICIAN_CHECK_IN_LIST_READ: "clinician.check_in.list_read",
+  CLINICIAN_CHECK_IN_DETAIL_READ: "clinician.check_in.detail_read",
+  CLINICIAN_CHECK_IN_DETAIL_DENIED: "clinician.check_in.access_denied",
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

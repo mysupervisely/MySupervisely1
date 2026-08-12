@@ -483,6 +483,71 @@ a.noor-entry-card:hover {
   margin-bottom: 1.25rem;
 }
 
+/* ---------- Scale (1-10, Noor Check-In) ----------
+   Deliberately NOT color-only: the selected value is distinguished by a
+   thicker gold border, bold weight, AND a small checkmark badge, so the
+   selection is legible without relying on color perception (WCAG 1.4.1).
+   Numbers only — no per-question "low/high" anchor labels, since the
+   check-in's questions are data-driven (packages/api/src/checkins) and a
+   generic scale control can't assume which direction is "better" for a
+   given question; see docs/noor/M3-IMPLEMENTATION.md. */
+
+.noor-scale-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.noor-scale-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--noor-border-strong);
+  border-radius: var(--radius-field);
+  background: var(--noor-white);
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.noor-scale-option input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.noor-scale-option:has(input:checked) {
+  border-color: var(--noor-gold);
+  border-width: 2px;
+  background: var(--noor-gold-tint);
+  font-weight: 700;
+}
+
+.noor-scale-option:has(input:checked)::after {
+  content: "✓";
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--noor-gold-deep);
+  color: var(--noor-white);
+  font-size: 0.62rem;
+  line-height: 16px;
+  text-align: center;
+}
+
+.noor-scale-option:has(input:focus-visible) {
+  outline: 2px solid var(--noor-gold-deep);
+  outline-offset: 2px;
+}
+
 /* ---------- Focus visibility ----------
    Accessibility requirement: every interactive element gets a visible,
    high-contrast focus ring on keyboard focus (not on mouse click —

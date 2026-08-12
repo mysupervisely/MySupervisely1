@@ -7,6 +7,7 @@ import { authRoutes } from "./routes/auth.js";
 import { patientRoutes } from "./routes/patients.js";
 import { clinicianRoutes } from "./routes/clinicians.js";
 import { adminRoutes } from "./routes/admin.js";
+import { checkInRoutes } from "./routes/checkins.js";
 import { HttpError } from "./lib/errors.js";
 
 export function buildApp() {
@@ -26,6 +27,7 @@ export function buildApp() {
   app.register(patientRoutes);
   app.register(clinicianRoutes);
   app.register(adminRoutes);
+  app.register(checkInRoutes);
 
   // Global safety net. Every deliberate route response already throws one
   // of the typed errors in lib/errors.ts or calls reply.send(...) directly;

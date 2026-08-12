@@ -78,7 +78,12 @@ describe("HomePage", () => {
     expect(screen.getByText("No provider yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Find a Therapist" })).toBeInTheDocument();
     expect(screen.getByText(/No upcoming appointments yet/)).toBeInTheDocument();
-    expect(screen.getByText("Your care continues between sessions.")).toBeInTheDocument();
+    expect(screen.getByText("How are things going?")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Begin Check-In" })).toHaveAttribute("href", "/check-in");
+    expect(screen.getByRole("link", { name: /view your check-in history/i })).toHaveAttribute(
+      "href",
+      "/check-in/history",
+    );
     expect(screen.getByText("Therapy")).toBeInTheDocument();
     expect(screen.getByText("Psychiatry")).toBeInTheDocument();
     expect(screen.getByText("Resources")).toBeInTheDocument();

@@ -20,3 +20,14 @@ export {
   REQUIRED_ONBOARDING_FIELDS,
 } from "./onboarding";
 export type { NoorInterest, CareType, CareFormatPreference, PatientProfileUpdateInput } from "./onboarding";
+export { checkInAnswerValueSchema, checkInAnswersSchema } from "./checkins";
+export type {
+  CheckInResponseType,
+  CheckInStatus,
+  CheckInQuestionOption,
+  CheckInQuestionDTO,
+  CheckInResponseDTO,
+  CheckInSummaryDTO,
+  CheckInDetailDTO,
+  CheckInAnswers,
+} from "./checkins";

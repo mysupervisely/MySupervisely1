@@ -11,7 +11,8 @@
 // migration, documented at that time, alongside the milestone that
 // actually implements the feature that needs them:
 //
-//   - CheckInQuestion / CheckIn / CheckInResponse   -> M3 (Weekly check-in)
+//   - CheckInQuestion / CheckIn / CheckInResponse   -> implemented in M3,
+//     see the "Noor Check-In" section below and docs/noor/M3-IMPLEMENTATION.md
 //   - ClinicianReview / CareGoal                     -> M4 (Clinician dashboard v1)
 //   - ClinicianLicense (state licensing)               -> M5 (Provider directory)
 //   - ExternalRecordMapping                              -> M6 (EHR/AI abstractions wired in)
@@ -146,6 +147,7 @@ model Patient {
 
   profile           PatientProfile?
   careRelationships CareRelationship[]
+  checkIns          CheckIn[]
 
   @@map("patients")
 }
@@ -235,6 +237,7 @@ model Clinician {
 
   profile           ClinicianProfile?
   careRelationships CareRelationship[]
+  reviewedCheckIns  CheckIn[]
 
   @@map("clinicians")
 }
@@ -296,9 +299,142 @@ model CareRelationship {
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
 
+  checkIns CheckIn[]
+
   @@index([patientId, status])
   @@index([clinicianId, status])
   @@map("care_relationships")
+}
+
+// ---------------------------------------------------------------------------
+// Noor Check-In (M3) — the first clinical-content workflow in Noor.
+//
+// Noor's primary service is live therapy; the check-in extends continuity
+// of care between sessions — it is deliberately NOT a standalone
+// "Async"/messaging product (see docs/noor/M3-IMPLEMENTATION.md §2). No
+// pricing, quota, cadence, or SLA is hardcoded anywhere in this schema.
+// ---------------------------------------------------------------------------
+
+enum CheckInResponseType {
+  SCALE_1_10
+  SINGLE_SELECT
+  FREE_TEXT
+}
+
+/// Data-driven question definitions — the whole point being that adding,
+/// retiring, or rewording a question is a data change (a new/updated row
+/// + re-seed), never a frontend code change. Seeded, fixed application
+/// configuration (like Role), not synthetic patient data — see
+/// packages/api/src/lib/bootstrap.ts `ensureCheckInQuestionsSeeded`, run
+/// in every environment including production, same as roles.
+///
+/// `options` (jsonb) holds `{ key, label }[]` for SINGLE_SELECT questions
+/// only; null otherwise. `isActive` lets a question be retired without
+/// deleting it (deleting would orphan historical CheckInResponse rows'
+/// `questionId` foreign key) — inactive questions are excluded from
+/// GET /check-ins/questions but remain fully joinable for history.
+model CheckInQuestion {
+  id            String              @id @default(uuid())
+  key           String              @unique
+  promptText    String
+  responseType  CheckInResponseType
+  options       Json?
+  isRequired    Boolean             @default(true)
+  displayOrder  Int
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  responses CheckInResponse[]
+
+  @@map("check_in_questions")
+}
+
+enum CheckInStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+  ARCHIVED
+}
+
+/// NONE/FLAGGED only in M3 — deliberately not a richer workflow
+/// (UNDER_REVIEW/ESCALATED/RESOLVED) yet, since the actual clinical
+/// escalation protocol is unresolved
+/// ([NEEDS CLINICAL/LEGAL REVIEW] — see docs/noor/M3-IMPLEMENTATION.md
+/// §"Safety policy architecture"). This field is populated once, at
+/// submission time, by the deterministic evaluator in
+/// packages/safety-policy — never by an LLM, never a clinical judgment,
+/// never shown to the patient (see CheckIn.safetyStatus usage in
+/// packages/api/src/routes/checkins.ts).
+enum CheckInSafetyStatus {
+  NONE
+  FLAGGED
+}
+
+/// One check-in instance. `cadenceKey` is a free-form string, not an enum
+/// tied to "weekly" — the brief explicitly requires cadence stay
+/// configurable ("do not hard-code weekly into the underlying data
+/// model"); the M3 UI happens to only ever write "weekly" today, but nothing
+/// in the schema or API assumes that value. `careRelationshipId` is
+/// nullable: a patient may check in whether or not they currently have an
+/// active care relationship (brief §"core patient experience" — useful
+/// between appointments, preparing for one, or on another future care
+/// pathway) — the M3 clinician-read routes simply won't find anything to
+/// authorize against for a check-in with no care relationship yet.
+model CheckIn {
+  id                   String               @id @default(uuid())
+  patient              Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  patientId            String
+  careRelationship     CareRelationship?    @relation(fields: [careRelationshipId], references: [id], onDelete: SetNull)
+  careRelationshipId   String?
+  status               CheckInStatus        @default(DRAFT)
+  safetyStatus         CheckInSafetyStatus  @default(NONE)
+  cadenceKey           String               @default("weekly")
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  reviewedByClinician  Clinician?           @relation(fields: [reviewedByClinicianId], references: [id], onDelete: SetNull)
+  reviewedByClinicianId String?
+  archivedAt           DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  responses CheckInResponse[]
+
+  @@index([patientId, status])
+  @@index([careRelationshipId])
+  @@index([status])
+  @@index([submittedAt])
+  @@map("check_ins")
+}
+
+/// One answer to one question on one check-in. Snapshots the question's
+/// prompt/type/option-label text AT THE TIME OF ANSWERING (brief §4:
+/// "a submitted check-in must preserve the question and answer context at
+/// the time of submission... historical check-ins must remain
+/// understandable even if questions change later") — display code reads
+/// the *Snapshot fields, never joins back to CheckInQuestion's *current*
+/// wording, specifically so a later prompt/label edit can never rewrite
+/// history. The FK to CheckInQuestion still exists (`onDelete: Restrict`,
+/// so a question already answered can never be hard-deleted) for
+/// reporting/joins by question key across time, not for display.
+model CheckInResponse {
+  id                      String              @id @default(uuid())
+  checkIn                 CheckIn             @relation(fields: [checkInId], references: [id], onDelete: Cascade)
+  checkInId               String
+  question                CheckInQuestion     @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionId              String
+  questionKeySnapshot     String
+  questionPromptSnapshot  String
+  responseTypeSnapshot    CheckInResponseType
+  valueNumeric            Int?
+  valueOptionKey          String?
+  valueOptionLabelSnapshot String?
+  valueText               String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@unique([checkInId, questionId])
+  @@map("check_in_responses")
 }
 
 // ---------------------------------------------------------------------------

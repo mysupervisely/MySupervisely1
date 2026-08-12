@@ -14,11 +14,12 @@ import type { Role } from "./role";
  * access to clinical/PHI data"), an administrator role never implies
  * clinical-content access — that would require a distinct, explicitly
  * granted capability this schema does not yet model (see
- * docs/noor/ARCHITECTURE.md §N, "[NEEDS PRODUCT/LEGAL DECISION]"). No M1
- * route currently reads clinical content at all (the check-in/review
- * tables don't exist yet — see packages/db schema comments), so this is a
- * boundary being documented ahead of the feature that will need it, not
- * something actively bypassed today.
+ * docs/noor/ARCHITECTURE.md §N, "[NEEDS PRODUCT/LEGAL DECISION]"). As of
+ * M3, VIEW_CLINICAL_CONTENT is actively enforced — the check-in read
+ * routes in packages/api/src/routes/clinicians.ts call
+ * `requirePermission(request, Permission.VIEW_CLINICAL_CONTENT)` before
+ * even reaching the per-patient ownership check — so this is no longer a
+ * boundary reserved for later; it's live.
  */
 export enum Permission {
   VIEW_OWN_PATIENT_PROFILE = "VIEW_OWN_PATIENT_PROFILE",
@@ -29,8 +30,9 @@ export enum Permission {
    * "can this role ever do this," not "can this clinician access this
    * particular patient." */
   VIEW_ASSIGNED_PATIENTS = "VIEW_ASSIGNED_PATIENTS",
-  /** Reserved for future clinical-content resources (check-in responses,
-   * clinician review notes, care goals). Not used by any M1 route. */
+  /** Gates clinical-content resources (check-in responses; future
+   * clinician review notes, care goals). Enforced starting M3's check-in
+   * read routes — see packages/api/src/routes/clinicians.ts. */
   VIEW_CLINICAL_CONTENT = "VIEW_CLINICAL_CONTENT",
   MANAGE_CARE_RELATIONSHIPS = "MANAGE_CARE_RELATIONSHIPS",
   VIEW_USERS = "VIEW_USERS",

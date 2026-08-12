@@ -128,3 +128,65 @@ platform are recorded here, in addition to the standard git history.
   re-ran the full 12-step manual verification checklist end to end
   against a live instance, including the mobile viewport, with no
   hydration warnings or unhandled errors.
+
+## M3 — Noor Check-In
+
+- Implemented the first structured clinical-content workflow: a 7-question,
+  data-driven patient check-in (all question wording/options live in a
+  `CheckInQuestion` table, seeded at boot — no question content is
+  hardcoded into any frontend component) with a full draft → submit →
+  history lifecycle, plus the backend foundation for care-relationship-
+  scoped clinician read access. Full details, safety-policy architecture,
+  and known limitations in `M3-IMPLEMENTATION.md`.
+- Database: new `CheckInQuestion`, `CheckIn`, `CheckInResponse` tables
+  (`CheckInResponseType`, `CheckInStatus`, `CheckInSafetyStatus` enums) —
+  migration `20260805192605_checkin_v1`, purely additive. `CheckIn`
+  answers snapshot their question's key/prompt/type at save time so
+  historical responses never silently change if a live question is later
+  reworded. `CheckIn.cadenceKey` is a plain string (default `"weekly"`),
+  deliberately not an enum, per the brief's "do not hardcode weekly into
+  the schema" instruction.
+- New package `packages/safety-policy`: a small, isolated, deterministic
+  abstraction (mirrors the M0/M1 `EhrProvider`/`AIProvider`
+  factory-selection pattern) whose input type structurally excludes free
+  text and which ships exactly one placeholder rule (very-low overall
+  wellbeing → a flag). Explicitly **not** AI, not a diagnosis, not a risk
+  score — heavily commented `[NEEDS CLINICAL/LEGAL REVIEW]` throughout.
+  Evaluated once at submission time; a flagged result never changes what
+  the patient sees or is told.
+- API: `GET /check-ins/questions`, `POST /check-ins` (idempotent
+  get-or-create draft), `GET /check-ins/active-draft`, `PATCH
+  /check-ins/:id/responses`, `POST /check-ins/:id/submit`, `POST
+  /check-ins/:id/abandon`, `GET /check-ins` (history), `GET
+  /check-ins/:id`; plus two clinician routes reusing the M1
+  `assertClinicianHasActiveCareRelationship` authorization function
+  (never reimplemented). Clinician access to check-ins is gated by
+  `Permission.VIEW_CLINICAL_CONTENT`, granted only to `CLINICIAN` —
+  admin still never receives it, tested explicitly.
+- Frontend (`apps/patient`): Home's "Your Noor journey" section now links
+  to a real `/check-in` wizard (progress indicator, per-step save,
+  resume-in-progress-draft, review-before-submit, exact required
+  confirmation copy) and a `/check-in/history` list + read-only detail
+  view showing only descriptive 1–10 scores — no clinical interpretation
+  language anywhere, by design. The one approved safety sentence ("This
+  check-in is not monitored continuously and should not be used for
+  emergencies.") appears on the intro, review, and confirmation screens;
+  nothing beyond that sentence (a specific crisis line, phone number) was
+  invented.
+- No patient-clinician messaging, no clinician dashboard/UI, no AI, no
+  real EHR/payment integration, no subscriptions/pricing/quotas/SLAs —
+  all explicitly out of scope for M3, none invented.
+- 66 new automated tests (206 total across the monorepo) — draft
+  lifecycle including snapshot preservation and abandonment, submission
+  including required-field validation/immutability/duplicate-prevention,
+  end-to-end safety-policy integration, patient history and cross-patient
+  ownership isolation, input validation, clinician authorization
+  including draft-invisibility and denial auditing, admin non-access, and
+  the full frontend wizard/history flow.
+- Manual Playwright verification against live dev servers walked the full
+  14-step checklist (unauthorized access → sign in → begin → answer →
+  leave → resume → review → submit → attempt-to-edit-after-submit
+  (starts a new draft, doesn't reopen the old one) → history → sign
+  out/in → persistence), plus a 375px mobile viewport (44×44px touch
+  targets confirmed) and keyboard-only navigation (Logo → scale radio
+  group → Back → Continue) — no bugs found.
