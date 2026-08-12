@@ -39,3 +39,5 @@ export type {
   ClinicianPatientListItemDTO,
   ClinicianPatientDetailDTO,
 } from "./clinicians";
+export { timeOfDayGreeting } from "./profile";
+export type { PatientProfileDTO } from "./profile";

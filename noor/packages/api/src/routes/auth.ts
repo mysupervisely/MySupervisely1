@@ -7,11 +7,22 @@ import { AuthenticationError, ConflictError, ValidationError } from "../lib/erro
 import { requireAuth } from "../rbac/policy.js";
 import { recordAuditEvent } from "../audit/audit-service.js";
 import { AuditAction } from "../audit/actions.js";
+import { readRawSessionToken } from "../lib/session-token.js";
+
+// `clientType` distinguishes TRANSPORT (cookie vs. bearer token), not
+// identity — see docs/noor/M5-IMPLEMENTATION.md §6. It is orthogonal to
+// the pre-existing `app` field (which frontend — "patient"/"clinician" —
+// for audit purposes). Only `clientType: "native"` causes the raw session
+// token to be echoed in the response body; every other value (including
+// the default) preserves today's web behavior exactly, where the raw
+// token is NEVER present in a JS-readable response.
+const clientTypeSchema = z.enum(["web", "native"]).optional();
 
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
   app: z.string().optional(),
+  clientType: clientTypeSchema,
   // Deliberately no `role` field: public self-signup always creates a
   // PATIENT account. Clinician and admin accounts are provisioned out of
   // band (dev seed script in M1; a real provisioning process is a later
@@ -23,6 +34,7 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
   app: z.string().optional(),
+  clientType: clientTypeSchema,
 });
 
 function setSessionCookie(reply: import("fastify").FastifyReply, token: string, expiresAt: Date) {
@@ -44,7 +56,7 @@ export async function authRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const parsed = signupSchema.safeParse(request.body);
       if (!parsed.success) throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid signup request.");
-      const { email, password, app: issuedForApp } = parsed.data;
+      const { email, password, app: issuedForApp, clientType } = parsed.data;
 
       const strength = validatePasswordStrength(password);
       if (!strength.valid) throw new ValidationError(strength.errors.join(" "));
@@ -83,7 +95,13 @@ export async function authRoutes(app: FastifyInstance) {
       });
 
       reply.code(201);
-      return { user: { id: user.id, email: user.email, roles: [RoleName.PATIENT] } };
+      return {
+        user: { id: user.id, email: user.email, roles: [RoleName.PATIENT] },
+        // Only ever present for clientType: "native" — a web caller's
+        // response body NEVER contains the raw token, unchanged from
+        // pre-M5 behavior. See docs/noor/M5-IMPLEMENTATION.md §6.3.
+        ...(clientType === "native" ? { session: { token, expiresAt: expiresAt.toISOString() } } : {}),
+      };
     },
   );
 
@@ -93,7 +111,7 @@ export async function authRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const parsed = loginSchema.safeParse(request.body);
       if (!parsed.success) throw new ValidationError("Invalid login request.");
-      const { email, password, app: issuedForApp } = parsed.data;
+      const { email, password, app: issuedForApp, clientType } = parsed.data;
 
       const user = await prisma.user.findUnique({
         where: { email },
@@ -140,17 +158,22 @@ export async function authRoutes(app: FastifyInstance) {
         entityId: user.id,
       });
 
-      return { user: { id: user.id, email: user.email, roles } };
+      return {
+        user: { id: user.id, email: user.email, roles },
+        // Only ever present for clientType: "native" — see signup above
+        // and docs/noor/M5-IMPLEMENTATION.md §6.3.
+        ...(clientType === "native" ? { session: { token, expiresAt: expiresAt.toISOString() } } : {}),
+      };
     },
   );
 
   app.post("/auth/logout", async (request, reply) => {
-    const rawCookie = request.cookies[SESSION_COOKIE_NAME];
-    if (rawCookie) {
-      const unsigned = request.unsignCookie(rawCookie);
-      if (unsigned.valid && unsigned.value) {
-        await deleteSession(unsigned.value);
-      }
+    // Resolves either transport (cookie or native bearer header) so a
+    // native client's logout actually revokes ITS session row — see
+    // docs/noor/M5-IMPLEMENTATION.md §6.3 "Revocation."
+    const rawToken = readRawSessionToken(request);
+    if (rawToken) {
+      await deleteSession(rawToken);
     }
     reply.clearCookie(SESSION_COOKIE_NAME, { path: "/", domain: env.SESSION_COOKIE_DOMAIN });
 

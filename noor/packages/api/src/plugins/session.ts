@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { getSessionUser, SESSION_COOKIE_NAME } from "@noor/auth";
+import { getSessionUser } from "@noor/auth";
 import type { SessionUser } from "@noor/auth";
+import { readRawSessionToken } from "../lib/session-token.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -13,30 +14,29 @@ declare module "fastify" {
 }
 
 /**
- * Resolves the signed session cookie (if present and valid) to a
- * SessionUser on every request, before any route handler runs. This is the
- * single place session-cookie verification happens — see
- * docs/noor/ARCHITECTURE.md §D "sessions" (httpOnly, signed cookie; only a
- * hash of the token is stored server-side).
+ * Resolves either the signed session cookie (web) or an `Authorization:
+ * Bearer <token>` header (native — see docs/noor/M5-IMPLEMENTATION.md §6)
+ * to a SessionUser on every request, before any route handler runs. This
+ * is the single place session verification happens for BOTH transports —
+ * both resolve through the same getSessionUser(), so there is exactly one
+ * code path from "raw token" to "authenticated identity" regardless of
+ * which client sent the request. See docs/noor/ARCHITECTURE.md §D
+ * "sessions" (only a hash of the token is stored server-side) for the web
+ * cookie's original design, unchanged here.
+ *
+ * Cookie values are signed (tamper-evident via a server secret) because a
+ * browser could be coerced into resending an attacker-supplied cookie; a
+ * bearer header has no such coercion vector (the native app controls
+ * exactly what it sends), so no separate signing step applies to it — the
+ * token itself is already an unguessable 32-byte random value, and
+ * getSessionUser() only ever matches it against a stored hash either way.
  */
 async function sessionPlugin(app: FastifyInstance) {
   app.decorateRequest("sessionUser", null);
 
   app.addHook("onRequest", async (request: FastifyRequest) => {
-    const rawCookie = request.cookies[SESSION_COOKIE_NAME];
-    if (!rawCookie) {
-      request.sessionUser = null;
-      return;
-    }
-
-    const unsigned = request.unsignCookie(rawCookie);
-    if (!unsigned.valid || !unsigned.value) {
-      // Tampered or malformed cookie — treat exactly like no session.
-      request.sessionUser = null;
-      return;
-    }
-
-    request.sessionUser = await getSessionUser(unsigned.value);
+    const token = readRawSessionToken(request);
+    request.sessionUser = token ? await getSessionUser(token) : null;
   });
 }
 

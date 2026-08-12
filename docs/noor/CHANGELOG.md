@@ -253,3 +253,60 @@ platform are recorded here, in addition to the standard git history.
   cookies aren't automatically persisted by a bare `fetch` the way a
   browser does — documented as an engineering decision for that
   milestone, not resolved here.
+
+## M5 — Native Noor Patient App Foundation
+
+- Added a genuine native patient app, `apps/mobile` (Expo + React Native
+  + TypeScript) — not a WebView wrapper. Patient-only: signup/login/
+  logout/session persistence, resumable onboarding (same backend/data
+  model as web — a patient can start on one client and finish on the
+  other), Noor Home, the M3 Check-In wizard + history + detail, and
+  Profile. No clinician mobile functionality was built. Full details in
+  `M5-IMPLEMENTATION.md`.
+- **Native authentication design, written and reviewed before the
+  backend code**, per the milestone brief: extended the *existing*
+  cookie-session model with an optional bearer-token transport of the
+  exact same `Session` row (`clientType: "web"|"native"` on
+  signup/login controls only whether the JSON response echoes the raw
+  token; web behavior is byte-for-byte unchanged) — deliberately not a
+  new token format, not a second identity system, not a weakening of the
+  browser session model. 14 new backend tests confirm bearer auth
+  resolves to identical RBAC/ownership as cookie auth, cannot self-
+  elevate role, and that native logout doesn't revoke a separate web
+  session for the same user.
+- Native-side, the token is the **only** thing persisted on-device
+  (`expo-secure-store` — iOS Keychain / Android Keystore; never
+  `AsyncStorage`, which isn't even a dependency and is mock-blocked in
+  tests). No password, no profile data, and no check-in content —
+  including free-text answers — is ever cached to on-device storage;
+  everything else is re-fetched from the API and held only in memory.
+- Moved `PatientProfileDTO` and `timeOfDayGreeting()` into `@noor/types`
+  so both clients share one definition instead of two that could drift;
+  `apps/patient`'s existing file becomes a thin re-export.
+- A real `npx expo export --platform ios|android` bundle build (not just
+  Jest, which mocks the native module layer) caught and led to fixing a
+  genuine bug: the originally-chosen `react-native@0.87.0`/`react@19.2.8`
+  versions are newer than what Expo SDK 57 actually bundles/supports and
+  failed to bundle at all; pinned to the exact versions Expo's own
+  `bundledNativeModules.json` specifies (`react-native@0.86.2`,
+  `react@19.2.3`) and fixed an over-aggressive `metro.config.js` resolver
+  override (`disableHierarchicalLookup: true`) that had also broken
+  monorepo module resolution. Both platforms now export a working Hermes
+  bundle. See `M5-IMPLEMENTATION.md` §5/§26 for the full account.
+- **No iOS Simulator or Android emulator was available in the build
+  environment this milestone was implemented in** — stated explicitly
+  rather than pretending otherwise. Verification instead used
+  `expo-doctor`, `tsc`, the automated test suite, and the real Metro
+  export above; exact physical-device (Expo Go) instructions for both
+  iPhone and Android are documented for whoever verifies this next.
+- Biometrics (`expo-local-authentication`), screen-capture protection,
+  and push notifications are explicitly **not built** in M5 — dependency/
+  integration points only, each documented as a deliberate future-
+  milestone gap rather than a partial or hidden implementation.
+- App Store / Google Play preparation is documentation only (bundle id
+  `com.noor.patient`, app name "Noor") — no submission, no fabricated
+  privacy-disclosure answers, no real icon asset (the placeholder icon is
+  explicitly not a recreation of the real Noor logo, per the brief).
+- 52 new automated tests (14 backend native-auth + 38 mobile) — 297
+  total across the monorepo, zero regressions in any pre-existing suite.
+  `pnpm -w typecheck` clean across all 12 workspace projects.

@@ -11,6 +11,7 @@
     "dev:clinician": "pnpm --filter @noor/clinician dev",
     "dev:admin": "pnpm --filter @noor/admin dev",
     "dev:api": "pnpm --filter @noor/api dev",
+    "dev:mobile": "pnpm --filter @noor/mobile start",
     "build": "pnpm -r --workspace-concurrency=1 run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",

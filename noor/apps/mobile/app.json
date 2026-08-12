@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Noor",
+    "slug": "noor-patient",
+    "scheme": "noor",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon-placeholder.png",
+    "splash": {
+      "image": "./assets/icon-placeholder.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#faf5ea"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.noor.patient",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Noor can use Face ID to quickly and securely unlock the app you're already signed into."
+      }
+    },
+    "android": {
+      "package": "com.noor.patient",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon-placeholder.png",
+        "backgroundColor": "#faf5ea"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": ["expo-secure-store", "expo-splash-screen"],
+    "extra": {
+      "eas": {
+        "projectId": "NEEDS-PRODUCTION-EAS-PROJECT-ID"
+      }
+    }
+  }
+}

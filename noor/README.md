@@ -1,20 +1,23 @@
 # Noor — patient platform
 
 Noor is a behavioral-health patient engagement platform. This directory
-now includes M1 ("Foundations": monorepo scaffold, authentication, RBAC,
-ownership/care-relationship authorization, audit logging) and M2
-("Patient Onboarding + Home": landing → signup → onboarding → patient
-profile → Noor Home, for the patient app). **No clinical features exist
-yet** — no weekly check-in, no scheduling, no subscriptions, no real
-EHR/AI/payment integration, no clinical assessment or diagnosis. See
+includes M1 ("Foundations": monorepo scaffold, authentication, RBAC,
+ownership/care-relationship authorization, audit logging), M2 ("Patient
+Onboarding + Home"), M3 ("Noor Check-In": a patient-facing structured
+check-in), M4 ("Clinician Care Dashboard + Check-In Review": the first
+clinician app and the submit → review workflow), and M5 ("Native Noor
+Patient App Foundation": a real Expo/React Native patient app,
+`apps/mobile`, alongside the existing web apps). **No messaging, AI,
+scheduling, subscriptions, real EHR/payment integration, or clinical
+assessment/diagnosis exists yet.** See
 [`docs/noor/ARCHITECTURE.md`](../docs/noor/ARCHITECTURE.md) for the full
-M0 architecture, [`docs/noor/M1-IMPLEMENTATION.md`](../docs/noor/M1-IMPLEMENTATION.md)
-and [`docs/noor/M2-IMPLEMENTATION.md`](../docs/noor/M2-IMPLEMENTATION.md)
-for what's actually implemented, including known limitations.
+M0 architecture and `docs/noor/M1`–`M5-IMPLEMENTATION.md` for what's
+actually implemented at each milestone, including known limitations.
 
-**Status: M1 + M2 only. Not production-ready. Not HIPAA compliant.
-No clinical decision-making logic. No real patient data has ever touched
-this codebase — every seeded account is synthetic.**
+**Status: M1–M5. Not production-ready. Not HIPAA compliant. No clinical
+decision-making logic. No app-store submission has been made. No real
+patient data has ever touched this codebase — every seeded account is
+synthetic.**
 
 ## Quick start
 
@@ -62,7 +65,27 @@ pnpm dev:api         # http://localhost:4000
 pnpm dev             # patient app  — http://localhost:3000
 pnpm dev:clinician   # clinician app — http://localhost:3001
 pnpm dev:admin       # admin app     — http://localhost:3002
+pnpm dev:mobile      # native patient app (Expo dev server) — see below
 ```
+
+### Running the native patient app (`apps/mobile`)
+
+`pnpm dev:mobile` starts the Expo dev server. By default the app talks to
+`http://localhost:4000`; override with `EXPO_PUBLIC_API_URL` — required
+whenever the client isn't literally the same machine as the API (a
+simulator on some setups, and **always** on a physical device, where
+`localhost` means the device itself, not your dev machine):
+
+```bash
+EXPO_PUBLIC_API_URL=http://<your-LAN-IP>:4000 pnpm dev:mobile
+```
+
+Press `i`/`a` in the Expo CLI to open an iOS Simulator/Android emulator
+if you have one installed, or scan the printed QR code with the **Expo
+Go** app on a physical iPhone/Android device (same Wi-Fi network as the
+dev machine). Full architecture, native auth design, storage/PHI policy,
+and exact physical-device instructions are in
+[`docs/noor/M5-IMPLEMENTATION.md`](../docs/noor/M5-IMPLEMENTATION.md).
 
 ### Seeded dev accounts
 
@@ -101,6 +124,10 @@ DATABASE_URL=postgresql://noor_app:noor_app_dev_password@localhost:5432/noor_tes
 
 CI (`.github/workflows/noor-ci.yml`) does this automatically against a
 disposable Postgres service container on every PR touching `noor/**`.
+
+`apps/mobile`'s tests (`pnpm --filter @noor/mobile test`) run under
+`jest-expo` and need no database — they mock the native module layer
+(SecureStore, navigation) the same way any RN unit test suite does.
 
 ## Repository layout
 
