@@ -217,18 +217,123 @@ Not started — a recommendation only, per your instruction not to begin M11:
 Native IAP, App/Play Store work, and any further mobile code changes remain explicitly out of
 scope until you say otherwise.
 
+## J. 502 diagnosis and dependency fix (applied)
+
+**Result of §G Step 1 (as you ran it):** `check-access`, `generate-question`, and `verify-session`
+all returned **502 Bad Gateway**. `create-checkout` returned **405 Method Not Allowed** — the
+expected "deployed and working" response for a GET to a POST-only function.
+
+**Root cause (high confidence, local static diagnosis — Netlify's own function logs were
+unreachable, dashboard page wouldn't load):**
+`mobile-source/web-reference/package.json` declared **zero dependencies** and had no lockfile and
+no `node_modules`, even though 4 of the 5 functions do a real, runtime value import —
+`import { getStore } from "@netlify/blobs"`. `create-checkout.mts` is the one function that does
+**not** import `@netlify/blobs` (it only does `import type {...} from "@netlify/functions"`,
+which is erased entirely by the TypeScript/esbuild bundler and never needs to resolve at
+runtime) — which is exactly why it was the one function still working normally.
+
+**Supporting evidence, not just correlation:** `generate-question.mts` and `verify-session.mts`
+both have an early, completely `@netlify/blobs`-independent check as the very first thing their
+handler does (`if (req.method !== "POST") return 405`, and
+`if (!sessionId) return 400 "Missing session_id"`, respectively). Both requests still came back as
+502 instead of hitting those checks. That rules out "the Blobs call itself throws deep inside the
+handler" and points specifically at the whole module failing to load — i.e. the
+`import { getStore } from "@netlify/blobs"` line itself, at the top of the file, failing because
+the package was never declared as installable.
+
+**Fix applied (commit `fe8e1a7`, pushed to this branch):**
+- `mobile-source/web-reference/package.json` — added `@netlify/blobs: ^10.7.12` under
+  `dependencies` (it's a real runtime import in 4 of the 5 functions), and
+  `@netlify/functions: ^5.3.0` under `devDependencies` (type-only in every function — kept as a
+  dev dependency for editor/type-checking correctness, not needed at runtime).
+- `mobile-source/web-reference/package-lock.json` — generated fresh (none existed before).
+- **No function logic changed. No try/catch added. No mobile app changes. No secrets touched.**
+- Verified locally: `npm install` resolved both packages cleanly with no conflicts; a plain Node
+  `require('@netlify/blobs')` and a dynamic ESM `import('@netlify/blobs')` both succeeded.
+- Re-ran `mobile/`'s full existing suite as a safety check that the unrelated React Native app
+  wasn't affected (it wasn't touched, but confirming anyway): `tsc --noEmit` clean, `eslint .`
+  clean, `jest` — 28 suites / 343 tests, all passing.
+
+**Other causes considered and ruled out:**
+- Node version mismatch — both packages' `engines` fields (`@netlify/blobs` needs Node `^14.16.0
+  || >=16.0.0`, `@netlify/functions` needs `>=18.0.0`) are far below any plausible Netlify
+  Functions runtime version; not a plausible cause.
+- `netlify.toml` misconfiguration — `[functions] directory = "netlify/functions"` matches the
+  actual folder exactly; not the cause.
+- A bad value/format in one specific function file — ruled out by `create-checkout.mts` (no
+  `@netlify/blobs` import) working normally while all 3 `@netlify/blobs`-importing functions
+  tested all failed identically.
+- `progress.mts` was not part of the 5 safe checks (it needs a token), but shares the exact same
+  `import { getStore } from "@netlify/blobs"` shape as the 3 confirmed-failing functions — the fix
+  applies to it equally.
+
+## K. Redeployment steps for the existing `pharmdprepped` site
+
+The fix is committed and pushed to this repo's branch
+(`claude/pharmdprepped-react-native-vao3jr`, commit `fe8e1a7`) — but that alone does **not**
+redeploy anything. Which of the two steps below applies depends on §G Step 3 (still unconfirmed):
+whether the live site is git-connected, or manually/drag-and-drop deployed. Do whichever matches
+what Step 3 showed you; if you haven't checked yet, check that first — it tells you which of these
+two paths to use.
+
+### If §G Step 3 showed a connected git repository
+
+Netlify needs the fix to reach *that* repository, not necessarily this one:
+
+1. If the connected repo **is** `mysupervisely/mysupervisely1` (this repo) on this same branch —
+   Netlify should pick up commit `fe8e1a7` automatically on its next build (most Netlify git
+   integrations auto-deploy on push). Check **Deploys** in the site dashboard for a new deploy
+   labeled with that branch/commit; if `autoPublish` is off, click **Publish deploy** once it
+   finishes.
+2. If the connected repo is **different** from this one (a separate, possibly private repo that
+   actually hosts `pharmdprepped`'s source) — the same two-line fix
+   (`mobile-source/web-reference/package.json` dependencies block shown in §J, plus a fresh
+   `npm install` to produce a matching lockfile) needs to be applied there instead. I cannot do
+   this from here without that repository being added to this session. Tell me if that's the case
+   and, if you're able to, share that repo so I can apply the identical change there.
+3. Either way, after the deploy finishes: re-run §G Step 1's 5 checks.
+
+### If §G Step 3 showed no connected repository (manual/drag-and-drop deploys)
+
+1. Log into **app.netlify.com**, open the **pharmdprepped** site.
+2. Go to **Deploys** (top nav).
+3. Drag the entire `mobile-source/web-reference/` folder (from this repo, with the fix already
+   applied — i.e. as it exists in this repo right now, including the new `package-lock.json`) onto
+   the deploy area, exactly as previous manual deploys were done.
+4. Wait for the deploy to finish and show **Published**.
+5. Re-run §G Step 1's 5 checks.
+
+### Either path — what "fixed" looks like
+
+Using the exact same 5 checks already used once:
+
+| URL | Before (observed) | Expected after this fix |
+|---|---|---|
+| `/api/check-access?token=beta-test-check` | 502 | `{"valid":false}` (or another normal, non-502 JSON response) |
+| `/api/generate-question` (GET) | 502 | `Method not allowed` (405) |
+| `/api/create-checkout` (GET) | 405 (already correct) | 405 (unchanged — this one was never broken) |
+| `/api/verify-session` (no params) | 502 | `{"error":"Missing session_id"}` (400-style) |
+| `/api/verify-session?session_id=beta_test_fake_id` | 502 | `{"error":"Stripe not configured"}` or `{"valid":false}` — either is fine, just **not** 502 |
+
+If any of the three previously-502ing endpoints still 502s after a confirmed-successful
+redeploy, that means the dependency fix wasn't sufficient by itself and there's a second,
+still-undiagnosed issue — report back which specific URL(s) still fail and I'll take the next
+diagnostic step from there. **I am not re-testing these myself right now** (this environment's
+network policy still blocks direct requests to this domain) — the next step is for you to run
+these 5 checks after redeploying and report the results, per your instruction to stop here.
+
 ## WHAT I NEED TO DO
 
-1. Visit the 5 URLs in §G Step 1 (plain browser visits, nothing to log into) and tell me what
-   each one showed.
-2. Log into **app.netlify.com**, open the **pharmdprepped** site, and check **Site configuration
-   → Environment variables** for whether `ANTHROPIC_API_KEY`, `STRIPE_SECRET_KEY`, and
-   `STRIPE_PRICE_ID` are listed (§G Step 2) — add any that are missing directly in Netlify's UI,
-   never here.
-3. If you added/changed any variable in step 2: **Deploys → Trigger deploy → Deploy site**.
-4. Optional, informational only: check **Site configuration → Build & deploy → Continuous
-   deployment** (§G Step 3) to see whether this site is connected to a git repo, and tell me if it
-   is (and which one) — no action needed either way, just useful to know.
+1. If not already known: check **Site configuration → Build & deploy → Continuous deployment**
+   (§G Step 3) to see whether `pharmdprepped` is git-connected or manually deployed — this decides
+   which of §K's two redeployment paths to use.
+2. Redeploy using whichever §K path applies (auto-deploy / publish a pending deploy / manual
+   drag-and-drop of `mobile-source/web-reference/`).
+3. Re-run the 5 §G Step 1 checks (also restated in §K) and tell me the results.
+4. Still separately, whenever convenient: confirm in **Site configuration → Environment
+   variables** whether `ANTHROPIC_API_KEY`, `STRIPE_SECRET_KEY`, and `STRIPE_PRICE_ID` are set
+   (§G Step 2) — the dependency fix alone won't produce fully "working" responses from
+   `generate-question`/`create-checkout` if those are still missing, only non-502 responses.
 
-Nothing else. No Expo account, no Apple Developer account, no code changes — those come later,
-once the backend is confirmed working.
+Nothing else. No Expo account, no Apple Developer account, no further code changes — waiting on
+the post-redeploy check results before anything else happens.
